@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* LMS Design System - Professional & Minimal */
+
+@layer base {
+  :root {
+    /* Core Background & Text */
+    --background: 0 0% 99%;
+    --foreground: 210 12% 16%;
+    
+    /* LMS Brand Colors */
+    --primary: 217 89% 61%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 89% 55%;
+    --primary-light: 217 89% 95%;
+    
+    /* Professional Grays */
+    --secondary: 210 6% 93%;
+    --secondary-foreground: 210 12% 16%;
+    --muted: 210 6% 97%;
+    --muted-foreground: 210 12% 45%;
+    
+    /* Accent Colors for Status */
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 142 76% 95%;
+    
+    /* Warning & Error */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 84% 95%;
+    
+    /* UI Elements */
+    --card: 0 0% 100%;
+    --card-foreground: 210 12% 16%;
+    --border: 210 12% 90%;
+    --input: 210 12% 95%;
+    --ring: 217 89% 61%;
+    --radius: 0.75rem;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 89% 61%), hsl(217 89% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 6% 98%));
+    
+    /* Shadows */
+    --shadow-soft: 0 1px 3px 0 hsl(210 12% 16% / 0.1);
+    --shadow-medium: 0 4px 6px -1px hsl(210 12% 16% / 0.1);
+    --shadow-large: 0 10px 15px -3px hsl(210 12% 16% / 0.1);
+    
+    /* Animations */
+    --transition-fast: all 0.15s ease;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 210 12% 6%;
+    --foreground: 210 6% 93%;
+    --card: 210 12% 8%;
+    --card-foreground: 210 6% 93%;
+    --border: 210 12% 20%;
+    --input: 210 12% 15%;
+    --primary: 217 89% 65%;
+    --primary-foreground: 210 12% 6%;
+    --secondary: 210 12% 15%;
+    --secondary-foreground: 210 6% 93%;
+    --muted: 210 12% 12%;
+    --muted-foreground: 210 12% 60%;
+    --accent: 142 76% 40%;
+    --accent-foreground: 210 12% 6%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 210 12% 6%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+@layer components {
+  /* Professional card variants */
+  .card-elevated {
+    @apply bg-card border border-border rounded-lg shadow-[var(--shadow-medium)];
+  }
+  
+  .card-interactive {
+    @apply card-elevated transition-[var(--transition-smooth)] hover:shadow-[var(--shadow-large)] hover:-translate-y-0.5;
+  }
+  
+  /* Status indicators */
+  .status-success {
+    @apply bg-accent/10 text-accent border border-accent/20;
+  }
+  
+  .status-warning {
+    @apply bg-warning/10 text-warning border border-warning/20;
+  }
+  
+  .status-error {
+    @apply bg-destructive/10 text-destructive border border-destructive/20;
+  }
+  
+  /* Progress bars */
+  .progress-bg {
+    @apply bg-muted rounded-full overflow-hidden;
+  }
+  
+  .progress-fill {
+    @apply bg-gradient-to-r from-primary to-primary-hover rounded-full transition-[var(--transition-smooth)];
+  }
+}
