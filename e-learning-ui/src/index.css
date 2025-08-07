@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+var:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,75 +8,102 @@
 
 @layer base {
   :root {
-    /* Core Background & Text */
-    --background: 0 0% 99%;
-    --foreground: 210 12% 16%;
+    /* Light Mode Neutral Colors */
+    --background: 0 0% 100%; /* White */
+    --foreground: 220 10% 10%; /* Dark Grey / Near Black */
     
-    /* LMS Brand Colors */
-    --primary: 217 89% 61%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 217 89% 55%;
-    --primary-light: 217 89% 95%;
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 220 10% 10%; /* Dark Grey */
     
-    /* Professional Grays */
-    --secondary: 210 6% 93%;
-    --secondary-foreground: 210 12% 16%;
-    --muted: 210 6% 97%;
-    --muted-foreground: 210 12% 45%;
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 220 10% 10%; /* Dark Grey */
     
-    /* Accent Colors for Status */
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 100%;
-    --accent-light: 142 76% 95%;
+    --primary: 220 5% 30%; /* Dark Grey for primary actions (buttons, etc.) */
+    --primary-foreground: 0 0% 100%; /* White text on dark grey */
+    --primary-hover: 220 5% 20%;
+    --primary-light: 220 5% 90%;
     
-    /* Warning & Error */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --warning-light: 38 92% 95%;
+    --secondary: 220 5% 95%; /* Light Grey */
+    --secondary-foreground: 220 10% 20%; /* Darker Grey */
     
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --accent-neutral: 220 5% 90%; /* Grey for hover/active states */
+    --accent-neutral-foreground: 220 10% 10%; /* Dark Grey */
+    --accent-neutral-light: 220 5% 98%;
+    
+    /* Subtle Orange Accent */
+    --accent-orange: 25 95% 50%;
+    --accent-orange-foreground: 0 0% 100%;
+    --accent-orange-light: 25 95% 95%;
+    
+    --destructive: 0 84% 60%; /* Red for errors */
+    --destructive-foreground: 0 0% 100%; /* White */
     --destructive-light: 0 84% 95%;
     
-    /* UI Elements */
-    --card: 0 0% 100%;
-    --card-foreground: 210 12% 16%;
-    --border: 210 12% 90%;
-    --input: 210 12% 95%;
-    --ring: 217 89% 61%;
-    --radius: 0.75rem;
+    --border: 220 5% 85%; /* Light Grey border */
+    --input: 220 5% 92%; /* Slightly darker light grey input */
+    --ring: 220 5% 40%; /* Medium Grey ring focus */
     
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(217 89% 61%), hsl(217 89% 55%));
-    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 6% 98%));
+    --radius: 0.5rem; /* Consistent border radius */
     
-    /* Shadows */
-    --shadow-soft: 0 1px 3px 0 hsl(210 12% 16% / 0.1);
-    --shadow-medium: 0 4px 6px -1px hsl(210 12% 16% / 0.1);
-    --shadow-large: 0 10px 15px -3px hsl(210 12% 16% / 0.1);
-    
-    /* Animations */
-    --transition-fast: all 0.15s ease;
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Sidebar Specifics (adjust to new palette) */
+    --sidebar-background: 220 5% 98%;
+    --sidebar-foreground: 220 10% 20%;
+    --sidebar-primary: 220 5% 30%; /* Neutral primary for sidebar */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 5% 90%;
+    --sidebar-accent-foreground: 220 10% 10%;
+    --sidebar-border: 220 5% 80%;
+    --sidebar-ring: 220 5% 40%;
   }
 
   .dark {
-    --background: 210 12% 6%;
-    --foreground: 210 6% 93%;
-    --card: 210 12% 8%;
-    --card-foreground: 210 6% 93%;
-    --border: 210 12% 20%;
-    --input: 210 12% 15%;
-    --primary: 217 89% 65%;
-    --primary-foreground: 210 12% 6%;
-    --secondary: 210 12% 15%;
-    --secondary-foreground: 210 6% 93%;
-    --muted: 210 12% 12%;
-    --muted-foreground: 210 12% 60%;
-    --accent: 142 76% 40%;
-    --accent-foreground: 210 12% 6%;
-    --destructive: 0 84% 65%;
-    --destructive-foreground: 210 12% 6%;
+    /* Dark Mode Neutral Colors */
+    --background: 220 10% 10%; /* Dark Grey / Near Black */
+    --foreground: 0 0% 95%; /* Off-White */
+    
+    --card: 220 10% 15%; /* Slightly lighter dark grey */
+    --card-foreground: 0 0% 95%; /* Off-White */
+    
+    --popover: 220 10% 15%; /* Slightly lighter dark grey */
+    --popover-foreground: 0 0% 95%; /* Off-White */
+    
+    --primary: 220 5% 60%; /* Lighter Grey for primary actions (buttons, etc.) */
+    --primary-foreground: 220 10% 10%; /* Dark Grey text on lighter grey */
+    --primary-hover: 220 5% 50%;
+    --primary-light: 220 5% 20%;
+    
+    --secondary: 220 5% 20%; /* Darker Grey */
+    --secondary-foreground: 0 0% 90%; /* Lighter Grey */
+    
+    --muted: 220 5% 15%; /* Dark Grey */
+    --muted-foreground: 220 5% 60%; /* Medium Grey */
+    
+    --accent-neutral: 220 5% 25%; /* Grey for hover/active states */
+    --accent-neutral-foreground: 0 0% 95%; /* Off-White */
+    --accent-neutral-light: 220 5% 18%;
+    
+    /* Subtle Orange Accent */
+    --accent-orange: 25 95% 50%;
+    --accent-orange-foreground: 0 0% 100%;
+    --accent-orange-light: 25 95% 20%;
+    
+    --destructive: 0 84% 60%; /* Red for errors */
+    --destructive-foreground: 0 0% 100%; /* White */
+    --destructive-light: 0 84% 30%;
+    
+    --border: 220 5% 30%; /* Dark Grey border */
+    --input: 220 5% 25%; /* Slightly lighter dark grey input */
+    --ring: 220 5% 40%; /* Medium Grey ring focus */
+    
+    /* Sidebar Specifics (adjust to new palette) */
+    --sidebar-background: 220 10% 12%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 220 5% 60%; /* Neutral primary for sidebar */
+    --sidebar-primary-foreground: 220 10% 10%;
+    --sidebar-accent: 220 5% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 220 5% 35%;
+    --sidebar-ring: 220 5% 40%;
   }
 }
 
@@ -87,7 +114,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Inter var', system-ui, sans-serif;
   }
   
   /* Custom scrollbar */
@@ -111,20 +138,16 @@
 @layer components {
   /* Professional card variants */
   .card-elevated {
-    @apply bg-card border border-border rounded-lg shadow-[var(--shadow-medium)];
+    @apply bg-card border border-border rounded-lg shadow-sm; /* Use a more subtle shadow */
   }
   
   .card-interactive {
-    @apply card-elevated transition-[var(--transition-smooth)] hover:shadow-[var(--shadow-large)] hover:-translate-y-0.5;
+    @apply card-elevated transition-colors hover:bg-muted;
   }
   
-  /* Status indicators */
+  /* Status indicators - simplified to only use accent-neutral colors */
   .status-success {
-    @apply bg-accent/10 text-accent border border-accent/20;
-  }
-  
-  .status-warning {
-    @apply bg-warning/10 text-warning border border-warning/20;
+    @apply bg-accent-neutral/10 text-accent-neutral border border-accent-neutral/20;
   }
   
   .status-error {
@@ -137,6 +160,6 @@
   }
   
   .progress-fill {
-    @apply bg-gradient-to-r from-primary to-primary-hover rounded-full transition-[var(--transition-smooth)];
+    @apply bg-accent-neutral rounded-full transition-all;
   }
 }

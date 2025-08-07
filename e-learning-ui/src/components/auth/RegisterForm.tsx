@@ -56,12 +56,12 @@ const RegisterForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-light to-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
       <Card className="w-full max-w-md card-elevated">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary rounded-full">
-              <GraduationCap className="h-8 w-8 text-primary-foreground" />
+            <div className="p-3 bg-accent-orange rounded-full">
+              <GraduationCap className="h-8 w-8 text-accent-orange-foreground" />
             </div>
           </div>
           <CardTitle className="text-2xl font-semibold">Join Our Platform</CardTitle>
@@ -176,7 +176,7 @@ const RegisterForm: React.FC = () => {
               Already have an account?{' '}
               <Link
                 to="/login"
-                className="text-primary hover:text-primary-hover font-medium transition-[var(--transition-fast)]"
+                className="text-foreground hover:text-muted-foreground font-medium transition-[var(--transition-fast)]"
               >
                 Sign in
               </Link>

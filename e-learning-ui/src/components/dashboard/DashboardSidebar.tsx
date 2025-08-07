@@ -89,8 +89,8 @@ const DashboardSidebar: React.FC = () => {
       {/* Logo Section */}
       <div className="p-6 border-b border-border">
         <Link to="/dashboard" className="flex items-center space-x-3">
-          <div className="p-2 bg-primary rounded-lg">
-            <GraduationCap className="h-6 w-6 text-primary-foreground" />
+          <div className="p-2 bg-secondary rounded-lg">
+            <GraduationCap className="h-6 w-6 text-secondary-foreground" />
           </div>
           <div>
             <h1 className="text-lg font-semibold text-foreground">EduPlatform</h1>
@@ -113,7 +113,7 @@ const DashboardSidebar: React.FC = () => {
                   className={cn(
                     'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-[var(--transition-fast)]',
                     isActive
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-accent-neutral text-accent-neutral-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
                 >

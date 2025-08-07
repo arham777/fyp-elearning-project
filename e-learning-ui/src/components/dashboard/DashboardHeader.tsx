@@ -2,8 +2,11 @@ import React from 'react';
 import { Bell, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { useTheme } from "next-themes";
 
 const DashboardHeader: React.FC = () => {
+  const { theme, setTheme } = useTheme();
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
       <div className="flex items-center space-x-4 flex-1">
@@ -20,6 +23,16 @@ const DashboardHeader: React.FC = () => {
         <Button variant="ghost" size="icon">
           <Bell className="h-5 w-5" />
         </Button>
+        <div className="flex items-center space-x-2">
+            <span className="text-sm text-muted-foreground">Light</span>
+            <Switch
+                checked={theme === "dark"}
+                onCheckedChange={(checked) => {
+                    setTheme(checked ? "dark" : "light");
+                }}
+            />
+            <span className="text-sm text-muted-foreground">Dark</span>
+        </div>
       </div>
     </header>
   );
