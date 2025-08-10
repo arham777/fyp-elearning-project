@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, BookOpen, ClipboardList, TrendingUp, Plus, Eye } from 'lucide-react';
+import { Users, BookOpen, ClipboardList, TrendingUp, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const TeacherDashboard: React.FC = () => {
@@ -14,7 +14,7 @@ const TeacherDashboard: React.FC = () => {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
-            Welcome, Professor {user?.last_name}!
+            Welcome, Professor {user?.first_name || user?.username}!
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage your courses and track student progress.
@@ -36,10 +36,8 @@ const TeacherDashboard: React.FC = () => {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl font-semibold">12</div>
-            <p className="text-[11px] text-muted-foreground">
-              3 published this month
-            </p>
+            <div className="text-xl font-semibold">0</div>
+            <p className="text-[11px] text-muted-foreground">No courses created yet</p>
           </CardContent>
         </Card>
 
@@ -49,10 +47,8 @@ const TeacherDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl font-semibold">284</div>
-            <p className="text-[11px] text-muted-foreground">
-              +18 this week
-            </p>
+            <div className="text-xl font-semibold">0</div>
+            <p className="text-[11px] text-muted-foreground">No students yet</p>
           </CardContent>
         </Card>
 
@@ -62,10 +58,8 @@ const TeacherDashboard: React.FC = () => {
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl font-semibold">7</div>
-            <p className="text-[11px] text-muted-foreground">
-              Assignments to grade
-            </p>
+            <div className="text-xl font-semibold">0</div>
+            <p className="text-[11px] text-muted-foreground">No assignments to grade</p>
           </CardContent>
         </Card>
 
@@ -75,10 +69,8 @@ const TeacherDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl font-semibold">4.8</div>
-            <p className="text-[11px] text-muted-foreground">
-              Average rating
-            </p>
+            <div className="text-xl font-semibold">0.0</div>
+            <p className="text-[11px] text-muted-foreground">Average rating</p>
           </CardContent>
         </Card>
       </div>
@@ -93,33 +85,18 @@ const TeacherDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { title: 'Advanced React Patterns', students: 45, status: 'Published' },
-              { title: 'TypeScript Fundamentals', students: 32, status: 'Draft' },
-              { title: 'API Design Principles', students: 67, status: 'Published' },
-            ].map((course, index) => (
-              <div key={index} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm line-clamp-1">{course.title}</h4>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-[11px] text-muted-foreground">
-                      {course.students} students
-                    </span>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full ${
-                      course.status === 'Published'
-                        ? 'bg-accent-light text-foreground'
-                        : 'bg-muted text-ink/60'
-                    }`}>
-                      {course.status}
-                    </span>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline">
-                  <Eye className="h-4 w-4 mr-1" />
-                  View
-                </Button>
+            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+              <div>
+                <h4 className="font-medium text-sm">No courses created</h4>
+                <p className="text-[11px] text-muted-foreground">Create your first course to get started.</p>
               </div>
-            ))}
+              <Button asChild size="sm">
+                <Link to="/create-course">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Create
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -132,22 +109,10 @@ const TeacherDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { student: 'John Smith', assignment: 'React Project', course: 'Advanced React', submitted: '2 hours ago' },
-              { student: 'Sarah Johnson', assignment: 'TypeScript Quiz', course: 'TypeScript Fundamentals', submitted: '1 day ago' },
-              { student: 'Mike Chen', assignment: 'API Documentation', course: 'API Design', submitted: '2 days ago' },
-            ].map((item, index) => (
-              <div key={index} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm line-clamp-1">{item.assignment}</h4>
-                  <p className="text-[11px] text-muted-foreground">
-                    by {item.student} • {item.course}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">{item.submitted}</p>
-                </div>
-                <Button size="sm">Grade</Button>
-              </div>
-            ))}
+            <div className="p-3 rounded-md bg-muted/50">
+              <h4 className="font-medium text-sm">No submissions yet</h4>
+              <p className="text-[11px] text-muted-foreground">You'll see recent student work here.</p>
+            </div>
           </CardContent>
         </Card>
       </div>
