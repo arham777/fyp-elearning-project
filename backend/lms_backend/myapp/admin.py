@@ -6,18 +6,21 @@ from .models import (
 )
 
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'role', 'created_at', 'is_staff', 'is_superuser')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'created_at', 'is_staff', 'is_superuser')
     list_filter = ('role', 'is_staff', 'is_superuser')
     fieldsets = (
         (None, {'fields': ('username', 'email', 'password')}),
-        ('Personal Info', {'fields': ('role',)}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'role')}),
         ('Permissions', {'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('created_at',)}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'role', 'is_staff', 'is_superuser'),
+            'fields': (
+                'username', 'email', 'first_name', 'last_name',
+                'password1', 'password2', 'role', 'is_staff', 'is_superuser'
+            ),
         }),
     )
     search_fields = ('username', 'email')

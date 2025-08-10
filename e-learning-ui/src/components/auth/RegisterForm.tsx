@@ -6,16 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { RegisterData, UserRole } from '@/types';
+import { RegisterData } from '@/types';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
 
 const RegisterForm: React.FC = () => {
   const [formData, setFormData] = useState<RegisterData>({
     username: '',
     email: '',
-    password: '',
     first_name: '',
     last_name: '',
+    password: '',
+    confirm_password: '',
     role: 'student',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -28,10 +29,16 @@ const RegisterForm: React.FC = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    if (formData.password !== formData.confirm_password) {
+      // Simple client-side validation
+      alert('Passwords do not match');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await register(formData);
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       // Error is handled in the auth context
     } finally {
@@ -48,7 +55,7 @@ const RegisterForm: React.FC = () => {
     }));
   };
 
-  const handleRoleChange = (role: UserRole) => {
+  const handleRoleChange = (role: RegisterData['role']) => {
     setFormData(prev => ({
       ...prev,
       role,
@@ -71,26 +78,24 @@ const RegisterForm: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first_name">First Name</Label>
+                <Label htmlFor="first_name">First name</Label>
                 <Input
                   id="first_name"
                   type="text"
                   value={formData.first_name}
                   onChange={handleChange('first_name')}
-                  required
                   placeholder="John"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last_name">Last Name</Label>
+                <Label htmlFor="last_name">Last name</Label>
                 <Input
                   id="last_name"
                   type="text"
                   value={formData.last_name}
                   onChange={handleChange('last_name')}
-                  required
                   placeholder="Doe"
                 />
               </div>
@@ -129,7 +134,6 @@ const RegisterForm: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="student">Student</SelectItem>
                   <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="admin">Administrator</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -160,6 +164,18 @@ const RegisterForm: React.FC = () => {
                   )}
                 </Button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm_password">Confirm Password</Label>
+              <Input
+                id="confirm_password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.confirm_password}
+                onChange={handleChange('confirm_password')}
+                required
+                placeholder="Re-enter your password"
+              />
             </div>
 
             <Button

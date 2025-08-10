@@ -57,74 +57,66 @@ const StudentDashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Welcome Section */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          Welcome back, {user?.first_name}!
+        <h1 className="text-2xl font-semibold text-foreground">
+          Welcome back, {user?.first_name || user?.username}!
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-sm text-muted-foreground mt-1">
           Continue your learning journey and explore new courses.
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="card-elevated">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Enrolled Courses</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-medium">Enrolled Courses</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{enrollments.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {inProgressCourses} in progress
-            </p>
+          <CardContent className="pt-0">
+            <div className="text-xl font-semibold">{enrollments.length}</div>
+            <p className="text-[11px] text-muted-foreground">{inProgressCourses} in progress</p>
           </CardContent>
         </Card>
 
         <Card className="card-elevated">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-medium">Completed</CardTitle>
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{completedCourses}</div>
-            <p className="text-xs text-muted-foreground">
-              Courses finished
-            </p>
+          <CardContent className="pt-0">
+            <div className="text-xl font-semibold">{completedCourses}</div>
+            <p className="text-[11px] text-muted-foreground">Courses finished</p>
           </CardContent>
         </Card>
 
         <Card className="card-elevated">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Study Time</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-medium">Study Time</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">24h</div>
-            <p className="text-xs text-muted-foreground">
-              This month
-            </p>
+          <CardContent className="pt-0">
+            <div className="text-xl font-semibold">24h</div>
+            <p className="text-[11px] text-muted-foreground">This month</p>
           </CardContent>
         </Card>
 
         <Card className="card-elevated">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progress</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-medium">Progress</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="pt-0">
+            <div className="text-xl font-semibold">
               {enrollments.length > 0 
                 ? Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)
                 : 0}%
             </div>
-            <p className="text-xs text-muted-foreground">
-              Average completion
-            </p>
+            <p className="text-[11px] text-muted-foreground">Average completion</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Continue Learning */}
         <Card className="card-elevated">
           <CardHeader>
@@ -136,14 +128,14 @@ const StudentDashboard: React.FC = () => {
               Pick up where you left off
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {enrollments.filter(e => e.progress > 0 && e.progress < 100).slice(0, 3).map((enrollment) => (
-              <div key={enrollment.id} className="flex items-center space-x-4 p-3 rounded-lg bg-muted/50">
+              <div key={enrollment.id} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
                 <div className="flex-1">
-                  <h4 className="font-medium text-sm">{enrollment.course.title}</h4>
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Progress value={enrollment.progress} className="flex-1" />
-                    <span className="text-xs text-muted-foreground">{enrollment.progress}%</span>
+                  <h4 className="font-medium text-sm line-clamp-1">{enrollment.course.title}</h4>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Progress value={enrollment.progress} className="h-2 flex-1" />
+                    <span className="text-[11px] text-muted-foreground">{enrollment.progress}%</span>
                   </div>
                 </div>
                 <Button size="sm" asChild>
@@ -155,8 +147,8 @@ const StudentDashboard: React.FC = () => {
             ))}
             
             {enrollments.filter(e => e.progress > 0 && e.progress < 100).length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <div className="text-center py-6 text-muted-foreground">
+                <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No courses in progress</p>
                 <Button variant="outline" size="sm" className="mt-2" asChild>
                   <Link to="/courses">Browse Courses</Link>
@@ -174,20 +166,20 @@ const StudentDashboard: React.FC = () => {
               Courses you might be interested in
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {recommendedCourses.map((course) => (
-              <div key={course.id} className="flex items-center space-x-4 p-3 rounded-lg bg-muted/50">
+              <div key={course.id} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
                 <div className="flex-1">
-                  <h4 className="font-medium text-sm">{course.title}</h4>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                  <h4 className="font-medium text-sm line-clamp-1">{course.title}</h4>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">
                     {course.description}
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-[11px]">
                       ${course.price}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      by {course.teacher.first_name} {course.teacher.last_name}
+                    <span className="text-[11px] text-muted-foreground">
+                      by {course.teacher.first_name || course.teacher.username} {course.teacher.last_name || ''}
                     </span>
                   </div>
                 </div>
@@ -211,10 +203,10 @@ const StudentDashboard: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+          <div className="text-center py-6 text-muted-foreground">
+            <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
             <p>No upcoming assignments</p>
-            <p className="text-xs">You're all caught up!</p>
+            <p className="text-[11px]">You're all caught up!</p>
           </div>
         </CardContent>
       </Card>

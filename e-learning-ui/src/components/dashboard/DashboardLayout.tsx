@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import DashboardSidebar from './DashboardSidebar';
 import DashboardHeader from './DashboardHeader';
 
 const DashboardLayout: React.FC = () => {
@@ -13,13 +12,10 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      <div className="pl-64">
-        <DashboardHeader />
-        <main className="p-6">
-          <Outlet />
-        </main>
-      </div>
+      <DashboardHeader />
+      <main className="p-4">
+        <Outlet />
+      </main>
     </div>
   );
 };

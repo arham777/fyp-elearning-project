@@ -6,10 +6,7 @@ interface LoginResponse {
   user: User;
 }
 
-interface RegisterResponse {
-  tokens: AuthTokens;
-  user: User;
-}
+type RegisterResponse = User;
 
 export const authApi = {
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
@@ -38,8 +35,18 @@ export const authApi = {
   },
 
   async register(data: RegisterData): Promise<RegisterResponse> {
-    const response = await apiClient.post('/users/register/', data);
-    return response.data;
+    // Send only fields accepted by the backend
+    const payload = {
+      username: data.username,
+      email: data.email,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      password: data.password,
+      confirm_password: data.confirm_password,
+      role: data.role,
+    };
+    const response = await apiClient.post('/register/', payload);
+    return response.data as User;
   },
 
   async getProfile(): Promise<User> {

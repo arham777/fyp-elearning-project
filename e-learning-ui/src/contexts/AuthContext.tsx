@@ -70,9 +70,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (data: RegisterData) => {
     try {
       setIsLoading(true);
-      const response = await authApi.register(data);
-      setTokens(response.tokens);
-      setUser(response.user);
+      const user = await authApi.register(data);
+      // After registration, perform login flow to get tokens
+      const loginResp = await authApi.login({
+        usernameOrEmail: data.username || data.email,
+        password: data.password,
+      });
+      setTokens(loginResp.tokens);
+      setUser(loginResp.user);
       toast({
         title: "Account created!",
         description: "Welcome to the Learning Management System.",

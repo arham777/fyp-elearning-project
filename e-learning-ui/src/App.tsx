@@ -11,6 +11,7 @@ import StudentDashboard from "@/pages/StudentDashboard";
 import TeacherDashboard from "@/pages/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
 import NotFound from "@/pages/NotFound";
+import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 
 const queryClient = new QueryClient();
@@ -60,32 +61,29 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
-              
-              {/* Protected Routes */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }>
+
+              {/* Protected App Shell at root */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                {/* Home dashboard at / */}
                 <Route index element={<RoleDashboard />} />
+
+                {/* Top-level sections */}
                 <Route path="courses" element={<CoursesCatalog />} />
+                <Route path="courses/:id" element={<div>Course Detail - Coming Soon</div>} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
                 <Route path="create-course" element={<div>Create Course - Coming Soon</div>} />
                 <Route path="students" element={<div>Students - Coming Soon</div>} />
                 <Route path="users" element={<div>User Management - Coming Soon</div>} />
                 <Route path="settings" element={<div>Settings - Coming Soon</div>} />
-                <Route path="profile" element={<div>Profile - Coming Soon</div>} />
-              </Route>
-
-              <Route path="/courses" element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }>
-                <Route index element={<CoursesCatalog />} />
-                <Route path=":id" element={<div>Course Detail - Coming Soon</div>} />
+                <Route path="profile" element={<Profile />} />
               </Route>
 
               {/* Catch-all route */}

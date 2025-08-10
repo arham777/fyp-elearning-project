@@ -48,8 +48,8 @@ const CoursesCatalog: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Course Catalog</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl font-semibold text-foreground">Course Catalog</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Discover and enroll in courses to expand your knowledge.
         </p>
       </div>
@@ -72,24 +72,24 @@ const CoursesCatalog: React.FC = () => {
       </div>
 
       {/* Course Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {courses.map((course) => (
           <Card key={course.id} className="card-interactive">
             {/* Course Thumbnail */}
             <div className="aspect-video bg-gradient-to-br from-primary/10 to-primary/5 rounded-t-lg flex items-center justify-center">
-              <div className="text-primary text-4xl font-bold">
+              <div className="text-primary text-3xl font-semibold">
                 {course.title.charAt(0)}
               </div>
             </div>
 
             <CardHeader>
               <div className="flex items-start justify-between">
-                <CardTitle className="text-lg leading-tight">{course.title}</CardTitle>
+                <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
                 <Badge variant="secondary" className="ml-2">
                   ${course.price}
                 </Badge>
               </div>
-              <CardDescription className="line-clamp-2">
+              <CardDescription className="text-sm line-clamp-2">
                 {course.description}
               </CardDescription>
             </CardHeader>
@@ -114,25 +114,26 @@ const CoursesCatalog: React.FC = () => {
 
                 {/* Instructor */}
                 <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-medium">
-                    {course.teacher.first_name.charAt(0)}{course.teacher.last_name.charAt(0)}
+                  <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-[11px] font-medium">
+                    {(course.teacher.first_name || course.teacher.username).charAt(0)}
+                    {course.teacher.last_name ? course.teacher.last_name.charAt(0) : ''}
                   </div>
                   <div>
-                    <p className="text-sm font-medium">
-                      {course.teacher.first_name} {course.teacher.last_name}
+                    <p className="text-sm font-medium line-clamp-1">
+                      {course.teacher.first_name || course.teacher.username} {course.teacher.last_name || ''}
                     </p>
-                    <p className="text-xs text-muted-foreground">Instructor</p>
+                    <p className="text-[11px] text-muted-foreground">Instructor</p>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex space-x-2">
-                  <Button asChild className="flex-1">
+                  <Button asChild className="h-9 flex-1">
                     <Link to={`/courses/${course.id}`}>
                       View Course
                     </Link>
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="h-9">
                     Preview
                   </Button>
                 </div>

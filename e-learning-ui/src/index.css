@@ -8,102 +8,120 @@
 
 @layer base {
   :root {
-    /* Light Mode Neutral Colors */
-    --background: 0 0% 100%; /* White */
-    --foreground: 220 10% 10%; /* Dark Grey / Near Black */
-    
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 220 10% 10%; /* Dark Grey */
-    
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 220 10% 10%; /* Dark Grey */
-    
-    --primary: 220 5% 30%; /* Dark Grey for primary actions (buttons, etc.) */
-    --primary-foreground: 0 0% 100%; /* White text on dark grey */
-    --primary-hover: 220 5% 20%;
-    --primary-light: 220 5% 90%;
-    
-    --secondary: 220 5% 95%; /* Light Grey */
-    --secondary-foreground: 220 10% 20%; /* Darker Grey */
-    
-    --accent-neutral: 220 5% 90%; /* Grey for hover/active states */
-    --accent-neutral-foreground: 220 10% 10%; /* Dark Grey */
-    --accent-neutral-light: 220 5% 98%;
-    
-    /* Subtle Orange Accent */
+    /* Light Mode Neutral Colors (mapped to provided palette) */
+    /* Base neutrals provided: #000000, #0a0a0a, #171717, #8f8f8f, #cfcfcf, #e5e5e5 */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%; /* #000000 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%; /* #000000 */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    /* Action neutrals */
+    --primary: 0 0% 9%; /* #171717 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 0 0% 4%; /* #0a0a0a */
+    --primary-light: 0 0% 81%; /* #cfcfcf */
+
+    --secondary: 0 0% 90%; /* #e5e5e5 */
+    --secondary-foreground: 0 0% 9%; /* #171717 */
+
+    /* Muted neutrals */
+    --muted: 0 0% 90%; /* #e5e5e5 */
+    --muted-foreground: 0 0% 56%; /* #8f8f8f */
+
+    /* Neutral accent (no hue) */
+    --accent-neutral: 0 0% 90%; /* #e5e5e5 */
+    --accent-neutral-foreground: 0 0% 9%; /* #171717 */
+    --accent-neutral-light: 0 0% 81%; /* #cfcfcf */
+
+    /* Subtle Orange Accent (kept as-is) */
     --accent-orange: 25 95% 50%;
     --accent-orange-foreground: 0 0% 100%;
     --accent-orange-light: 25 95% 95%;
-    
-    --destructive: 0 84% 60%; /* Red for errors */
-    --destructive-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
     --destructive-light: 0 84% 95%;
-    
-    --border: 220 5% 85%; /* Light Grey border */
-    --input: 220 5% 92%; /* Slightly darker light grey input */
-    --ring: 220 5% 40%; /* Medium Grey ring focus */
-    
-    --radius: 0.5rem; /* Consistent border radius */
-    
-    /* Sidebar Specifics (adjust to new palette) */
-    --sidebar-background: 220 5% 98%;
-    --sidebar-foreground: 220 10% 20%;
-    --sidebar-primary: 220 5% 30%; /* Neutral primary for sidebar */
+
+    /* Structure */
+    --border: 0 0% 81%; /* #cfcfcf */
+    --input: 0 0% 90%; /* #e5e5e5 */
+    --ring: 0 0% 56%; /* #8f8f8f */
+
+    /* Common neutrals */
+    --ink: 0 0% 9%; /* #171717 base for alpha tints */
+    /* Overlays (use provided #171717 at 80%) */
+    --overlay: 0 0% 9% / 0.8; /* #171717, 80% */
+
+    --radius: 0.5rem;
+
+    /* Sidebar Specifics */
+    --sidebar-background: 0 0% 95%; /* between #e5e5e5 and white */
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 0 0% 9%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 5% 90%;
-    --sidebar-accent-foreground: 220 10% 10%;
-    --sidebar-border: 220 5% 80%;
-    --sidebar-ring: 220 5% 40%;
+    --sidebar-accent: 0 0% 90%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 81%;
+    --sidebar-ring: 0 0% 56%;
   }
 
   .dark {
-    /* Dark Mode Neutral Colors */
-    --background: 220 10% 10%; /* Dark Grey / Near Black */
-    --foreground: 0 0% 95%; /* Off-White */
-    
-    --card: 220 10% 15%; /* Slightly lighter dark grey */
-    --card-foreground: 0 0% 95%; /* Off-White */
-    
-    --popover: 220 10% 15%; /* Slightly lighter dark grey */
-    --popover-foreground: 0 0% 95%; /* Off-White */
-    
-    --primary: 220 5% 60%; /* Lighter Grey for primary actions (buttons, etc.) */
-    --primary-foreground: 220 10% 10%; /* Dark Grey text on lighter grey */
-    --primary-hover: 220 5% 50%;
-    --primary-light: 220 5% 20%;
-    
-    --secondary: 220 5% 20%; /* Darker Grey */
-    --secondary-foreground: 0 0% 90%; /* Lighter Grey */
-    
-    --muted: 220 5% 15%; /* Dark Grey */
-    --muted-foreground: 220 5% 60%; /* Medium Grey */
-    
-    --accent-neutral: 220 5% 25%; /* Grey for hover/active states */
-    --accent-neutral-foreground: 0 0% 95%; /* Off-White */
-    --accent-neutral-light: 220 5% 18%;
-    
-    /* Subtle Orange Accent */
+    /* Dark Mode Neutral Colors (mapped to provided palette) */
+    --background: 0 0% 4%; /* #0a0a0a */
+    --foreground: 0 0% 90%; /* #e5e5e5 */
+
+    --card: 0 0% 9%; /* #171717 */
+    --card-foreground: 0 0% 90%;
+
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 90%;
+
+    --primary: 0 0% 81%; /* #cfcfcf */
+    --primary-foreground: 0 0% 9%; /* #171717 */
+    --primary-hover: 0 0% 90%; /* #e5e5e5 */
+    --primary-light: 0 0% 56%; /* #8f8f8f */
+
+    --secondary: 0 0% 15%; /* between #0a0a0a and #171717 */
+    --secondary-foreground: 0 0% 81%;
+
+    --muted: 0 0% 12%; /* near #0a0a0a/#171717 */
+    --muted-foreground: 0 0% 56%; /* #8f8f8f */
+
+    --accent-neutral: 0 0% 20%; /* #171717 ~20% */
+    --accent-neutral-foreground: 0 0% 90%;
+    --accent-neutral-light: 0 0% 12%;
+
+    /* Orange accent preserved */
     --accent-orange: 25 95% 50%;
     --accent-orange-foreground: 0 0% 100%;
     --accent-orange-light: 25 95% 20%;
-    
-    --destructive: 0 84% 60%; /* Red for errors */
-    --destructive-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
     --destructive-light: 0 84% 30%;
-    
-    --border: 220 5% 30%; /* Dark Grey border */
-    --input: 220 5% 25%; /* Slightly lighter dark grey input */
-    --ring: 220 5% 40%; /* Medium Grey ring focus */
-    
-    /* Sidebar Specifics (adjust to new palette) */
-    --sidebar-background: 220 10% 12%;
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 220 5% 60%; /* Neutral primary for sidebar */
-    --sidebar-primary-foreground: 220 10% 10%;
-    --sidebar-accent: 220 5% 25%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 220 5% 35%;
-    --sidebar-ring: 220 5% 40%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 56%; /* #8f8f8f */
+
+    /* Common neutrals */
+    --ink: 0 0% 9%; /* #171717 */
+    /* Overlays */
+    --overlay: 0 0% 9% / 0.8; /* #171717, 80% */
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 7%; /* near #0a0a0a */
+    --sidebar-foreground: 0 0% 81%;
+    --sidebar-primary: 0 0% 81%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 81%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 0 0% 56%;
   }
 }
 
@@ -161,5 +179,10 @@
   
   .progress-fill {
     @apply bg-accent-neutral rounded-full transition-all;
+  }
+
+  /* Utility: subtle container animation for page sections */
+  .section-appear {
+    @apply animate-slide-up-fade;
   }
 }

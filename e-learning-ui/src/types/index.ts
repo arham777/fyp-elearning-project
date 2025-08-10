@@ -6,8 +6,8 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   role: UserRole;
   created_at: string;
   avatar?: string;
@@ -106,10 +106,12 @@ export interface LoginCredentials {
 export interface RegisterData {
   username: string;
   email: string;
-  password: string;
   first_name: string;
   last_name: string;
-  role: UserRole;
+  password: string;
+  confirm_password: string;
+  // Only student and teacher can self-register from the UI
+  role: 'student' | 'teacher';
 }
 
 export interface ApiResponse<T> {

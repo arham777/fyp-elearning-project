@@ -26,7 +26,7 @@ const LoginForm: React.FC = () => {
     setIsSubmitting(true);
     try {
       await login(credentials);
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       // Error is handled in the auth context
     } finally {
@@ -44,21 +44,21 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
-      <Card className="w-full max-w-md card-elevated">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-3">
+      <Card className="w-full max-w-sm card-elevated">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-accent-orange rounded-full">
-              <GraduationCap className="h-8 w-8 text-accent-orange-foreground" />
+            <div className="p-2.5 bg-accent-orange rounded-full">
+              <GraduationCap className="h-6 w-6 text-accent-orange-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-semibold">Welcome Back</CardTitle>
+          <CardTitle className="text-xl font-semibold">Welcome Back</CardTitle>
           <CardDescription>
             Sign in to your Learning Management System account
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="usernameOrEmail">Username or Email</Label>
               <Input
@@ -102,14 +102,14 @@ const LoginForm: React.FC = () => {
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full h-9"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-5 text-center">
             <p className="text-sm text-muted-foreground">
               Don't have an account?{' '}
               <Link

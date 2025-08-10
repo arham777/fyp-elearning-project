@@ -26,6 +26,7 @@ assignments_router.register(r'submissions', views.AssignmentSubmissionViewSet, b
 router.register(r'certificates', views.CertificateViewSet, basename='certificate')
 
 urlpatterns = [
+    path('register/', views.RegisterView.as_view(), name='register'),
     path('', include(router.urls)),
     path('', include(courses_router.urls)),
     path('', include(modules_router.urls)),
