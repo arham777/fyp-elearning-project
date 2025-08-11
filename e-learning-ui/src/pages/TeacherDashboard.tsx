@@ -1,12 +1,38 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, BookOpen, ClipboardList, TrendingUp, Plus } from 'lucide-react';
+import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { coursesApi } from '@/api/courses';
+import { Course } from '@/types';
 
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
+  const [myCourses, setMyCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchMyCourses = async () => {
+      try {
+        // Backend filters teacher to only their courses
+        const courses = await coursesApi.getCourses({ page: 1 });
+        setMyCourses(courses);
+      } catch (error) {
+        console.error('Failed to fetch teacher courses', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMyCourses();
+  }, []);
+
+  const recentCourses = useMemo(() => {
+    return [...myCourses]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 3);
+  }, [myCourses]);
 
   return (
     <div className="space-y-6">
@@ -36,8 +62,10 @@ const TeacherDashboard: React.FC = () => {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-xl font-semibold">0</div>
-            <p className="text-[11px] text-muted-foreground">No courses created yet</p>
+            <div className="text-xl font-semibold">{isLoading ? '—' : myCourses.length}</div>
+            <p className="text-[11px] text-muted-foreground">
+              {myCourses.length === 0 ? 'No courses created yet' : 'Total you have created'}
+            </p>
           </CardContent>
         </Card>
 
@@ -85,18 +113,44 @@ const TeacherDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-              <div>
-                <h4 className="font-medium text-sm">No courses created</h4>
-                <p className="text-[11px] text-muted-foreground">Create your first course to get started.</p>
+            {myCourses.length === 0 && !isLoading && (
+              <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                <div>
+                  <h4 className="font-medium text-sm">No courses created</h4>
+                  <p className="text-[11px] text-muted-foreground">Create your first course to get started.</p>
+                </div>
+                <Button asChild size="sm">
+                  <Link to="/create-course">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Create
+                  </Link>
+                </Button>
               </div>
-              <Button asChild size="sm">
-                <Link to="/create-course">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Create
-                </Link>
-              </Button>
-            </div>
+            )}
+
+            {isLoading && (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 rounded-md bg-muted/50 animate-pulse" />
+                ))}
+              </div>
+            )}
+
+            {recentCourses.map((course) => (
+              <div key={course.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                <div className="min-w-0 pr-3">
+                  <h4 className="font-medium text-sm truncate">{course.title}</h4>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {course.description}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link to={`/courses/${course.id}`}>
+                    View <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
