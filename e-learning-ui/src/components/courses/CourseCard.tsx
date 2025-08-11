@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Course } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CourseCardProps {
   course: Course;
@@ -29,6 +30,8 @@ const getInitials = (first?: string, last?: string, username?: string): string =
 };
 
 const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
   const teacher = course.teacher;
   const teacherName = `${teacher?.first_name || teacher?.username || 'Instructor'}${teacher?.last_name ? ` ${teacher.last_name}` : ''}`;
 
@@ -37,7 +40,11 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
       <CardHeader className="flex-none space-y-2 min-h-[96px]">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
-          <Badge variant="secondary">{isEnrolled ? 'Enrolled' : formatPKR(course.price)}</Badge>
+          <Badge variant="secondary">
+            {isTeacher
+              ? `${course.enrollment_count ?? 0} enrolled`
+              : (isEnrolled ? 'Enrolled' : formatPKR(course.price))}
+          </Badge>
         </div>
         <CardDescription className="text-sm line-clamp-2">
           {course.description}
@@ -54,13 +61,25 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
           </div>
         </div>
 
+        {isTeacher && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{course.enrollment_count ?? 0} enrolled</span>
+            {typeof course.modules !== 'undefined' && (
+              <>
+                <span>•</span>
+                <span>{course.modules?.length ?? 0} modules</span>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="pt-1">
           {to ? (
             <Button asChild className="w-full h-9">
-              <Link to={to}>{isEnrolled ? 'Continue' : 'View details'}</Link>
+              <Link to={to}>{isTeacher ? 'View' : (isEnrolled ? 'Continue' : 'View details')}</Link>
             </Button>
           ) : (
-            <Button className="w-full h-9">{isEnrolled ? 'Continue' : 'View details'}</Button>
+            <Button className="w-full h-9">{isTeacher ? 'View' : (isEnrolled ? 'Continue' : 'View details')}</Button>
           )}
         </div>
       </CardContent>

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Course, CourseModule, Enrollment } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 const formatPKR = (value: number | string): string => {
   const amount = typeof value === 'string' ? parseFloat(value) : value;
@@ -24,6 +25,8 @@ const CourseDetail: React.FC = () => {
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,15 +81,19 @@ const CourseDetail: React.FC = () => {
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">{course.description}</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="secondary">{formatPKR(course.price)}</Badge>
-          {isEnrolled ? (
-            <Button className="h-9" asChild>
-              <Link to="#">Continue</Link>
-            </Button>
-          ) : (
-            <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
-              {isEnrolling ? 'Enrolling...' : 'Enroll now'}
-            </Button>
+          <Badge variant="secondary">
+            {isTeacher ? `${course.enrollment_count ?? 0} enrolled` : formatPKR(course.price)}
+          </Badge>
+          {!isTeacher && (
+            isEnrolled ? (
+              <Button className="h-9" asChild>
+                <Link to="#">Continue</Link>
+              </Button>
+            ) : (
+              <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
+                {isEnrolling ? 'Enrolling...' : 'Enroll now'}
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -112,6 +119,21 @@ const CourseDetail: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {isTeacher && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Insights</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground flex flex-wrap gap-4">
+              <span><span className="text-foreground font-medium">{course.enrollment_count ?? 0}</span> enrolled</span>
+              <span>•</span>
+              <span><span className="text-foreground font-medium">{modules.length}</span> modules</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

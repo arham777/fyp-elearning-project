@@ -32,19 +32,27 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 class CourseListSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer(read_only=True)
+    enrollment_count = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'enrollment_count']
+
+    def get_enrollment_count(self, obj):
+        return obj.enrollments.count()
 
 class CourseDetailSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer(read_only=True)
     modules = CourseModuleSerializer(many=True, read_only=True)
     assignments = AssignmentSerializer(many=True, read_only=True)
+    enrollment_count = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'modules', 'assignments']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'modules', 'assignments', 'enrollment_count']
+
+    def get_enrollment_count(self, obj):
+        return obj.enrollments.count()
 
 class ContentProgressSerializer(serializers.ModelSerializer):
     class Meta:
