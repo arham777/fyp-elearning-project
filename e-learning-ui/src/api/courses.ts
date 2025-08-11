@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { Course, ApiResponse, Enrollment, CourseModule } from '@/types';
+import { Course, Enrollment, CourseModule } from '@/types';
 
 export const coursesApi = {
   async getCourses(params?: {
@@ -8,9 +8,11 @@ export const coursesApi = {
     price_min?: number;
     price_max?: number;
     page?: number;
-  }): Promise<ApiResponse<Course>> {
+  }): Promise<Course[]> {
     const response = await apiClient.get('/courses/', { params });
-    return response.data;
+    const data = response.data;
+    // Normalize both paginated ({ results: [...] }) and non-paginated ([...]) responses
+    return Array.isArray(data) ? data : (data?.results ?? []);
   },
 
   async getCourse(id: number): Promise<Course> {

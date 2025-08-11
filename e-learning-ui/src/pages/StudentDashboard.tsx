@@ -15,6 +15,16 @@ const StudentDashboard: React.FC = () => {
   const [recommendedCourses, setRecommendedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const formatPKR = (value: number | string): string => {
+    const amount = typeof value === 'string' ? parseFloat(value) : value;
+    if (Number.isNaN(amount)) return 'PKR 0';
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: 'PKR',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -24,7 +34,13 @@ const StudentDashboard: React.FC = () => {
         ]);
         
         setEnrollments(enrollmentsData);
-        setRecommendedCourses(coursesData.results.slice(0, 3));
+        const enrolledIds = new Set<number>(
+          enrollmentsData
+            .map((e) => e.course?.id)
+            .filter((id): id is number => typeof id === 'number')
+        );
+        const notEnrolled = coursesData.filter(c => !enrolledIds.has(c.id));
+        setRecommendedCourses(notEnrolled.slice(0, 3));
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -129,7 +145,7 @@ const StudentDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {enrollments.filter(e => e.progress > 0 && e.progress < 100).slice(0, 3).map((enrollment) => (
+            {enrollments.slice(0, 3).map((enrollment) => (
               <div key={enrollment.id} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
                 <div className="flex-1">
                   <h4 className="font-medium text-sm line-clamp-1">{enrollment.course.title}</h4>
@@ -146,7 +162,7 @@ const StudentDashboard: React.FC = () => {
               </div>
             ))}
             
-            {enrollments.filter(e => e.progress > 0 && e.progress < 100).length === 0 && (
+            {enrollments.length === 0 && (
               <div className="text-center py-6 text-muted-foreground">
                 <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No courses in progress</p>
@@ -176,7 +192,7 @@ const StudentDashboard: React.FC = () => {
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
                     <Badge variant="secondary" className="text-[11px]">
-                      ${course.price}
+                      {formatPKR(course.price)}
                     </Badge>
                     <span className="text-[11px] text-muted-foreground">
                       by {course.teacher.first_name || course.teacher.username} {course.teacher.last_name || ''}

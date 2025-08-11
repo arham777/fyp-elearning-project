@@ -50,11 +50,21 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const requestUrl: string | undefined = originalRequest?.url;
+
+    // Do not try to refresh/redirect for auth endpoints themselves
+    const AUTH_EXCLUDED_PATHS = ['/token/', '/token/refresh/', '/register/'];
+    const isAuthEndpoint = AUTH_EXCLUDED_PATHS.some((path) => requestUrl?.includes(path));
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       const tokens = getTokens();
+      // If it's a login/register call or we have no tokens at all, let the caller handle the error
+      if (isAuthEndpoint || !tokens) {
+        return Promise.reject(error);
+      }
+
       if (tokens?.refresh) {
         try {
           const response = await tokenRefreshClient.post('/token/refresh/', {
@@ -72,6 +82,7 @@ apiClient.interceptors.response.use(
           return Promise.reject(refreshError);
         }
       } else {
+        // We had some tokens but no refresh token; treat as unauthenticated and reject
         clearTokens();
         window.location.href = '/login';
       }

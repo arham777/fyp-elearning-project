@@ -127,9 +127,9 @@ class CourseViewSet(viewsets.ModelViewSet):
             # Teachers see only their courses
             return Course.objects.filter(teacher=user)
         else:
-            # Students see courses they are enrolled in and public courses
-            enrolled_courses = Course.objects.filter(enrollments__student=user)
-            return enrolled_courses
+            # Students can browse all available courses
+            # (Enrollment is handled via the enroll action)
+            return Course.objects.all()
     
     def perform_create(self, serializer):
         # Ensure the teacher field is set to the current user

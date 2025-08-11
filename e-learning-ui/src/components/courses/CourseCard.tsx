@@ -1,0 +1,73 @@
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+import { Course } from '@/types';
+
+interface CourseCardProps {
+  course: Course;
+  to?: string; // optional link target
+  isEnrolled?: boolean;
+}
+
+const formatPKR = (value: number | string): string => {
+  const amount = typeof value === 'string' ? parseFloat(value) : value;
+  if (Number.isNaN(amount)) return 'PKR 0';
+  return new Intl.NumberFormat('en-PK', {
+    style: 'currency',
+    currency: 'PKR',
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+const getInitials = (first?: string, last?: string, username?: string): string => {
+  const a = (first?.[0] ?? '').toUpperCase();
+  const b = (last?.[0] ?? '').toUpperCase();
+  const fallback = (username ?? 'U').slice(0, 1).toUpperCase();
+  return (a + b) || fallback;
+};
+
+const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
+  const teacher = course.teacher;
+  const teacherName = `${teacher?.first_name || teacher?.username || 'Instructor'}${teacher?.last_name ? ` ${teacher.last_name}` : ''}`;
+
+  return (
+    <Card className="hover:shadow-sm transition-shadow h-full flex flex-col">
+      <CardHeader className="flex-none space-y-2 min-h-[96px]">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
+          <Badge variant="secondary">{isEnrolled ? 'Enrolled' : formatPKR(course.price)}</Badge>
+        </div>
+        <CardDescription className="text-sm line-clamp-2">
+          {course.description}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="mt-auto flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-sm">
+          <div className="w-7 h-7 rounded-full bg-ink/10 flex items-center justify-center text-[11px] font-medium">
+            {getInitials(teacher?.first_name, teacher?.last_name, teacher?.username)}
+          </div>
+          <div className="truncate">
+            <span className="font-medium">{teacherName}</span>
+            <span className="ml-2 text-muted-foreground">Instructor</span>
+          </div>
+        </div>
+
+        <div className="pt-1">
+          {to ? (
+            <Button asChild className="w-full h-9">
+              <Link to={to}>{isEnrolled ? 'Continue' : 'View details'}</Link>
+            </Button>
+          ) : (
+            <Button className="w-full h-9">{isEnrolled ? 'Continue' : 'View details'}</Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default CourseCard;
+
+

@@ -10,6 +10,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StudentDashboard from "@/pages/StudentDashboard";
 import TeacherDashboard from "@/pages/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
+import CourseDetail from "@/pages/CourseDetail";
 import NotFound from "@/pages/NotFound";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
@@ -76,7 +77,7 @@ const App = () => (
 
                 {/* Top-level sections */}
                 <Route path="courses" element={<CoursesCatalog />} />
-                <Route path="courses/:id" element={<div>Course Detail - Coming Soon</div>} />
+                <Route path="courses/:id" element={<CourseDetail />} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
                 <Route path="create-course" element={<div>Create Course - Coming Soon</div>} />
