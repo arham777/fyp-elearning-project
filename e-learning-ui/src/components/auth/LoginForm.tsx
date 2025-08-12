@@ -26,7 +26,7 @@ const LoginForm: React.FC = () => {
     setIsSubmitting(true);
     try {
       await login(credentials);
-      navigate('/');
+      navigate('/app');
     } catch (error) {
       // Error is handled in the auth context
     } finally {

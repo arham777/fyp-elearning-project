@@ -21,14 +21,14 @@ const DashboardHeader: React.FC = () => {
   const location = useLocation();
 
   const baseLinks = [
-    { to: '/', label: 'Dashboard', roles: ['student','teacher','admin'] },
-    { to: '/courses', label: 'Courses', roles: ['student','teacher'] },
-    { to: '/assignments', label: 'Assignments', roles: ['student','teacher'] },
-    { to: '/certificates', label: 'Certificates', roles: ['student'] },
-    { to: '/create-course', label: 'Create', roles: ['teacher'] },
-    { to: '/students', label: 'Students', roles: ['teacher'] },
-    { to: '/users', label: 'Users', roles: ['admin'] },
-    { to: '/settings', label: 'Settings', roles: ['admin'] },
+    { to: '/app', label: 'Dashboard', roles: ['student','teacher','admin'] },
+    { to: '/app/courses', label: 'Courses', roles: ['student','teacher'] },
+    { to: '/app/assignments', label: 'Assignments', roles: ['student','teacher'] },
+    { to: '/app/certificates', label: 'Certificates', roles: ['student'] },
+    { to: '/app/create-course', label: 'Create', roles: ['teacher'] },
+    { to: '/app/students', label: 'Students', roles: ['teacher'] },
+    { to: '/app/users', label: 'Users', roles: ['admin'] },
+    { to: '/app/settings', label: 'Settings', roles: ['admin'] },
   ];
 
   const links = user ? baseLinks.filter(l => l.roles.includes(user.role)) : [];
@@ -46,7 +46,7 @@ const DashboardHeader: React.FC = () => {
       <div className="mx-auto max-w-screen-2xl px-3 py-2">
         <div className="h-12 w-full rounded-full border border-border/60 bg-ink/[0.05] shadow-sm flex items-center justify-between gap-3 px-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link to="/" className="flex items-center gap-2 shrink-0">
+            <Link to="/app" className="flex items-center gap-2 shrink-0">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] ring-1 ring-accent-orange/30">
                 <GraduationCap className="h-4 w-4 text-accent-orange" />
               </span>
@@ -118,7 +118,7 @@ const DashboardHeader: React.FC = () => {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/profile" className="w-full">View profile</Link>
+                    <Link to="/app/profile" className="w-full">View profile</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
                     {`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}

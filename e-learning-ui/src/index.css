@@ -185,4 +185,18 @@
   .section-appear {
     @apply animate-slide-up-fade;
   }
+
+  /* Slide entry reveal tied to Swiper's active slide */
+  .reveal {
+    opacity: 0;
+    transform: translateY(8px);
+    transition-property: opacity, transform;
+    transition-duration: 480ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--delay, 0ms);
+  }
+  .swiper-slide-active .reveal {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

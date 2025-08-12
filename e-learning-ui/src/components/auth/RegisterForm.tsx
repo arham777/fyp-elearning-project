@@ -38,7 +38,7 @@ const RegisterForm: React.FC = () => {
     setIsSubmitting(true);
     try {
       await register(formData);
-      navigate('/');
+      navigate('/app');
     } catch (error) {
       // Error is handled in the auth context
     } finally {

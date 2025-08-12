@@ -16,6 +16,7 @@ import NotFound from "@/pages/NotFound";
 import UsersPage from "@/pages/Users";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
+import Index from "@/pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -62,19 +63,20 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public Routes */}
+              <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
 
-              {/* Protected App Shell at root */}
+              {/* Protected App Shell mounted at /app */}
               <Route
-                path="/"
+                path="/app"
                 element={
                   <ProtectedRoute>
                     <DashboardLayout />
                   </ProtectedRoute>
                 }
               >
-                {/* Home dashboard at / */}
+                {/* Home dashboard at /app */}
                 <Route index element={<RoleDashboard />} />
 
                 {/* Top-level sections */}

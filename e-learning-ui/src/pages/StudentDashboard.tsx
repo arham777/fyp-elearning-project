@@ -167,7 +167,7 @@ const StudentDashboard: React.FC = () => {
                 <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p>No courses in progress</p>
                 <Button variant="outline" size="sm" className="mt-2" asChild>
-                  <Link to="/courses">Browse Courses</Link>
+                  <Link to="/app/courses">Browse Courses</Link>
                 </Button>
               </div>
             )}
