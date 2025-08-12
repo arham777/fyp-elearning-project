@@ -17,6 +17,7 @@ import UsersPage from "@/pages/Users";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
+import CreateCourse from "@/pages/CreateCourse";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,10 @@ const App = () => (
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
 
+              {/* Backward-compat redirects for old non-/app URLs */}
+              <Route path="/courses/:id" element={<Navigate to="/app/courses/:id" replace />} />
+              <Route path="/courses/:id/modules/:moduleId" element={<Navigate to="/app/courses/:id/modules/:moduleId" replace />} />
+
               {/* Protected App Shell mounted at /app */}
               <Route
                 path="/app"
@@ -85,7 +90,7 @@ const App = () => (
                 <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
-                <Route path="create-course" element={<div>Create Course - Coming Soon</div>} />
+                <Route path="create-course" element={<CreateCourse />} />
                 <Route path="students" element={<div>Students - Coming Soon</div>} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="settings" element={<div>Settings - Coming Soon</div>} />

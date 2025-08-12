@@ -117,7 +117,7 @@ const CourseDetail: React.FC = () => {
                       )}
                     </div>
                     <Button size="sm" asChild>
-                      <Link to={`/courses/${courseId}/modules/${m.id}`}>Open</Link>
+                      <Link to={`/app/courses/${courseId}/modules/${m.id}`}>Open</Link>
                     </Button>
                   </div>
                 </li>

@@ -145,7 +145,7 @@ const TeacherDashboard: React.FC = () => {
                   </p>
                 </div>
                 <Button asChild size="sm" variant="outline">
-                  <Link to={`/courses/${course.id}`}>
+                  <Link to={`/app/courses/${course.id}`}>
                     View <ArrowRight className="h-4 w-4 ml-1" />
                   </Link>
                 </Button>

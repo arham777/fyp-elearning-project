@@ -74,7 +74,7 @@ const CoursesCatalog: React.FC = () => {
           <CourseCard
             key={course.id}
             course={course}
-            to={`/courses/${course.id}`}
+            to={`/app/courses/${course.id}`}
             isEnrolled={enrolledCourseIds.has(course.id)}
           />
         ))}

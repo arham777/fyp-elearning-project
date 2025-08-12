@@ -155,7 +155,7 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
                 <Button size="sm" asChild>
-                  <Link to={`/courses/${enrollment.course.id}`}>
+                  <Link to={`/app/courses/${enrollment.course.id}`}>
                     Continue
                   </Link>
                 </Button>
@@ -200,7 +200,7 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
                 <Button size="sm" variant="outline" asChild>
-                  <Link to={`/courses/${course.id}`}>
+                  <Link to={`/app/courses/${course.id}`}>
                     View
                   </Link>
                 </Button>
