@@ -39,6 +39,21 @@ export const coursesApi = {
     return response.data;
   },
 
+  async getCourseModule(courseId: number, moduleId: number): Promise<CourseModule> {
+    const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/`);
+    return response.data;
+  },
+
+  async getModuleContents(courseId: number, moduleId: number) {
+    const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/`);
+    return response.data;
+  },
+
+  async markContentComplete(courseId: number, moduleId: number, contentId: number) {
+    const response = await apiClient.post(`/courses/${courseId}/modules/${moduleId}/content/${contentId}/mark_complete/`);
+    return response.data;
+  },
+
   async enrollInCourse(courseId: number): Promise<Enrollment> {
     const response = await apiClient.post(`/courses/${courseId}/enroll/`);
     return response.data;

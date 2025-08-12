@@ -109,10 +109,17 @@ const CourseDetail: React.FC = () => {
             <ol className="space-y-3 list-decimal pl-6">
               {modules.map((m) => (
                 <li key={m.id} className="text-foreground">
-                  <div className="font-medium">{m.title}</div>
-                  {m.description && (
-                    <div className="text-sm text-muted-foreground">{m.description}</div>
-                  )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{m.title}</div>
+                      {m.description && (
+                        <div className="text-sm text-muted-foreground">{m.description}</div>
+                      )}
+                    </div>
+                    <Button size="sm" asChild>
+                      <Link to={`/courses/${courseId}/modules/${m.id}`}>Open</Link>
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ol>

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from django.core.validators import MinValueValidator
 
 # Custom User Manager
 class UserManager(BaseUserManager):
@@ -69,10 +70,11 @@ class CourseModule(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     title = models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
-    order = models.IntegerField(default=0)
+    order = models.IntegerField(default=1, validators=[MinValueValidator(1)])
     
     class Meta:
         ordering = ['order']
+        unique_together = ('course', 'order')
         
     def __str__(self):
         return f"{self.course.title} - {self.title}"
@@ -94,6 +96,7 @@ class Content(models.Model):
     
     class Meta:
         ordering = ['order']
+        unique_together = ('module', 'order')
         
     def __str__(self):
         return f"{self.title} ({self.get_content_type_display()})"

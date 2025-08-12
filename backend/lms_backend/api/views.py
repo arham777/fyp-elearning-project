@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -153,7 +153,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
     serializer_class = CourseModuleSerializer
-    permission_classes = [permissions.IsAuthenticated, IsTeacherOrAdmin]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         course_id = self.kwargs.get('course_pk')
@@ -165,10 +165,39 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
         
         # Only course teacher or admin can add modules
         if self.request.user.role == 'admin' or course.teacher == self.request.user:
+            desired_order = serializer.validated_data.get('order', 0)
+            if CourseModule.objects.filter(course_id=course_id, order=desired_order).exists():
+                raise serializers.ValidationError({
+                    'order': 'Order must be unique within this course.'
+                })
             serializer.save(course_id=course_id)
         else:
             return Response({"detail": "You don't have permission to add modules to this course"}, 
                             status=status.HTTP_403_FORBIDDEN)
+
+    def perform_update(self, serializer):
+        course_id = self.kwargs.get('course_pk')
+        instance = self.get_object()
+        # Only course teacher or admin can update
+        course = get_object_or_404(Course, pk=course_id)
+        if not (self.request.user.role == 'admin' or course.teacher == self.request.user):
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to edit modules for this course"
+            })
+        desired_order = serializer.validated_data.get('order', instance.order)
+        if CourseModule.objects.filter(course_id=course_id, order=desired_order).exclude(id=instance.id).exists():
+            raise serializers.ValidationError({
+                'order': 'Order must be unique within this course.'
+            })
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        course = instance.course
+        if not (self.request.user.role == 'admin' or course.teacher == self.request.user):
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to delete modules for this course"
+            })
+        instance.delete()
 
 class ContentViewSet(viewsets.ModelViewSet):
     serializer_class = ContentSerializer
@@ -184,10 +213,38 @@ class ContentViewSet(viewsets.ModelViewSet):
         
         # Only course teacher or admin can add content
         if self.request.user.role == 'admin' or module.course.teacher == self.request.user:
+            desired_order = serializer.validated_data.get('order', 0)
+            if Content.objects.filter(module_id=module_id, order=desired_order).exists():
+                raise serializers.ValidationError({
+                    'order': 'Order must be unique within this module.'
+                })
             serializer.save(module_id=module_id)
         else:
             return Response({"detail": "You don't have permission to add content to this module"}, 
                             status=status.HTTP_403_FORBIDDEN)
+    
+    def perform_update(self, serializer):
+        module_id = self.kwargs.get('module_pk')
+        instance = self.get_object()
+        module = get_object_or_404(CourseModule, pk=module_id)
+        if not (self.request.user.role == 'admin' or module.course.teacher == self.request.user):
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to edit content for this module"
+            })
+        desired_order = serializer.validated_data.get('order', instance.order)
+        if Content.objects.filter(module_id=module_id, order=desired_order).exclude(id=instance.id).exists():
+            raise serializers.ValidationError({
+                'order': 'Order must be unique within this module.'
+            })
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        module = instance.module
+        if not (self.request.user.role == 'admin' or module.course.teacher == self.request.user):
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to delete content for this module"
+            })
+        instance.delete()
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsStudent])
     def mark_complete(self, request, pk=None, module_pk=None, course_pk=None):

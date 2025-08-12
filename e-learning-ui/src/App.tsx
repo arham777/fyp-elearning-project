@@ -11,6 +11,7 @@ import StudentDashboard from "@/pages/StudentDashboard";
 import TeacherDashboard from "@/pages/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
 import CourseDetail from "@/pages/CourseDetail";
+import ModuleDetail from "@/pages/ModuleDetail";
 import NotFound from "@/pages/NotFound";
 import UsersPage from "@/pages/Users";
 import Profile from "@/pages/Profile";
@@ -79,6 +80,7 @@ const App = () => (
                 {/* Top-level sections */}
                 <Route path="courses" element={<CoursesCatalog />} />
                 <Route path="courses/:id" element={<CourseDetail />} />
+                <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
                 <Route path="create-course" element={<div>Create Course - Coming Soon</div>} />
