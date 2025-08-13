@@ -7,17 +7,18 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
 import RegisterForm from "@/components/auth/RegisterForm";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import StudentDashboard from "@/pages/StudentDashboard";
-import TeacherDashboard from "@/pages/TeacherDashboard";
+import StudentDashboard from "@/pages/studentRole/StudentDashboard";
+import TeacherDashboard from "@/pages/teacherRole/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
 import CourseDetail from "@/pages/CourseDetail";
 import ModuleDetail from "@/pages/ModuleDetail";
 import NotFound from "@/pages/NotFound";
-import UsersPage from "@/pages/Users";
+import UsersPage from "@/pages/adminRole/Users";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
-import CreateCourse from "@/pages/CreateCourse";
+import CreateCourse from "@/pages/teacherRole/CreateCourse";
+import StudentsPage from "@/pages/teacherRole/Students";
 
 const queryClient = new QueryClient();
 
@@ -91,7 +92,7 @@ const App = () => (
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
                 <Route path="create-course" element={<CreateCourse />} />
-                <Route path="students" element={<div>Students - Coming Soon</div>} />
+                <Route path="students" element={<StudentsPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="settings" element={<div>Settings - Coming Soon</div>} />
                 <Route path="profile" element={<Profile />} />

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -135,6 +136,51 @@ class CourseViewSet(viewsets.ModelViewSet):
         # Ensure the teacher field is set to the current user
         if self.request.user.role == 'teacher' or self.request.user.role == 'admin':
             serializer.save(teacher=self.request.user)
+    
+    @action(detail=True, methods=['get'], url_path='students',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def students(self, request, pk=None):
+        """Return distinct students enrolled in this course.
+
+        Access control:
+        - Admin: can view any course's students
+        - Teacher: only the teacher of this course can view
+        """
+        course = self.get_object()
+        user = request.user
+
+        # Only the course's teacher (or admin) may access
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to view students for this course"},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Fetch distinct users enrolled in this course
+        students_qs = User.objects.filter(enrollments__course=course, role='student').distinct()
+
+        # Optional search by name/username/email
+        search_term = request.query_params.get('search', '').strip()
+        if search_term:
+            students_qs = students_qs.filter(
+                Q(first_name__icontains=search_term) |
+                Q(last_name__icontains=search_term) |
+                Q(username__icontains=search_term) |
+                Q(email__icontains=search_term)
+            )
+
+        # Optional ordering
+        ordering = request.query_params.get('ordering', '').strip()
+        allowed_order_fields = {'first_name', 'last_name', 'username', 'email', 'created_at', '-first_name', '-last_name', '-username', '-email', '-created_at'}
+        if ordering in allowed_order_fields:
+            students_qs = students_qs.order_by(ordering)
+
+        # Support pagination if configured
+        page = self.paginate_queryset(students_qs)
+        if page is not None:
+            serializer = UserSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = UserSerializer(students_qs, many=True)
+        return Response(serializer.data)
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsStudent])
     def enroll(self, request, pk=None):

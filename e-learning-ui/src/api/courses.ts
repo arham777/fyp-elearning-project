@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { Course, Enrollment, CourseModule } from '@/types';
+import { ApiResponse, Course, Enrollment, CourseModule, User } from '@/types';
 
 export const coursesApi = {
   async getCourses(params?: {
@@ -67,5 +67,24 @@ export const coursesApi = {
   async getMyCourses(): Promise<Course[]> {
     const response = await apiClient.get('/courses/my-courses/');
     return response.data;
+  },
+
+  async getCourseStudents(courseId: number): Promise<User[]> {
+    const response = await apiClient.get(`/courses/${courseId}/students/`);
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  },
+
+  async getCourseStudentsPaged(
+    courseId: number,
+    params?: { page?: number; page_size?: number; search?: string; ordering?: string }
+  ): Promise<ApiResponse<User>> {
+    const response = await apiClient.get(`/courses/${courseId}/students/`, { params });
+    const data = response.data;
+    // If pagination is disabled server-side, normalize to ApiResponse
+    if (Array.isArray(data)) {
+      return { results: data } as ApiResponse<User>;
+    }
+    return data as ApiResponse<User>;
   },
 };
