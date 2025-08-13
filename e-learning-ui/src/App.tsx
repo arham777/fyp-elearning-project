@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
@@ -19,8 +19,9 @@ import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
 import CreateCourse from "@/pages/teacherRole/CreateCourse";
 import StudentsPage from "@/pages/teacherRole/Students";
+import { queryClient } from "@/lib/queryClient";
 
-const queryClient = new QueryClient();
+// centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {

@@ -3,6 +3,7 @@ import { User, AuthTokens, LoginCredentials, RegisterData } from '@/types';
 import { getTokens, setTokens, clearTokens } from '@/api/apiClient';
 import { authApi } from '@/api/auth';
 import { toast } from '@/hooks/use-toast';
+import { queryClient } from '@/lib/queryClient';
 
 interface AuthContextType {
   user: User | null;
@@ -97,6 +98,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     clearTokens();
     setUser(null);
+    // Clear React Query cache to prevent leaking previous user's data
+    queryClient.clear();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",

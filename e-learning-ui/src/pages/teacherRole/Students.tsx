@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 
 const StudentRow: React.FC<{ student: User }> = ({ student }) => {
 	const initials = `${student.first_name?.[0] ?? ''}${student.last_name?.[0] ?? ''}` || (student.username?.slice(0, 2) ?? 'U');
@@ -30,29 +31,41 @@ const StudentRow: React.FC<{ student: User }> = ({ student }) => {
 };
 
 const StudentsPage: React.FC = () => {
+    const { user } = useAuth();
 	// UI state for the selected course and table controls
-	const [selectedCourseId, setSelectedCourseId] = React.useState<number | null>(null);
+    const [selectedCourseId, setSelectedCourseId] = React.useState<number | null>(null);
 	const [search, setSearch] = React.useState<string>('');
 	const [ordering, setOrdering] = React.useState<string>('first_name');
 	const [page, setPage] = React.useState<number>(1);
 	const [pageSize, setPageSize] = React.useState<number>(10);
 
 	// Fetch teacher courses
-	const { data: myCourses = [], isLoading: coursesLoading } = useQuery<Course[]>({
-		queryKey: ['courses', 'mine'],
+    const { data: myCourses = [], isLoading: coursesLoading } = useQuery<Course[]>({
+        // include user id in key so cache is per-user
+        queryKey: ['courses', 'mine', user?.id],
 		queryFn: () => coursesApi.getCourses({ page: 1 }),
 	});
 
-	// Ensure a default selected course when courses load
-	React.useEffect(() => {
-		if (!selectedCourseId && myCourses.length > 0) {
-			setSelectedCourseId(myCourses[0].id);
-		}
-	}, [myCourses, selectedCourseId]);
+    // Reset selection when user changes
+    React.useEffect(() => {
+        setSelectedCourseId(null);
+        setPage(1);
+        setSearch('');
+    }, [user?.id]);
+
+    // Ensure a default selected course when courses load (only if any exist)
+    React.useEffect(() => {
+        if (myCourses.length > 0) {
+            setSelectedCourseId((prev) => prev ?? myCourses[0].id);
+        } else {
+            setSelectedCourseId(null);
+        }
+    }, [myCourses]);
 
 	// Fetch paginated students for the selected course
-	const { data: studentsPage, isLoading: studentsLoading, isError } = useQuery<ApiResponse<User>, Error, ApiResponse<User>>({
-		queryKey: ['courseStudentsPaged', selectedCourseId, page, pageSize, search, ordering],
+    const { data: studentsPage, isLoading: studentsLoading, isError } = useQuery<ApiResponse<User>, Error, ApiResponse<User>>({
+        // include user id in key to avoid cross-user cache collisions
+        queryKey: ['courseStudentsPaged', user?.id, selectedCourseId, page, pageSize, search, ordering],
 		queryFn: () => coursesApi.getCourseStudentsPaged(selectedCourseId as number, {
 			page,
 			page_size: pageSize,
