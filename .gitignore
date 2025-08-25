@@ -59,6 +59,19 @@ dist-ssr
 *.sln
 *.sw?
 
+# Bun lock file (using npm instead)
+bun.lockb
+
+# Additional Python/Django files
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.python-version
+
 # Environment variables (frontend)
 .env.local
 .env.development.local
