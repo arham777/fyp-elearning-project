@@ -4,7 +4,8 @@ import { coursesApi } from '@/api/courses';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Course, CourseModule, Enrollment } from '@/types';
+import { Progress } from '@/components/ui/progress';
+import { Course, CourseModule, Enrollment, Certificate } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 const formatPKR = (value: number | string): string => {
@@ -27,17 +28,22 @@ const CourseDetail: React.FC = () => {
   const [isEnrolling, setIsEnrolling] = useState(false);
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
+  const [myCertificates, setMyCertificates] = useState<Certificate[]>([]);
+  const [myEnrollments, setMyEnrollments] = useState<Enrollment[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [c, mods, enrollments] = await Promise.all([
+        const [c, mods, enrollments, certs] = await Promise.all([
           coursesApi.getCourse(courseId),
           coursesApi.getCourseModules(courseId).catch(() => []),
           coursesApi.getMyEnrollments().catch(() => [] as Enrollment[]),
+          user?.role === 'student' ? coursesApi.getMyCertificates().catch(() => []) : Promise.resolve([]),
         ]);
         setCourse(c);
         setModules(mods as CourseModule[]);
+        setMyEnrollments(enrollments as Enrollment[]);
+        setMyCertificates(certs as Certificate[]);
         const ids = new Set<number>(
           (enrollments as Enrollment[])
             .map((e) => e.course?.id)
@@ -52,6 +58,14 @@ const CourseDetail: React.FC = () => {
   }, [courseId]);
 
   const isEnrolled = useMemo(() => enrolledCourseIds.has(courseId), [enrolledCourseIds, courseId]);
+  const hasCertificate = useMemo(
+    () => (myCertificates || []).some((cert) => cert.course?.id === courseId),
+    [myCertificates, courseId]
+  );
+  const progressPercent = useMemo(() => {
+    const enrollment = myEnrollments.find((e) => e.course?.id === courseId);
+    return enrollment?.progress ?? 0;
+  }, [myEnrollments, courseId]);
 
   const handleEnroll = async () => {
     try {
@@ -84,10 +98,13 @@ const CourseDetail: React.FC = () => {
           <Badge variant="secondary">
             {isTeacher ? `${course.enrollment_count ?? 0} enrolled` : formatPKR(course.price)}
           </Badge>
+          {user?.role === 'student' && hasCertificate && (
+            <Badge>Completed</Badge>
+          )}
           {!isTeacher && (
             isEnrolled ? (
               <Button className="h-9" asChild>
-                <Link to="#">Continue</Link>
+                <Link to="#">{hasCertificate ? 'Review' : 'Continue'}</Link>
               </Button>
             ) : (
               <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
@@ -97,6 +114,20 @@ const CourseDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {!isTeacher && isEnrolled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Your progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <Progress value={progressPercent} className="max-w-xs" />
+              <span className="text-sm text-muted-foreground">{progressPercent}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

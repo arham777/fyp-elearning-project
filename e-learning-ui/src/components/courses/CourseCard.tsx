@@ -4,12 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Course } from '@/types';
+import { Badge as UiBadge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface CourseCardProps {
   course: Course;
   to?: string; // optional link target
   isEnrolled?: boolean;
+  isCompleted?: boolean;
 }
 
 const formatPKR = (value: number | string): string => {
@@ -29,7 +31,7 @@ const getInitials = (first?: string, last?: string, username?: string): string =
   return (a + b) || fallback;
 };
 
-const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
+const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompleted }) => {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const teacher = course.teacher;
@@ -73,10 +75,18 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled }) => {
           </div>
         )}
 
-        <div className="pt-1">
+        <div className="pt-1 flex items-center gap-2">
+          {!isTeacher && isCompleted && (
+            <>
+              <UiBadge>Completed</UiBadge>
+              <Button asChild variant="outline" className="h-9">
+                <Link to={`/app/certificates?courseId=${course.id}`}>View certificate</Link>
+              </Button>
+            </>
+          )}
           {to ? (
             <Button asChild className="w-full h-9">
-              <Link to={to}>{isTeacher ? 'View' : (isEnrolled ? 'Continue' : 'View details')}</Link>
+              <Link to={to}>{isTeacher ? 'View' : (isCompleted ? 'Review' : (isEnrolled ? 'Continue' : 'View details'))}</Link>
             </Button>
           ) : (
             <Button className="w-full h-9">{isTeacher ? 'View' : (isEnrolled ? 'Continue' : 'View details')}</Button>

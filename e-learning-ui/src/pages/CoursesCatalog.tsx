@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { coursesApi } from '@/api/courses';
-import { Course, Enrollment } from '@/types';
+import { Course, Enrollment, Certificate } from '@/types';
 import { Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CourseCard from '@/components/courses/CourseCard';
@@ -10,14 +10,16 @@ const CoursesCatalog: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
+  const [completedCourseIds, setCompletedCourseIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const [list, enrollments] = await Promise.all([
+        const [list, enrollments, certs] = await Promise.all([
           coursesApi.getCourses({ search: searchQuery }),
           coursesApi.getMyEnrollments().catch(() => [] as Enrollment[]),
+          coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
         ]);
         setCourses(list);
         const ids = new Set<number>(
@@ -26,6 +28,12 @@ const CoursesCatalog: React.FC = () => {
             .filter((id): id is number => typeof id === 'number')
         );
         setEnrolledCourseIds(ids);
+        const completed = new Set<number>(
+          (certs as Certificate[])
+            .map((c) => c.course?.id)
+            .filter((id): id is number => typeof id === 'number')
+        );
+        setCompletedCourseIds(completed);
       } catch (error) {
         console.error('Failed to fetch courses:', error);
       } finally {
@@ -76,6 +84,7 @@ const CoursesCatalog: React.FC = () => {
             course={course}
             to={`/app/courses/${course.id}`}
             isEnrolled={enrolledCourseIds.has(course.id)}
+            isCompleted={completedCourseIds.has(course.id)}
           />
         ))}
       </div>

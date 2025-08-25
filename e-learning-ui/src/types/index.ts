@@ -64,11 +64,12 @@ export interface Assignment {
 
 export interface Enrollment {
   id: number;
-  user: number;
+  student?: User; // optional; backend may or may not include
   course: Course;
-  enrolled_at: string;
-  progress: number;
-  completed_at?: string;
+  enrollment_date?: string; // backend name
+  enrolled_at?: string; // legacy name in UI
+  status?: 'active' | 'completed';
+  progress: number; // computed via serializer
 }
 
 export interface ContentProgress {
@@ -126,4 +127,12 @@ export interface DashboardStats {
   enrolled_courses: number;
   completed_courses: number;
   certificates_earned: number;
+}
+
+export interface Certificate {
+  id: number;
+  student: User;
+  course: Course;
+  issue_date: string;
+  verification_code: string;
 }

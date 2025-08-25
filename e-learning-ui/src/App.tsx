@@ -12,6 +12,7 @@ import TeacherDashboard from "@/pages/teacherRole/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
 import CourseDetail from "@/pages/CourseDetail";
 import ModuleDetail from "@/pages/ModuleDetail";
+import ContentViewer from "@/pages/ContentViewer";
 import NotFound from "@/pages/NotFound";
 import UsersPage from "@/pages/adminRole/Users";
 import Profile from "@/pages/Profile";
@@ -20,6 +21,7 @@ import Index from "@/pages/Index";
 import CreateCourse from "@/pages/teacherRole/CreateCourse";
 import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
+import CertificatesPage from "@/pages/Certificates";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -90,8 +92,9 @@ const App = () => (
                 <Route path="courses" element={<CoursesCatalog />} />
                 <Route path="courses/:id" element={<CourseDetail />} />
                 <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />
+                <Route path="courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
-                <Route path="certificates" element={<div>Certificates - Coming Soon</div>} />
+                <Route path="certificates" element={<CertificatesPage />} />
                 <Route path="create-course" element={<CreateCourse />} />
                 <Route path="students" element={<StudentsPage />} />
                 <Route path="users" element={<UsersPage />} />

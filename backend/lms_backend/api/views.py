@@ -292,6 +292,28 @@ class ContentViewSet(viewsets.ModelViewSet):
             })
         instance.delete()
     
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def progress(self, request, course_pk=None, module_pk=None):
+        """Return completed content IDs for the authenticated student in this module.
+
+        Teachers/admins get an empty list because progress is tracked per student enrollment.
+        """
+        user = request.user
+        # Only students have per-user progress
+        if user.role != 'student':
+            return Response([])
+
+        try:
+            enrollment = Enrollment.objects.get(student=user, course__modules__id=module_pk)
+        except Enrollment.DoesNotExist:
+            # Not enrolled yet -> no progress
+            return Response([])
+
+        content_ids = Content.objects.filter(module_id=module_pk).values_list('id', flat=True)
+        progresses = ContentProgress.objects.filter(enrollment=enrollment, content_id__in=content_ids, completed=True)
+        completed_ids = list(progresses.values_list('content_id', flat=True))
+        return Response(completed_ids)
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsStudent])
     def mark_complete(self, request, pk=None, module_pk=None, course_pk=None):
         content = self.get_object()

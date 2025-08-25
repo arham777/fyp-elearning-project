@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { coursesApi } from '@/api/courses';
 import { Content, CourseModule } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ModuleDetail: React.FC = () => {
   const { id, moduleId } = useParams();
@@ -13,16 +14,21 @@ const ModuleDetail: React.FC = () => {
   const [contents, setContents] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [marking, setMarking] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [completedIds, setCompletedIds] = useState<number[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [m, items] = await Promise.all([
+        const [m, items, done] = await Promise.all([
           coursesApi.getCourseModule(courseId, modId),
           coursesApi.getModuleContents(courseId, modId),
+          coursesApi.getModuleContentProgress(courseId, modId),
         ]);
         setModule(m);
         setContents(items);
+        setCompletedIds(done ?? []);
       } finally {
         setIsLoading(false);
       }
@@ -37,6 +43,11 @@ const ModuleDetail: React.FC = () => {
     } finally {
       setMarking(null);
     }
+  };
+
+  const handleOpen = (content: Content) => {
+    // Teachers view content details but won't watch/read as a student
+    navigate(`/app/courses/${courseId}/modules/${modId}/content/${content.id}`);
   };
 
   if (isLoading) return <div className="h-40 bg-muted rounded" />;
@@ -70,14 +81,22 @@ const ModuleDetail: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {c.url && (
-                        <Button size="sm" variant="outline" asChild>
-                          <a href={c.url} target="_blank" rel="noreferrer">Open</a>
+                      <Button size="sm" variant="outline" onClick={() => handleOpen(c)}>
+                        {user?.role === 'teacher' ? 'View' : c.content_type === 'video' ? 'Watch content' : 'Read content'}
+                      </Button>
+                      {user?.role === 'student' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleComplete(c.id)}
+                          disabled={marking === c.id || completedIds.includes(c.id)}
+                        >
+                          {completedIds.includes(c.id)
+                            ? 'Completed'
+                            : marking === c.id
+                              ? 'Marking...'
+                              : 'Mark complete'}
                         </Button>
                       )}
-                      <Button size="sm" onClick={() => handleComplete(c.id)} disabled={marking === c.id}>
-                        {marking === c.id ? 'Marking...' : 'Mark complete'}
-                      </Button>
                     </div>
                   </div>
                 </li>

@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { ApiResponse, Course, Enrollment, CourseModule, User } from '@/types';
+import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate } from '@/types';
 
 export const coursesApi = {
   async getCourses(params?: {
@@ -49,6 +49,18 @@ export const coursesApi = {
     return response.data;
   },
 
+  async getModuleContentProgress(courseId: number, moduleId: number): Promise<number[]> {
+    const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/progress/`);
+    return response.data as number[];
+  },
+
+  async getContent(courseId: number, moduleId: number, contentId: number) {
+    const response = await apiClient.get(
+      `/courses/${courseId}/modules/${moduleId}/content/${contentId}/`
+    );
+    return response.data;
+  },
+
   async markContentComplete(courseId: number, moduleId: number, contentId: number) {
     const response = await apiClient.post(`/courses/${courseId}/modules/${moduleId}/content/${contentId}/mark_complete/`);
     return response.data;
@@ -66,6 +78,11 @@ export const coursesApi = {
 
   async getMyCourses(): Promise<Course[]> {
     const response = await apiClient.get('/courses/my-courses/');
+    return response.data;
+  },
+
+  async getMyCertificates(): Promise<Certificate[]> {
+    const response = await apiClient.get('/certificates/');
     return response.data;
   },
 
