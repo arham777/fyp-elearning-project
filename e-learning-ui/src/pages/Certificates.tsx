@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { coursesApi } from '@/api/courses';
 import { Certificate } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const CertificatesPage: React.FC = () => {
   const [certs, setCerts] = useState<Certificate[]>([]);
@@ -40,9 +41,14 @@ const CertificatesPage: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-base">{c.course.title}</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
+              <CardContent className="text-sm text-muted-foreground space-y-2">
                 <div>Issued: {new Date(c.issue_date).toLocaleDateString()}</div>
                 <div>Code: {c.verification_code}</div>
+                <div className="pt-2">
+                  <Link to={`/app/certificates/${c.id}`}>
+                    <Button size="sm" variant="secondary">View certificate</Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
           ))}

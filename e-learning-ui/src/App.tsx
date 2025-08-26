@@ -22,6 +22,7 @@ import CreateCourse from "@/pages/teacherRole/CreateCourse";
 import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
+import CertificateView from "@/pages/CertificateView";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -95,6 +96,7 @@ const App = () => (
                 <Route path="courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
                 <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<CertificatesPage />} />
+                <Route path="certificates/:id" element={<CertificateView />} />
                 <Route path="create-course" element={<CreateCourse />} />
                 <Route path="students" element={<StudentsPage />} />
                 <Route path="users" element={<UsersPage />} />

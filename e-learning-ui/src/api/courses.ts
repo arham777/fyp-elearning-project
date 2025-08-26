@@ -86,6 +86,11 @@ export const coursesApi = {
     return response.data;
   },
 
+  async getCertificate(id: number): Promise<Certificate> {
+    const response = await apiClient.get(`/certificates/${id}/`);
+    return response.data;
+  },
+
   async getCourseStudents(courseId: number): Promise<User[]> {
     const response = await apiClient.get(`/courses/${courseId}/students/`);
     const data = response.data;

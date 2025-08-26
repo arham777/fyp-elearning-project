@@ -134,6 +134,9 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter var', system-ui, sans-serif;
   }
+
+  /* Norwester utility (ensures the CDN font is preferred) */
+  .font-norwester { font-family: 'Norwester', 'Bebas Neue', Oswald, Impact, sans-serif; }
   
   /* Custom scrollbar */
   ::-webkit-scrollbar {

@@ -53,6 +53,8 @@ const StudentDashboard: React.FC = () => {
 
 	const completedCourses = enrollments.filter(e => e.progress === 100).length;
 	const inProgressCourses = enrollments.filter(e => e.progress > 0 && e.progress < 100).length;
+	// Enrollments to show in "Continue Learning" (hide fully completed)
+	const incompleteEnrollments = enrollments.filter(e => e.progress < 100 && e.status !== 'completed');
 
 	if (isLoading) {
 		return (
@@ -145,7 +147,7 @@ const StudentDashboard: React.FC = () => {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3">
-						{enrollments.slice(0, 3).map((enrollment) => (
+						{incompleteEnrollments.slice(0, 3).map((enrollment) => (
 							<div key={enrollment.id} className="flex items-center space-x-3 p-3 rounded-md bg-muted/50">
 								<div className="flex-1">
 									<h4 className="font-medium text-sm line-clamp-1">{enrollment.course.title}</h4>
@@ -162,7 +164,7 @@ const StudentDashboard: React.FC = () => {
 							</div>
 						))}
 						
-						{enrollments.length === 0 && (
+						{incompleteEnrollments.length === 0 && (
 							<div className="text-center py-6 text-muted-foreground">
 								<BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
 								<p>No courses in progress</p>

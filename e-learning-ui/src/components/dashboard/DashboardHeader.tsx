@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Search, GraduationCap } from 'lucide-react';
+import { Bell, Search, GraduationCap, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from "next-themes";
@@ -14,11 +14,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 const DashboardHeader: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const baseLinks = [
     { to: '/app', label: 'Dashboard', roles: ['student','teacher','admin'] },
@@ -58,6 +66,7 @@ const DashboardHeader: React.FC = () => {
               </div>
             </Link>
 
+            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1 ml-2">
               {links.map(link => (
                 <NavLink
@@ -90,6 +99,106 @@ const DashboardHeader: React.FC = () => {
             <Button aria-label="Notifications" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ink/10">
               <Bell className="h-4 w-4" />
             </Button>
+
+            {/* Mobile Navigation Trigger */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-ink/10 md:hidden"
+                  aria-label="Open navigation menu"
+                >
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80 sm:w-96">
+                <SheetHeader>
+                  <SheetTitle className="text-left flex items-center gap-2">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] ring-1 ring-accent-orange/30">
+                      <GraduationCap className="h-4 w-4 text-accent-orange" />
+                    </span>
+                    <div className="leading-tight">
+                      <span className="block text-sm font-semibold">EduPlatform</span>
+                      {user && (
+                        <span className="block text-[10px] text-muted-foreground capitalize">{user.role} Portal</span>
+                      )}
+                    </div>
+                  </SheetTitle>
+                </SheetHeader>
+                
+                <nav className="flex flex-col gap-2 mt-8">
+                  {links.map(link => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      end={link.to === '/app'}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={({ isActive }) =>
+                        `px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                          (isActive || location.pathname === link.to)
+                            ? 'bg-ink/10 text-foreground font-medium'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-ink/5'
+                        }`
+                      }
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </nav>
+
+                {/* Mobile User Profile Section */}
+                {user && (
+                  <div className="mt-auto pt-6 border-t border-border">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user.avatar} alt={user.username} />
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{user.first_name || user.username}</p>
+                        {user.email && (
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 px-2 mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          // Navigate to profile (you might need to add this route)
+                        }}
+                        className="justify-start h-9"
+                        asChild
+                      >
+                        <Link to="/app/profile">View Profile</Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                        className="justify-start h-9"
+                      >
+                        Switch to {theme === 'dark' ? 'Light' : 'Dark'} mode
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          logout();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="justify-start h-9 text-destructive hover:text-destructive"
+                      >
+                        Sign out
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
 
             {user && (
               <DropdownMenu>

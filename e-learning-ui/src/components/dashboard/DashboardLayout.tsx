@@ -11,9 +11,9 @@ const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <DashboardHeader />
-      <main className="p-4">
+      <main className="flex-1 p-4">
         <Outlet />
       </main>
     </div>

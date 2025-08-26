@@ -4,10 +4,10 @@ import tailwindcssAnimate from "tailwindcss-animate";
 export default {
 	darkMode: ["class"],
 	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
-		"./src/**/*.{ts,tsx}",
+		"./pages/**/*.{ts,tsx,js,jsx}",
+		"./components/**/*.{ts,tsx,js,jsx}",
+		"./app/**/*.{ts,tsx,js,jsx}",
+		"./src/**/*.{ts,tsx,js,jsx}",
 	],
 	prefix: "",
 	theme: {
@@ -21,6 +21,9 @@ export default {
 		extend: {
 			fontFamily: {
 				sans: ['Inter var', 'system-ui', 'sans-serif'],
+				roboto: ['Roboto', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+				yeseva: ['"Yeseva One"', 'Georgia', 'serif'],
+				norwester: ['Norwester', '"Bebas Neue"', 'Oswald', 'Impact', 'sans-serif'],
 			},
 				colors: {
 				border: 'hsl(var(--border))',
