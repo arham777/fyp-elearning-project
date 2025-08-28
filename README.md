@@ -1,246 +1,288 @@
-# E-Learning Platform 🎓
+# E-Learning Platform
 
-A comprehensive e-learning platform built with Django (Backend) and React (Frontend) with TypeScript, offering course management, user authentication, and certificate generation.
+A comprehensive full-stack e-learning platform built with Django REST Framework and React TypeScript, designed to facilitate online education with role-based access control, course management, progress tracking, and automated certificate generation.
 
 ## 🚀 Features
 
-- **User Management**: Student, Teacher, and Admin roles
-- **Course Management**: Create, edit, and manage courses with modules and content
-- **Assignment System**: Assignments with grading and submissions
-- **Payment Integration**: Course purchase functionality
-- **Certificate Generation**: Automatic certificate generation upon course completion
-- **Progress Tracking**: Track student progress through courses
-- **Responsive UI**: Modern, clean interface using ShadCN UI components
+### 👤 User Management
+- **Multi-role Authentication**: Support for Students, Teachers, and Administrators
+- **JWT-based Security**: Secure authentication with JSON Web Tokens
+- **Role-based Permissions**: Different access levels and functionalities per role
+- **User Profiles**: Comprehensive user profile management
 
-## 🏗️ Tech Stack
+### 📚 Course Management
+- **Course Creation**: Teachers can create and manage courses
+- **Module Structure**: Organized course content in modules and lessons
+- **Content Types**: Support for video lectures and reading materials
+- **Course Catalog**: Browse and discover available courses
+
+### 🎓 Learning Experience
+- **Student Enrollment**: Easy course enrollment system
+- **Progress Tracking**: Real-time tracking of learning progress
+- **Interactive Content**: Video and text-based learning materials
+- **Assignment System**: Create and submit assignments with grading
+
+### 📜 Certification
+- **Automated Certificates**: Automatic certificate generation upon course completion
+- **Verification System**: Unique verification codes for certificate authenticity
+- **Progress Requirements**: Certificate issuance based on completion criteria
+
+### 💳 Payment System
+- **Course Payments**: Integrated payment processing for course enrollment
+- **Transaction Tracking**: Complete payment history and status tracking
+
+### 📊 Analytics & Reporting
+- **Student Dashboard**: Personal learning dashboard with progress overview
+- **Teacher Dashboard**: Course management and student progress monitoring
+- **Admin Panel**: System-wide administration and user management
+
+## 🛠 Tech Stack
 
 ### Backend
 - **Framework**: Django 5.2.4 with Django REST Framework
-- **Authentication**: JWT tokens with SimpleJWT
-- **Database**: SQLite (Development) / PostgreSQL (Production recommended)
-- **CORS**: django-cors-headers for cross-origin requests
+- **Database**: SQLite (development) / PostgreSQL (production ready)
+- **Authentication**: JWT with Simple JWT
+- **API**: RESTful API with proper serialization
+- **CORS**: Configured for frontend integration
 
 ### Frontend
 - **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite
-- **UI Library**: ShadCN UI components with Tailwind CSS
+- **UI Library**: shadcn/ui with Radix UI components
+- **Styling**: Tailwind CSS
 - **State Management**: React Query (TanStack Query)
-- **Routing**: React Router DOM
-- **HTTP Client**: Axios with interceptors
+- **Routing**: React Router DOM v6
+- **Forms**: React Hook Form with Zod validation
 
-## 🚨 **CRITICAL: Django Admin Login Issue**
+## 📋 Prerequisites
 
-**99% of new team members face this issue**: After running backend successfully, Django admin login fails.
+Before running this application, make sure you have:
+- **Python 3.8+**
+- **Node.js 16+**
+- **npm or yarn**
+- **Git**
 
-**Quick Fix** (run after `python manage.py bootstrap_dev`):
-```bash
-python manage.py shell -c "from myapp.models import User; admin = User.objects.get(username='admin'); admin.is_staff = True; admin.save(); print('Fixed!')"
-```
-
-**Login Details**: 
-- URL: http://localhost:8000/admin/
-- Username: `admin` 
-- Password: `admin123`
-
-**Detailed Fix Guide**: See `TEAM_MEMBER_FIX.md`
-
-## ⚠️ **Other Setup Considerations**
-
-1. **Environment Variables** - Check `SETUP_GUIDE.md` for complete list
-2. **Port Configuration** - Frontend (8080) and Backend (8000) are pre-configured
-3. **Database Setup** - Follow migration steps in order
-
-## 🛠️ Quick Setup
-
-### Prerequisites
-- Python 3.8+
-- Node.js 18+
-- pip (Python package manager)
-- npm or yarn
+## ⚡ Quick Start
 
 ### Backend Setup
-```bash
-# Navigate to backend directory
-cd backend/lms_backend
 
-# Create and activate virtual environment
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
+1. **Navigate to backend directory**
+   ```bash
+   cd backend/lms_backend
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+2. **Create virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-# Setup environment variables
-cp env.example .env
-# Edit .env with your configuration
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Run database migrations
-python manage.py migrate
+4. **Environment Configuration**
+   ```bash
+   cp env.example .env
+   # Edit .env file with your configuration
+   ```
 
-# Create superuser
-python manage.py bootstrap_dev
+5. **Database Setup**
+   ```bash
+   python manage.py makemigrations
+   python manage.py migrate
+   ```
 
-# **CRITICAL FIX**: Django admin login permission
-python manage.py shell -c "from myapp.models import User; admin = User.objects.get(username='admin'); admin.is_staff = True; admin.save(); print('Fixed admin permissions')"
+6. **Create Superuser**
+   ```bash
+   python manage.py createsuperuser
+   ```
 
-# Start Django server
-python manage.py runserver 0.0.0.0:8000
-```
+7. **Run Development Server**
+   ```bash
+   python manage.py runserver
+   ```
+
+The backend API will be available at `http://localhost:8000`
 
 ### Frontend Setup
-```bash
-# Navigate to frontend directory
-cd e-learning-ui
 
-# Install dependencies
-npm install
+1. **Navigate to frontend directory**
+   ```bash
+   cd e-learning-ui
+   ```
 
-# Setup environment variables
-cp env.example .env
-# Edit .env with your backend API URL
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-# Start development server
-npm run dev
-```
+3. **Environment Configuration**
+   ```bash
+   cp env.example .env
+   # Configure VITE_API_BASE_URL=http://localhost:8000/api
+   ```
 
-### Access Points
-- **Backend API**: http://localhost:8000/api/
-- **Frontend**: http://localhost:8080/
-- **Admin Panel**: http://localhost:8000/admin/
+4. **Run Development Server**
+   ```bash
+   npm run dev
+   ```
 
-## 📁 Project Structure
+The frontend application will be available at `http://localhost:5173`
+
+## 🏗 Project Structure
 
 ```
 FYP-elearning-project/
 ├── backend/
 │   └── lms_backend/
-│       ├── myapp/              # Main Django app
-│       ├── api/                # API endpoints
-│       ├── lms_backend/        # Project settings
-│       ├── manage.py
-│       └── requirements.txt
-├── e-learning-ui/
-│   ├── src/
-│   │   ├── api/               # API client configuration
-│   │   ├── components/        # React components
-│   │   ├── pages/             # Page components
-│   │   ├── contexts/          # React contexts
-│   │   └── types/             # TypeScript types
-│   ├── public/
-│   └── package.json
-├── SETUP_GUIDE.md             # Detailed setup instructions
-└── README.md                  # This file
+│       ├── myapp/                 # Main application
+│       │   ├── models.py          # Database models
+│       │   ├── views.py           # API views
+│       │   ├── serializers.py     # API serializers
+│       │   ├── urls.py           # URL routing
+│       │   └── permissions.py     # Custom permissions
+│       ├── lms_backend/          # Django project settings
+│       ├── manage.py             # Django management
+│       └── requirements.txt      # Python dependencies
+└── e-learning-ui/
+    ├── src/
+    │   ├── components/           # Reusable UI components
+    │   │   ├── auth/            # Authentication forms
+    │   │   ├── courses/         # Course-related components
+    │   │   ├── dashboard/       # Dashboard layout
+    │   │   └── ui/              # shadcn/ui components
+    │   ├── pages/               # Application pages
+    │   │   ├── adminRole/       # Admin-specific pages
+    │   │   ├── studentRole/     # Student-specific pages
+    │   │   └── teacherRole/     # Teacher-specific pages
+    │   ├── contexts/            # React contexts
+    │   ├── api/                 # API client functions
+    │   ├── types/               # TypeScript definitions
+    │   └── lib/                 # Utility functions
+    └── package.json             # Node.js dependencies
 ```
 
-## 🗃️ **Database Collaboration**
-
-**Important**: This project shares the SQLite database file via Git for team collaboration.
-
-**What this means:**
-- ✅ **Team members get your latest data** (courses, users, enrollments)
-- ✅ **No manual data recreation needed**
-- ✅ **Same database state** across all developers
-
-**Workflow:**
-```bash
-# After making changes (adding courses, users)
-git add .
-git commit -m "Added Python course with 3 modules"
-git push
-
-# Team members get updates via:
-git pull  # Database automatically updates!
-```
-
-**Detailed Guide**: See `DATABASE_SHARING_GUIDE.md`
-
-## 🔐 User Roles & Access
-
-### Student
-- Browse and enroll in courses
-- Access course content and modules
-- Submit assignments
-- Track progress and earn certificates
-
-### Teacher
-- Create and manage courses
-- Upload course content
-- Create assignments and grade submissions
-- View student progress
-
-### Admin
-- Manage all users, courses, and system settings
-- Access Django admin panel
-- Override permissions and manage platform
-
-## 🌐 API Endpoints
+## 🔧 API Endpoints
 
 ### Authentication
-- `POST /api/token/` - Login
-- `POST /api/token/refresh/` - Refresh token
-- `POST /api/register/` - Register new user
+- `POST /api/token/` - Login and get JWT tokens
+- `POST /api/token/refresh/` - Refresh access token
+- `POST /api/register/` - User registration
 
 ### Courses
-- `GET /api/courses/` - List all courses
-- `POST /api/courses/` - Create course (Teacher+)
+- `GET /api/courses/` - List courses
+- `POST /api/courses/` - Create course (teachers only)
 - `GET /api/courses/{id}/` - Course details
+- `PUT /api/courses/{id}/` - Update course (teachers/admins)
 
 ### Enrollments
+- `GET /api/enrollments/` - List user enrollments
 - `POST /api/enrollments/` - Enroll in course
-- `GET /api/enrollments/` - User enrollments
 
-For complete API documentation, visit `/api/` endpoint when server is running.
+### Assignments
+- `GET /api/assignments/` - List assignments
+- `POST /api/assignments/` - Create assignment (teachers)
+
+### Certificates
+- `GET /api/certificates/` - List user certificates
+
+## 👥 User Roles & Permissions
+
+### 🎓 Student
+- Browse and enroll in courses
+- Access enrolled course content
+- Submit assignments
+- Track learning progress
+- View earned certificates
+- Manage personal profile
+
+### 👨‍🏫 Teacher
+- Create and manage courses
+- Add course modules and content
+- Create and grade assignments
+- Monitor student progress
+- View enrolled students
+
+### 👨‍💼 Administrator
+- Full system access
+- Manage all users and courses
+- View system-wide analytics
+- Course and content moderation
+
+## 🔄 Current Working Features
+
+### ✅ Implemented & Working
+- [x] User authentication and registration
+- [x] Role-based access control
+- [x] Course creation and management
+- [x] Course module and content management
+- [x] Student enrollment system
+- [x] Progress tracking
+- [x] Assignment creation and submission
+- [x] Automated certificate generation
+- [x] Payment processing integration
+- [x] Responsive dashboard interfaces
+- [x] Course catalog browsing
+- [x] Content viewing (video/text)
+
+### 🚧 In Development
+- [ ] Advanced analytics dashboard
+- [ ] Discussion forums
+- [ ] Live streaming integration
+- [ ] Mobile app companion
+- [ ] Advanced reporting features
+
+## 🎨 UI/UX Design
+
+The application follows a clean, professional design with:
+- **Neutral Color Palette**: Primarily black, white, and grey tones [[memory:5458341]]
+- **Orange Accents**: Sparingly used for user profile icons and interactive elements [[memory:5458341]]
+- **Responsive Design**: Mobile-first approach with Tailwind CSS
+- **Accessibility**: WCAG compliant components from Radix UI
 
 ## 🚀 Deployment
 
-### Backend (Django)
-1. Set `DEBUG=False` in production settings
-2. Configure production database (PostgreSQL recommended)
-3. Set up proper `ALLOWED_HOSTS`
-4. Configure static files serving
-5. Use environment variables for sensitive data
+### Backend Deployment
+1. Configure production settings in Django
+2. Set up PostgreSQL database
+3. Configure environment variables
+4. Use Gunicorn as WSGI server
+5. Set up reverse proxy with Nginx
 
-### Frontend (React)
-1. Run `npm run build` to create production build
-2. Serve `dist/` directory with web server
+### Frontend Deployment
+1. Build for production: `npm run build`
+2. Deploy `dist/` folder to static hosting
 3. Configure environment variables for production API
 
 ## 🤝 Contributing
 
-1. Clone the repository
-2. **Read `SETUP_GUIDE.md` first** for detailed setup instructions and issue fixes
-3. Create a feature branch
-4. Make your changes
-5. Test both frontend and backend
-6. Submit a pull request
-
-## 📋 Development Notes
-
-- **Database**: Uses SQLite for development, recommend PostgreSQL for production
-- **CORS**: Configured for development, adjust for production deployment  
-- **JWT**: Tokens automatically refresh, stored in localStorage
-- **File Uploads**: Course content and certificates supported
-- **Payment**: Payment model exists, integrate with payment gateway as needed
-
-## 🐛 Known Issues
-
-See `SETUP_GUIDE.md` for a comprehensive list of setup issues and their solutions.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-This project is for educational/development purposes. Please check individual dependencies for their licenses.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📞 Support
+## 📧 Support
 
-If you encounter issues during setup:
-1. Check `SETUP_GUIDE.md` for detailed troubleshooting
-2. Ensure all prerequisites are installed
-3. Verify environment variables are set correctly
-4. Check that both frontend and backend servers are running
+For support and questions:
+- Create an issue in the GitHub repository
+- Contact the development team
+
+## 🔮 Future Enhancements
+
+- **AI-Powered Recommendations**: Personalized course suggestions
+- **Gamification**: Badges, points, and leaderboards
+- **Social Learning**: Student interaction features
+- **Advanced Analytics**: Detailed learning analytics
+- **Mobile Application**: Native iOS and Android apps
+- **Integration APIs**: Third-party LMS integrations
 
 ---
 
-**⚠️ Important**: Before starting development, please review the `SETUP_GUIDE.md` file which contains critical setup information and issue fixes.
+**Built with ❤️ for the future of online education**
