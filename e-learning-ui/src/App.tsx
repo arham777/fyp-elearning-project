@@ -10,6 +10,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StudentDashboard from "@/pages/studentRole/StudentDashboard";
 import TeacherDashboard from "@/pages/teacherRole/TeacherDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
+import MyCourses from "@/pages/MyCourses";
 import CourseDetail from "@/pages/CourseDetail";
 import ModuleDetail from "@/pages/ModuleDetail";
 import ContentViewer from "@/pages/ContentViewer";
@@ -90,6 +91,7 @@ const App = () => (
                 <Route index element={<RoleDashboard />} />
 
                 {/* Top-level sections */}
+                <Route path="my-courses" element={<MyCourses />} />
                 <Route path="courses" element={<CoursesCatalog />} />
                 <Route path="courses/:id" element={<CourseDetail />} />
                 <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />

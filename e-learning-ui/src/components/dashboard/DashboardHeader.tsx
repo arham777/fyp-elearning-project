@@ -30,6 +30,7 @@ const DashboardHeader: React.FC = () => {
 
   const baseLinks = [
     { to: '/app', label: 'Dashboard', roles: ['student','teacher','admin'] },
+    { to: '/app/my-courses', label: 'My Courses', roles: ['student'] },
     { to: '/app/courses', label: 'Courses', roles: ['student','teacher'] },
     { to: '/app/assignments', label: 'Assignments', roles: ['student','teacher'] },
     { to: '/app/certificates', label: 'Certificates', roles: ['student'] },

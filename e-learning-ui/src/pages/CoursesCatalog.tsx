@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { coursesApi } from '@/api/courses';
 import { Course, Enrollment, Certificate } from '@/types';
 import { Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CourseCard from '@/components/courses/CourseCard';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CoursesCatalog: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -12,6 +13,7 @@ const CoursesCatalog: React.FC = () => {
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -44,6 +46,14 @@ const CoursesCatalog: React.FC = () => {
     const debounceTimer = setTimeout(fetchCourses, 300);
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
+
+  const visibleCourses = useMemo(() => {
+    // Students should only see courses they are NOT enrolled in
+    if (user?.role === 'student') {
+      return courses.filter((c) => !enrolledCourseIds.has(c.id));
+    }
+    return courses;
+  }, [user?.role, courses, enrolledCourseIds]);
 
   if (isLoading) {
     return (
@@ -78,7 +88,7 @@ const CoursesCatalog: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {courses.map((course) => (
+        {visibleCourses.map((course) => (
           <CourseCard
             key={course.id}
             course={course}
@@ -89,11 +99,11 @@ const CoursesCatalog: React.FC = () => {
         ))}
       </div>
 
-      {courses.length === 0 && !isLoading && (
+      {visibleCourses.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No courses found</h3>
-          <p className="text-muted-foreground">Try a different search.</p>
+          <h3 className="text-lg font-medium text-foreground mb-2">No courses available</h3>
+          <p className="text-muted-foreground">You may already be enrolled in all visible courses.</p>
         </div>
       )}
     </div>
