@@ -13,8 +13,8 @@ ENV/
 *.log
 *.pot
 *.pyc
-*.sqlite3
-db.sqlite3
+# *.sqlite3  # Commented out for team collaboration - database will be shared
+# db.sqlite3  # Commented out for team collaboration - database will be shared
 
 # Django media files (user uploads)
 media/
@@ -63,6 +63,7 @@ dist-ssr
 bun.lockb
 
 # Additional Python/Django files
+# Keep SQLite journal files in gitignore (these are temporary)
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
