@@ -6,12 +6,16 @@ import { Link } from 'react-router-dom';
 import { Course } from '@/types';
 import { Badge as UiBadge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { Progress } from '@/components/ui/progress';
 
 interface CourseCardProps {
   course: Course;
   to?: string; // optional link target
   isEnrolled?: boolean;
   isCompleted?: boolean;
+  progress?: number;
+  // Controls visual behavior differences across pages
+  context?: 'default' | 'myCourses' | 'catalog';
 }
 
 const formatPKR = (value: number | string): string => {
@@ -31,7 +35,7 @@ const getInitials = (first?: string, last?: string, username?: string): string =
   return (a + b) || fallback;
 };
 
-const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompleted }) => {
+const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompleted, progress, context = 'default' }) => {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const teacher = course.teacher;
@@ -42,17 +46,47 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
       <CardHeader className="flex-none space-y-2 min-h-[96px]">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
-          <Badge variant="secondary">
-            {isTeacher
-              ? `${course.enrollment_count ?? 0} enrolled`
-              : (isEnrolled ? 'Enrolled' : formatPKR(course.price))}
-          </Badge>
+          {(() => {
+            // Decide what to show in the header's right-side badge
+            if (isTeacher) {
+              return (
+                <Badge variant="secondary">{`${course.enrollment_count ?? 0} enrolled`}</Badge>
+              );
+            }
+
+            if (context === 'myCourses') {
+              // In My Courses, hide the "Enrolled" badge; show "Completed" instead when applicable
+              if (isCompleted) {
+                return (
+                  <Badge variant="secondary">Completed</Badge>
+                );
+              }
+              return null;
+            }
+
+            // Default behavior (e.g., catalog): show Enrolled or price
+            const text = isEnrolled ? 'Enrolled' : formatPKR(course.price);
+            return (
+              <Badge variant="secondary">{text}</Badge>
+            );
+          })()}
         </div>
         <CardDescription className="text-sm line-clamp-2">
           {course.description}
         </CardDescription>
       </CardHeader>
       <CardContent className="mt-auto flex flex-col gap-3">
+
+      {typeof progress === 'number' && (
+          <div className="flex flex-col items-center justify-center pt-2">
+            <div className="flex items-center justify-between w-full text-xs mb-1 text-muted-foreground">
+              <span>Progress</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-2 w-full" />
+          </div>
+        )}
+
         <div className="flex items-center gap-2 text-sm">
           <div className="w-7 h-7 rounded-full bg-ink/10 flex items-center justify-center text-[11px] font-medium">
             {getInitials(teacher?.first_name, teacher?.last_name, teacher?.username)}
@@ -62,6 +96,8 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
             <span className="ml-2 text-muted-foreground">Instructor</span>
           </div>
         </div>
+
+       
 
         {isTeacher && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -78,7 +114,9 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
         <div className="pt-1 flex items-center gap-2">
           {!isTeacher && isCompleted && (
             <>
-              <UiBadge>Completed</UiBadge>
+              {context !== 'myCourses' && (
+                <UiBadge>Completed</UiBadge>
+              )}
               <Button asChild variant="outline" className="h-9">
                 <Link to={`/app/certificates?courseId=${course.id}`}>View certificate</Link>
               </Button>

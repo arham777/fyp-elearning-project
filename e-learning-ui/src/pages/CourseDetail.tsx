@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ const formatPKR = (value: number | string): string => {
 
 const CourseDetail: React.FC = () => {
   const { id } = useParams();
+  const location = useLocation();
   const courseId = Number(id);
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -62,6 +63,10 @@ const CourseDetail: React.FC = () => {
     () => (myCertificates || []).some((cert) => cert.course?.id === courseId),
     [myCertificates, courseId]
   );
+  const basePath = useMemo(() => {
+    // If current route is under /app/my-courses, keep that base for child links
+    return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
+  }, [location.pathname]);
   const progressPercent = useMemo(() => {
     const enrollment = myEnrollments.find((e) => e.course?.id === courseId);
     return enrollment?.progress ?? 0;
@@ -148,7 +153,7 @@ const CourseDetail: React.FC = () => {
                       )}
                     </div>
                     <Button size="sm" asChild>
-                      <Link to={`/app/courses/${courseId}/modules/${m.id}`}>Open</Link>
+                      <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
                     </Button>
                   </div>
                 </li>

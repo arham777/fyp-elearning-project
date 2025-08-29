@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { coursesApi } from '@/api/courses';
@@ -15,6 +15,7 @@ const ModuleDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [marking, setMarking] = useState<number | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [completedIds, setCompletedIds] = useState<number[]>([]);
 
@@ -45,9 +46,13 @@ const ModuleDetail: React.FC = () => {
     }
   };
 
+  const basePath = useMemo(() => {
+    return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
+  }, [location.pathname]);
+
   const handleOpen = (content: Content) => {
     // Teachers view content details but won't watch/read as a student
-    navigate(`/app/courses/${courseId}/modules/${modId}/content/${content.id}`);
+    navigate(`${basePath}/${courseId}/modules/${modId}/content/${content.id}`);
   };
 
   if (isLoading) return <div className="h-40 bg-muted rounded" />;

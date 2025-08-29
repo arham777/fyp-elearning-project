@@ -78,19 +78,12 @@ const MyCourses: React.FC = () => {
             <div key={course.id} className="space-y-2">
               <CourseCard
                 course={course}
-                to={`/app/courses/${course.id}`}
+                to={`/app/my-courses/${course.id}`}
                 isEnrolled
                 isCompleted={completedCourseIds.has(course.id)}
+                progress={enrollmentByCourseId[course.id]?.progress}
+                context="myCourses"
               />
-              {typeof enrollmentByCourseId[course.id]?.progress === 'number' && (
-                <div className="px-1">
-                  <div className="flex items-center justify-between text-xs mb-1 text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{enrollmentByCourseId[course.id].progress}%</span>
-                  </div>
-                  <Progress value={enrollmentByCourseId[course.id].progress} className="h-2" />
-                </div>
-              )}
             </div>
           ))}
         </div>
