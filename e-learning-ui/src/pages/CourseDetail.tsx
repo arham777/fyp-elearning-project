@@ -7,6 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Course, CourseModule, Enrollment, Certificate } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/hooks/use-toast';
 
 const formatPKR = (value: number | string): string => {
   const amount = typeof value === 'string' ? parseFloat(value) : value;
@@ -31,6 +36,13 @@ const CourseDetail: React.FC = () => {
   const isTeacher = user?.role === 'teacher';
   const [myCertificates, setMyCertificates] = useState<Certificate[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<Enrollment[]>([]);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newModule, setNewModule] = useState<{ title: string; description: string; order: number }>({
+    title: '',
+    description: '',
+    order: 1,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,6 +83,16 @@ const CourseDetail: React.FC = () => {
     const enrollment = myEnrollments.find((e) => e.course?.id === courseId);
     return enrollment?.progress ?? 0;
   }, [myEnrollments, courseId]);
+
+  const refreshModules = async () => {
+    const mods = await coursesApi.getCourseModules(courseId).catch(() => [] as CourseModule[]);
+    setModules(mods as CourseModule[]);
+  };
+
+  useEffect(() => {
+    // default order to next index when modules change
+    setNewModule((prev) => ({ ...prev, order: (modules?.length || 0) + 1 }));
+  }, [modules]);
 
   const handleEnroll = async () => {
     try {
@@ -136,7 +158,82 @@ const CourseDetail: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Modules</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Modules</CardTitle>
+            {isTeacher && (
+              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">Add Module</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Module</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mod-title">Title</Label>
+                      <Input
+                        id="mod-title"
+                        value={newModule.title}
+                        onChange={(e) => setNewModule((p) => ({ ...p, title: e.target.value }))}
+                        placeholder="e.g. Introduction"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mod-desc">Description</Label>
+                      <Textarea
+                        id="mod-desc"
+                        value={newModule.description}
+                        onChange={(e) => setNewModule((p) => ({ ...p, description: e.target.value }))}
+                        rows={4}
+                        placeholder="Optional summary"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mod-order">Order</Label>
+                      <Input
+                        id="mod-order"
+                        type="number"
+                        min={1}
+                        value={newModule.order}
+                        onChange={(e) => setNewModule((p) => ({ ...p, order: Number(e.target.value || 1) }))}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      onClick={async () => {
+                        if (!newModule.title?.trim()) {
+                          toast({ title: 'Title is required', variant: 'destructive' });
+                          return;
+                        }
+                        try {
+                          setIsCreating(true);
+                          await coursesApi.createCourseModule(courseId, {
+                            title: newModule.title.trim(),
+                            description: newModule.description?.trim() || '',
+                            order: newModule.order || 1,
+                          });
+                          toast({ title: 'Module added' });
+                          setIsAddOpen(false);
+                          setNewModule({ title: '', description: '', order: (modules?.length || 0) + 1 });
+                          await refreshModules();
+                        } catch (error: any) {
+                          const detail = error?.response?.data?.detail || error?.response?.data?.order?.[0] || 'Failed to add module';
+                          toast({ title: 'Error', description: String(detail), variant: 'destructive' });
+                        } finally {
+                          setIsCreating(false);
+                        }
+                      }}
+                      disabled={isCreating}
+                    >
+                      {isCreating ? 'Adding…' : 'Add Module'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {modules.length === 0 ? (

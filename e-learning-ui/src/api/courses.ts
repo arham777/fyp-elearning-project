@@ -44,8 +44,36 @@ export const coursesApi = {
     return response.data;
   },
 
+  async createCourseModule(
+    courseId: number,
+    data: Partial<CourseModule>
+  ): Promise<CourseModule> {
+    const response = await apiClient.post(`/courses/${courseId}/modules/`, data);
+    return response.data;
+  },
+
   async getModuleContents(courseId: number, moduleId: number) {
     const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/`);
+    return response.data;
+  },
+
+  async createModuleContent(
+    courseId: number,
+    moduleId: number,
+    data: {
+      module: number;
+      title: string;
+      content_type: 'video' | 'reading';
+      url?: string;
+      text?: string;
+      order?: number;
+      duration_minutes?: number;
+    }
+  ) {
+    const response = await apiClient.post(
+      `/courses/${courseId}/modules/${moduleId}/content/`,
+      data
+    );
     return response.data;
   },
 
@@ -57,6 +85,26 @@ export const coursesApi = {
   async getContent(courseId: number, moduleId: number, contentId: number) {
     const response = await apiClient.get(
       `/courses/${courseId}/modules/${moduleId}/content/${contentId}/`
+    );
+    return response.data;
+  },
+
+  async updateModuleContent(
+    courseId: number,
+    moduleId: number,
+    contentId: number,
+    data: {
+      title?: string;
+      content_type?: 'video' | 'reading';
+      url?: string;
+      text?: string;
+      order?: number;
+      duration_minutes?: number;
+    }
+  ) {
+    const response = await apiClient.patch(
+      `/courses/${courseId}/modules/${moduleId}/content/${contentId}/`,
+      data
     );
     return response.data;
   },
