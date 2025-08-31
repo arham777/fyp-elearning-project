@@ -73,7 +73,7 @@ const DashboardHeader: React.FC = () => {
                 <NavLink
                   key={link.to}
                   to={link.to}
-                  end={link.to === '/'}
+                  end={link.to === '/app'}
                   className={({ isActive }) =>
                     `px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${
                       (isActive || location.pathname === link.to)

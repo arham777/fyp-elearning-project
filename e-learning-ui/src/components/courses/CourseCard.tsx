@@ -47,7 +47,10 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
           {(() => {
-            // Decide what to show in the header's right-side badge
+            // Hide badge entirely on catalog for both roles per request
+            if (context === 'catalog') return null;
+
+            // Teacher view (non-catalog pages): show enrollment count
             if (isTeacher) {
               return (
                 <Badge variant="secondary">{`${course.enrollment_count ?? 0} enrolled`}</Badge>
@@ -64,7 +67,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
               return null;
             }
 
-            // Default behavior (e.g., catalog): show Enrolled or price
+            // Default behavior (non-catalog general use): show Enrolled or price
             const text = isEnrolled ? 'Enrolled' : formatPKR(course.price);
             return (
               <Badge variant="secondary">{text}</Badge>
