@@ -22,6 +22,8 @@ from rest_framework_simplejwt.views import (
     TokenBlacklistView,
 )
 from api.views import CustomTokenObtainPairView
+from django.conf import settings
+from django.conf.urls.static import static
 
 
 urlpatterns = [
@@ -31,4 +33,4 @@ urlpatterns = [
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path('api/', include('api.urls')),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

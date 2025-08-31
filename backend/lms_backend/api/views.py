@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, status, serializers
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -281,6 +282,7 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
 class ContentViewSet(viewsets.ModelViewSet):
     serializer_class = ContentSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
         module_id = self.kwargs.get('module_pk')
@@ -292,6 +294,20 @@ class ContentViewSet(viewsets.ModelViewSet):
         
         # Only course teacher or admin can add content
         if self.request.user.role == 'admin' or module.course.teacher == self.request.user:
+            # Minimal validation per content type
+            content_type = self.request.data.get('content_type')
+            if content_type == 'video':
+                file_provided = 'video' in self.request.FILES and self.request.FILES.get('video') is not None
+                url_provided = bool(self.request.data.get('url'))
+                if not (file_provided or url_provided):
+                    raise serializers.ValidationError({
+                        'video': 'Provide a video file or a video URL for video content.'
+                    })
+            elif content_type == 'reading':
+                if not self.request.data.get('text'):
+                    raise serializers.ValidationError({
+                        'text': 'Text is required for reading content.'
+                    })
             # Step-based ordering with optional insertion after a specific content
             step = 5
             after_content_id = self.request.data.get('after_content_id')

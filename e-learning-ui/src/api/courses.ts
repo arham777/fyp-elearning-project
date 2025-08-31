@@ -91,6 +91,19 @@ export const coursesApi = {
     return response.data;
   },
 
+  async createModuleContentUpload(
+    courseId: number,
+    moduleId: number,
+    formData: FormData
+  ) {
+    const response = await apiClient.post(
+      `/courses/${courseId}/modules/${moduleId}/content/`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  },
+
   async getModuleContentProgress(courseId: number, moduleId: number): Promise<number[]> {
     const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/progress/`);
     return response.data as number[];

@@ -44,6 +44,7 @@ export interface Content {
   title: string;
   content_type: 'video' | 'reading';
   url?: string;
+  video?: string;
   text?: string;
   order: number;
   duration_minutes: number;

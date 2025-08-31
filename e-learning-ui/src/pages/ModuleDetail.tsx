@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ const ModuleDetail: React.FC = () => {
     order: 1,
     duration_minutes: 0,
   });
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Edit dialog state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -129,29 +131,43 @@ const ModuleDetail: React.FC = () => {
     if (!module) return;
     setIsSaving(true);
     try {
-      const payload: {
-        module: number;
-        title: string;
-        content_type: 'video' | 'reading';
-        url?: string;
-        text?: string;
-        duration_minutes: number;
-        after_content_id?: number;
-      } = {
-        module: modId,
-        title: form.title.trim(),
-        content_type: form.content_type,
-        url: form.content_type === 'video' ? form.url : undefined,
-        text: form.content_type === 'reading' ? form.text : undefined,
-        duration_minutes: form.duration_minutes,
-      };
-      if (insertAfter !== 'end') payload.after_content_id = Number(insertAfter);
-
-      await coursesApi.createModuleContent(courseId, modId, payload);
+      if (form.content_type === 'video') {
+        if (!videoFile) {
+          toast({ title: 'Select a video file', description: 'Please choose a video to upload.' });
+          return;
+        }
+        const fd = new FormData();
+        fd.append('module', String(modId));
+        fd.append('title', form.title.trim());
+        fd.append('content_type', 'video');
+        if (insertAfter !== 'end') fd.append('after_content_id', String(insertAfter));
+        fd.append('video', videoFile);
+        await coursesApi.createModuleContentUpload(courseId, modId, fd);
+      } else {
+        const payload: {
+          module: number;
+          title: string;
+          content_type: 'video' | 'reading';
+          url?: string;
+          text?: string;
+          duration_minutes: number;
+          after_content_id?: number;
+        } = {
+          module: modId,
+          title: form.title.trim(),
+          content_type: form.content_type,
+          url: undefined,
+          text: form.content_type === 'reading' ? form.text : undefined,
+          duration_minutes: form.duration_minutes,
+        };
+        if (insertAfter !== 'end') payload.after_content_id = Number(insertAfter);
+        await coursesApi.createModuleContent(courseId, modId, payload);
+      }
       const refreshed = await coursesApi.getModuleContents(courseId, modId);
       setContents(refreshed);
       setIsAddOpen(false);
       setForm({ title: '', content_type: 'reading', url: '', text: '', order: 1, duration_minutes: 0 });
+      setVideoFile(null);
       setInsertAfter('end');
       toast({ title: 'Content added' });
     } catch (err: unknown) {
@@ -354,13 +370,28 @@ const ModuleDetail: React.FC = () => {
                     </div>
                     {form.content_type === 'video' ? (
                       <div className="space-y-2">
-                        <Label htmlFor="url">Video URL</Label>
-                        <Input
-                          id="url"
-                          value={form.url}
-                          onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                          placeholder="https://..."
-                        />
+                        <Label htmlFor="video">Upload video</Label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            id="video"
+                            ref={fileInputRef}
+                            type="file"
+                            accept="video/*"
+                            className="hidden"
+                            onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="bg-muted hover:bg-muted/80 text-foreground"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            Choose file
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {videoFile ? videoFile.name : 'No file chosen'}
+                          </span>
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -390,15 +421,17 @@ const ModuleDetail: React.FC = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="duration">Duration (minutes)</Label>
-                        <Input
-                          id="duration"
-                          type="number"
-                          value={form.duration_minutes}
-                          onChange={(e) => setForm((f) => ({ ...f, duration_minutes: Number(e.target.value) }))}
-                        />
-                      </div>
+                      {form.content_type !== 'video' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="duration">Duration (minutes)</Label>
+                          <Input
+                            id="duration"
+                            type="number"
+                            value={form.duration_minutes}
+                            onChange={(e) => setForm((f) => ({ ...f, duration_minutes: Number(e.target.value) }))}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                   <DialogFooter>

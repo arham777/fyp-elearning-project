@@ -92,7 +92,9 @@ const ContentViewer: React.FC = () => {
             </div>
           ) : (
             <div className="aspect-video w-full">
-              {content.url ? (
+              {content.video ? (
+                <video src={content.video} controls className="w-full h-full rounded" />
+              ) : content.url ? (
                 <iframe
                   title={content.title}
                   src={content.url}
@@ -101,7 +103,7 @@ const ContentViewer: React.FC = () => {
                   allowFullScreen
                 />
               ) : (
-                <div className="text-muted-foreground">No video URL provided.</div>
+                <div className="text-muted-foreground">No video provided.</div>
               )}
             </div>
           )}

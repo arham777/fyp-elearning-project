@@ -89,7 +89,8 @@ class Content(models.Model):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE, related_name='contents')
     title = models.CharField(max_length=200)
     content_type = models.CharField(max_length=10, choices=CONTENT_TYPES)
-    url = models.URLField(null=True, blank=True)  # For videos
+    url = models.URLField(null=True, blank=True)  # For videos (legacy URL)
+    video = models.FileField(upload_to='videos/', null=True, blank=True)  # Local uploaded video
     text = models.TextField(null=True, blank=True)  # For readings
     order = models.IntegerField(default=0)
     duration_minutes = models.IntegerField(default=0)  # Estimated time to complete
