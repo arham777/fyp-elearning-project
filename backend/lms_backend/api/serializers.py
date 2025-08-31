@@ -16,14 +16,28 @@ class TeacherSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email']
 
 class CourseModuleSerializer(serializers.ModelSerializer):
+    # Virtual field used only for creation to position the new module
+    after_module_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     class Meta:
         model = CourseModule
-        fields = ['id', 'title', 'description', 'order']
+        fields = ['id', 'title', 'description', 'order', 'after_module_id']
+
+    def create(self, validated_data):
+        # Remove non-model field before creating instance
+        validated_data.pop('after_module_id', None)
+        return super().create(validated_data)
 
 class ContentSerializer(serializers.ModelSerializer):
+    # Virtual field to support "insert after" behavior (write-only)
+    after_content_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     class Meta:
         model = Content
-        fields = ['id', 'module', 'title', 'content_type', 'url', 'text', 'order', 'duration_minutes']
+        fields = ['id', 'module', 'title', 'content_type', 'url', 'text', 'order', 'duration_minutes', 'after_content_id']
+
+    def create(self, validated_data):
+        # Remove non-model field before saving
+        validated_data.pop('after_content_id', None)
+        return super().create(validated_data)
 
 class AssignmentSerializer(serializers.ModelSerializer):
     class Meta:

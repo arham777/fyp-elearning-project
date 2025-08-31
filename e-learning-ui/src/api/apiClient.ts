@@ -25,6 +25,12 @@ export const clearTokens = (): void => {
   localStorage.removeItem('auth_tokens');
 };
 
+// Ensure Authorization header is present on initial load if tokens already exist
+const existingTokens = getTokens();
+if (existingTokens?.access) {
+  apiClient.defaults.headers.Authorization = `Bearer ${existingTokens.access}`;
+}
+
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {

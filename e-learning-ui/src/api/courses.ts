@@ -46,10 +46,23 @@ export const coursesApi = {
 
   async createCourseModule(
     courseId: number,
-    data: Partial<CourseModule>
+    data: { title: string; description?: string; after_module_id?: number }
   ): Promise<CourseModule> {
     const response = await apiClient.post(`/courses/${courseId}/modules/`, data);
     return response.data;
+  },
+
+  async updateCourseModule(
+    courseId: number,
+    moduleId: number,
+    data: { title?: string; description?: string; order?: number }
+  ): Promise<CourseModule> {
+    const response = await apiClient.patch(`/courses/${courseId}/modules/${moduleId}/`, data);
+    return response.data;
+  },
+
+  async deleteCourseModule(courseId: number, moduleId: number): Promise<void> {
+    await apiClient.delete(`/courses/${courseId}/modules/${moduleId}/`);
   },
 
   async getModuleContents(courseId: number, moduleId: number) {
@@ -66,8 +79,9 @@ export const coursesApi = {
       content_type: 'video' | 'reading';
       url?: string;
       text?: string;
-      order?: number;
       duration_minutes?: number;
+      order?: number;
+      after_content_id?: number;
     }
   ) {
     const response = await apiClient.post(
@@ -107,6 +121,10 @@ export const coursesApi = {
       data
     );
     return response.data;
+  },
+
+  async deleteModuleContent(courseId: number, moduleId: number, contentId: number): Promise<void> {
+    await apiClient.delete(`/courses/${courseId}/modules/${moduleId}/content/${contentId}/`);
   },
 
   async markContentComplete(courseId: number, moduleId: number, contentId: number) {

@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Max, F
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -211,12 +211,45 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
         
         # Only course teacher or admin can add modules
         if self.request.user.role == 'admin' or course.teacher == self.request.user:
-            desired_order = serializer.validated_data.get('order', 0)
-            if CourseModule.objects.filter(course_id=course_id, order=desired_order).exists():
-                raise serializers.ValidationError({
-                    'order': 'Order must be unique within this course.'
-                })
-            serializer.save(course_id=course_id)
+            # Auto-ordering with step of 5 and optional insertion after a module
+            step = 5
+            after_module_id = self.request.data.get('after_module_id')
+
+            new_order = None
+            if after_module_id is not None:
+                try:
+                    prev = CourseModule.objects.get(id=int(after_module_id), course_id=course_id)
+                    prev_order = prev.order
+                    # Find the next module to see if there is a gap
+                    next_mod = (
+                        CourseModule.objects
+                        .filter(course_id=course_id, order__gt=prev_order)
+                        .order_by('order')
+                        .first()
+                    )
+                    if next_mod is None:
+                        # Append at the end relative to prev
+                        new_order = prev_order + step
+                    else:
+                        # If no gap, shift subsequent modules to create room
+                        if next_mod.order - prev_order <= 1:
+                            CourseModule.objects.filter(course_id=course_id, order__gt=prev_order).update(order=F('order') + step)
+                        # Place immediately after prev
+                        new_order = prev_order + 1
+                except (CourseModule.DoesNotExist, ValueError, TypeError):
+                    new_order = None
+
+            if new_order is None:
+                # Append to end with configured step
+                max_order = CourseModule.objects.filter(course_id=course_id).aggregate(m=Max('order'))['m'] or 0
+                new_order = max_order + step if max_order else step
+
+            # Final safety to avoid collisions in unexpected scenarios
+            if CourseModule.objects.filter(course_id=course_id, order=new_order).exists():
+                max_order = CourseModule.objects.filter(course_id=course_id).aggregate(m=Max('order'))['m'] or 0
+                new_order = max_order + step if max_order else step
+
+            serializer.save(course_id=course_id, order=new_order)
         else:
             return Response({"detail": "You don't have permission to add modules to this course"}, 
                             status=status.HTTP_403_FORBIDDEN)
@@ -259,12 +292,40 @@ class ContentViewSet(viewsets.ModelViewSet):
         
         # Only course teacher or admin can add content
         if self.request.user.role == 'admin' or module.course.teacher == self.request.user:
-            desired_order = serializer.validated_data.get('order', 0)
-            if Content.objects.filter(module_id=module_id, order=desired_order).exists():
-                raise serializers.ValidationError({
-                    'order': 'Order must be unique within this module.'
-                })
-            serializer.save(module_id=module_id)
+            # Step-based ordering with optional insertion after a specific content
+            step = 5
+            after_content_id = self.request.data.get('after_content_id')
+
+            new_order = None
+            if after_content_id is not None:
+                try:
+                    prev = Content.objects.get(id=int(after_content_id), module_id=module_id)
+                    prev_order = prev.order
+                    next_item = (
+                        Content.objects
+                        .filter(module_id=module_id, order__gt=prev_order)
+                        .order_by('order')
+                        .first()
+                    )
+                    if next_item is None:
+                        new_order = prev_order + step
+                    else:
+                        if next_item.order - prev_order <= 1:
+                            Content.objects.filter(module_id=module_id, order__gt=prev_order).update(order=F('order') + step)
+                        new_order = prev_order + 1
+                except (Content.DoesNotExist, ValueError, TypeError):
+                    new_order = None
+
+            if new_order is None:
+                max_order = Content.objects.filter(module_id=module_id).aggregate(m=Max('order'))['m'] or 0
+                new_order = max_order + step if max_order else step
+
+            # Safety against accidental collisions
+            if Content.objects.filter(module_id=module_id, order=new_order).exists():
+                max_order = Content.objects.filter(module_id=module_id).aggregate(m=Max('order'))['m'] or 0
+                new_order = max_order + step if max_order else step
+
+            serializer.save(module_id=module_id, order=new_order)
         else:
             return Response({"detail": "You don't have permission to add content to this module"}, 
                             status=status.HTTP_403_FORBIDDEN)

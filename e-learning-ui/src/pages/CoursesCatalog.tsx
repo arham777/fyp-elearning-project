@@ -95,6 +95,7 @@ const CoursesCatalog: React.FC = () => {
             to={`/app/courses/${course.id}`}
             isEnrolled={enrolledCourseIds.has(course.id)}
             isCompleted={completedCourseIds.has(course.id)}
+            context="catalog"
           />
         ))}
       </div>

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import BackButton from '@/components/ui/back-button';
 import { coursesApi } from '@/api/courses';
 import { Content } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,6 +19,11 @@ const ContentViewer: React.FC = () => {
   const [completed, setCompleted] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const basePath = useMemo(() => {
+    return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
+  }, [location.pathname]);
 
   useEffect(() => {
     const load = async () => {
@@ -62,7 +68,7 @@ const ContentViewer: React.FC = () => {
           <p className="text-xs text-muted-foreground mt-1">{content.content_type === 'video' ? 'Video' : 'Reading'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
+          <BackButton to={`${basePath}/${courseId}/modules/${modId}`} />
           {user?.role === 'student' && (
             <Button onClick={markComplete} disabled={marking || completed}>
               {completed ? 'Completed' : marking ? 'Marking...' : 'Mark complete'}
