@@ -12,14 +12,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
-    ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate
+    ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
+    AssignmentQuestion
 )
 
 from .serializers import (
     UserSerializer, CourseListSerializer, CourseDetailSerializer,
     CourseModuleSerializer, ContentSerializer, EnrollmentSerializer,
     ContentProgressSerializer, PaymentSerializer, AssignmentSerializer,
-    AssignmentSubmissionSerializer, CertificateSerializer
+    AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer
 )
 
 from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher
@@ -440,18 +441,20 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         course_id = self.kwargs.get('course_pk')
         user = self.request.user
-        
-        if user.role in ['teacher', 'admin']:
-            if user.role == 'admin':
-                return Assignment.objects.filter(course_id=course_id)
-            else:
-                return Assignment.objects.filter(course_id=course_id, course__teacher=user)
-        else:
-            # Students can only see assignments for courses they're enrolled in
-            enrollments = Enrollment.objects.filter(student=user, course_id=course_id)
-            if enrollments.exists():
-                return Assignment.objects.filter(course_id=course_id)
-            return Assignment.objects.none()
+        module_id = self.request.query_params.get('module')
+        base_qs = Assignment.objects.filter(course_id=course_id)
+        if module_id:
+            base_qs = base_qs.filter(module_id=module_id)
+
+        if user.role == 'admin':
+            return base_qs
+        if user.role == 'teacher':
+            return base_qs.filter(course__teacher=user)
+        # Students can only see assignments for courses they're enrolled in
+        enrollments = Enrollment.objects.filter(student=user, course_id=course_id)
+        if enrollments.exists():
+            return base_qs
+        return Assignment.objects.none()
     
     def perform_create(self, serializer):
         course_id = self.kwargs.get('course_pk')
@@ -496,7 +499,122 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         
         try:
             enrollment = Enrollment.objects.get(student=user, course=assignment.course)
-            serializer.save(assignment_id=assignment_id, enrollment=enrollment)
+            # Attempt gating
+            existing = AssignmentSubmission.objects.filter(enrollment=enrollment, assignment=assignment)
+            attempts_used = existing.count()
+
+            # If already passed in any graded attempt, block further attempts
+            best = existing.filter(status='graded').order_by('-grade').first()
+            if best and best.grade is not None and best.grade >= assignment.passing_grade:
+                return Response({"detail": "You already passed this assignment."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Enforce attempt limit
+            if attempts_used >= assignment.max_attempts:
+                return Response({"detail": "No attempts left."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # For Q&A, block a new attempt if a previous attempt is still ungraded
+            if assignment.assignment_type == 'qa' and existing.filter(status='submitted').exists():
+                return Response({"detail": "Previous attempt is awaiting grading."}, status=status.HTTP_400_BAD_REQUEST)
+
+            submission = serializer.save(
+                assignment_id=assignment_id,
+                enrollment=enrollment,
+                attempt_number=attempts_used + 1
+            )
+            # Auto-grade submissions if applicable
+            if assignment.assignment_type == 'mcq':
+                answers = submission.answers or []
+                # Map question_id -> (points, set(correct_option_ids))
+                mcq_questions = AssignmentQuestion.objects.filter(assignment=assignment, question_type='mcq').prefetch_related('options')
+                correct_map = {
+                    q.id: (q.points, {opt.id for opt in q.options.all() if opt.is_correct})
+                    for q in mcq_questions
+                }
+                total_points_available = sum(points for (points, _) in correct_map.values()) or 1
+                earned_points = 0
+                for ans in answers:
+                    qid = ans.get('question_id')
+                    selected = set(ans.get('selected_option_ids') or [])
+                    if qid in correct_map:
+                        points, correct_set = correct_map[qid]
+                        if selected == correct_set:
+                            earned_points += points
+                percent = round((earned_points / total_points_available) * 100, 2)
+                submission.grade = percent
+                submission.status = 'graded'
+                submission.save(update_fields=['grade', 'status'])
+            elif assignment.assignment_type == 'qa':
+                # Advanced keyword/acceptable-answer QA auto-grading
+                answers = submission.answers or []
+                qa_questions = AssignmentQuestion.objects.filter(assignment=assignment, question_type='qa')
+                total_points_available = sum(q.points for q in qa_questions) or 1
+                earned_points = 0
+
+                # question_id -> config
+                def norm_list(items):
+                    arr = [s.strip().lower() for s in (items or []) if isinstance(s, str) and s.strip()]
+                    # remove duplicates preserving order
+                    seen = set(); out = []
+                    for s in arr:
+                        if s not in seen:
+                            seen.add(s); out.append(s)
+                    return out
+
+                qcfg = {}
+                for q in qa_questions:
+                    qcfg[q.id] = {
+                        'points': q.points,
+                        'keywords': norm_list(q.keywords),
+                        'required': norm_list(q.required_keywords),
+                        'negative': norm_list(q.negative_keywords),
+                        'acceptable': norm_list(q.acceptable_answers),
+                    }
+
+                for ans in answers:
+                    qid = ans.get('question_id')
+                    text_raw = ans.get('text_answer') or ''
+                    text = text_raw.lower()
+                    if qid not in qcfg:
+                        continue
+                    cfg = qcfg[qid]
+                    pts = cfg['points']
+                    if pts <= 0:
+                        continue
+
+                    # Full credit if acceptable answer matches exactly (case-insensitive trim)
+                    norm_text = text.strip()
+                    if cfg['acceptable'] and norm_text in cfg['acceptable']:
+                        earned_points += pts
+                        continue
+
+                    # Required keywords: if provided, all must be present
+                    if cfg['required']:
+                        if not all(r in text for r in cfg['required']):
+                            # If any required missing → zero for this question
+                            continue
+
+                    # Optional keywords proportional credit
+                    opt = cfg['keywords']
+                    opt_credit = 0
+                    if opt:
+                        matched_opt = sum(1 for kw in opt if kw in text)
+                        opt_credit = pts * (matched_opt / len(opt))
+                    else:
+                        # If no optional keywords configured, base credit is full after required pass
+                        opt_credit = pts
+
+                    # Negative keywords penalty
+                    neg = cfg['negative']
+                    penalty = 0
+                    if neg:
+                        penalty = (pts * 0.2) * sum(1 for kw in neg if kw in text)  # 20% per negative keyword
+
+                    earned_points += max(0, min(pts, opt_credit - penalty))
+
+                percent = round((earned_points / total_points_available) * 100, 2)
+                submission.grade = percent
+                submission.status = 'graded'
+                submission.save(update_fields=['grade', 'status'])
         except Enrollment.DoesNotExist:
             return Response({"detail": "You are not enrolled in this course"}, 
                             status=status.HTTP_400_BAD_REQUEST)
@@ -519,6 +637,20 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         else:
             return Response({"detail": "You don't have permission to grade this submission"}, 
                             status=status.HTTP_403_FORBIDDEN)
+
+class AssignmentQuestionViewSet(viewsets.ModelViewSet):
+    serializer_class = AssignmentQuestionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        assignment_id = self.kwargs.get('assignment_pk')
+        user = self.request.user
+        base_qs = AssignmentQuestion.objects.filter(assignment_id=assignment_id)
+        if user.role == 'admin':
+            return base_qs
+        if user.role == 'teacher':
+            return base_qs.filter(assignment__course__teacher=user)
+        return base_qs
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CertificateSerializer

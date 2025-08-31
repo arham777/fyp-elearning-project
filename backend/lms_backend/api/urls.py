@@ -21,6 +21,7 @@ modules_router.register(r'content', views.ContentViewSet, basename='module-conte
 # Assignment nested router
 assignments_router = routers.NestedSimpleRouter(courses_router, r'assignments', lookup='assignment')
 assignments_router.register(r'submissions', views.AssignmentSubmissionViewSet, basename='assignment-submission')
+assignments_router.register(r'questions', views.AssignmentQuestionViewSet, basename='assignment-question')
 
 # Certificate router
 router.register(r'certificates', views.CertificateViewSet, basename='certificate')

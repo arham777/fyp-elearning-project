@@ -55,13 +55,49 @@ export interface Assignment {
   id: number;
   course: number;
   module?: number;
+  assignment_type: 'mcq' | 'qa';
   title: string;
   description: string;
-  due_date: string;
   total_points: number;
   passing_grade: number;
+  max_attempts: number; // NEW: maximum attempts allowed
   created_at: string;
+  my_submission_status?: 'submitted' | 'graded';
+  my_submission_grade?: number | null;
+  // NEW: attempt state exposed by backend
+  attempts_used?: number;
+  can_attempt?: boolean;
+  my_best_grade?: number | null;
+  passed?: boolean;
 }
+
+export interface AssignmentOption {
+  id?: number;
+  text: string;
+  is_correct: boolean;
+  order?: number;
+}
+
+export interface AssignmentQuestion {
+  id?: number;
+  assignment: number;
+  question_type: 'mcq' | 'qa';
+  text: string;
+  points: number;
+  order?: number;
+  explanation?: string;
+  keywords?: string[]; // for QA auto-grading
+  required_keywords?: string[];
+  negative_keywords?: string[];
+  acceptable_answers?: string[];
+  options?: AssignmentOption[];
+}
+
+export type SubmissionAnswer = {
+  question_id: number;
+  selected_option_ids?: number[]; // for MCQ
+  text_answer?: string; // for QA
+};
 
 export interface Enrollment {
   id: number;
@@ -84,10 +120,14 @@ export interface ContentProgress {
 
 export interface Submission {
   id: number;
-  assignment: Assignment;
-  student: User;
-  submitted_at: string;
+  assignment?: Assignment; // may not be embedded
+  student?: User; // present via serializer
+  submission_date?: string; // backend field
+  submitted_at?: string; // legacy name
+  status?: 'submitted' | 'graded';
+  attempt_number?: number; // attempt index (1-based)
   content?: string;
+  answers?: SubmissionAnswer[]; // student's answers
   file_url?: string;
   grade?: number;
   feedback?: string;

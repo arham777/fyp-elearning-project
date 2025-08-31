@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { coursesApi } from '@/api/courses';
-import { Content, CourseModule } from '@/types';
+import { Assignment, Content, CourseModule } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,6 +30,7 @@ const ModuleDetail: React.FC = () => {
   const modId = Number(moduleId);
   const [module, setModule] = useState<CourseModule | null>(null);
   const [contents, setContents] = useState<Content[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [marking, setMarking] = useState<number | null>(null);
   const navigate = useNavigate();
@@ -39,6 +41,7 @@ const ModuleDetail: React.FC = () => {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [insertAfter, setInsertAfter] = useState<string>('end');
   const [form, setForm] = useState<{ title: string; content_type: 'video' | 'reading'; url?: string; text?: string; order: number; duration_minutes: number }>({
     title: '',
@@ -50,6 +53,62 @@ const ModuleDetail: React.FC = () => {
   });
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Assignment form state
+  const [assignForm, setAssignForm] = useState<{
+    title: string;
+    assignment_type: 'mcq' | 'qa';
+    description: string;
+    total_points: number;
+    passing_grade: number;
+    max_attempts?: number;
+  }>({
+    title: '',
+    assignment_type: 'qa',
+    description: '',
+    total_points: 100,
+    passing_grade: 60,
+    max_attempts: 1,
+  });
+
+  // Question builder state
+  type NewOption = { id?: string; text: string; is_correct: boolean };
+  type NewQuestion = {
+    id?: string;
+    question_type: 'mcq' | 'qa';
+    text: string;
+    points: number;
+    keywords?: string; // comma-separated keywords for QA auto-grading
+    required_keywords?: string; // comma-separated required
+    negative_keywords?: string; // comma-separated negative
+    acceptable_answers?: string; // comma-separated acceptable exact
+    options: NewOption[]; // for mcq; ignored for qa
+  };
+  const [newQuestions, setNewQuestions] = useState<NewQuestion[]>([]);
+
+  const addQuestion = (type: 'mcq' | 'qa') => {
+    setNewQuestions((qs) => [
+      ...qs,
+      {
+        id: crypto.randomUUID(),
+        question_type: type,
+        text: '',
+        points: 1,
+        options: type === 'mcq' ? [
+          { id: crypto.randomUUID(), text: '', is_correct: false },
+          { id: crypto.randomUUID(), text: '', is_correct: false },
+        ] : [],
+      },
+    ]);
+  };
+
+  const removeQuestion = (qid: string) => setNewQuestions((qs) => qs.filter((q) => q.id !== qid));
+  const addOption = (qid: string) => setNewQuestions((qs) => qs.map((q) => q.id === qid ? {
+    ...q, options: [...q.options, { id: crypto.randomUUID(), text: '', is_correct: false }]
+  } : q));
+  const removeOption = (qid: string, oid: string) => setNewQuestions((qs) => qs.map((q) => q.id === qid ? {
+    ...q, options: q.options.filter((o) => o.id !== oid)
+  } : q));
 
   // Edit dialog state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -69,14 +128,16 @@ const ModuleDetail: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [m, items, done] = await Promise.all([
+        const [m, items, done, asgs] = await Promise.all([
           coursesApi.getCourseModule(courseId, modId),
           coursesApi.getModuleContents(courseId, modId),
           coursesApi.getModuleContentProgress(courseId, modId),
+          coursesApi.getCourseAssignments(courseId, { module: modId }),
         ]);
         setModule(m);
         setContents(items);
         setCompletedIds(done ?? []);
+        setAssignments(asgs ?? []);
       } finally {
         setIsLoading(false);
       }
@@ -124,6 +185,60 @@ const ModuleDetail: React.FC = () => {
       toast({ title: 'Error', description: String(detail) });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const saveAssignment = async () => {
+    setIsSaving(true);
+    try {
+      const created = await coursesApi.createAssignment(courseId, {
+        module: modId,
+        assignment_type: assignForm.assignment_type,
+        title: assignForm.title.trim(),
+        description: assignForm.description,
+        total_points: assignForm.total_points,
+        passing_grade: assignForm.passing_grade,
+        max_attempts: assignForm.max_attempts,
+      });
+
+      // If questions were built, send them now
+      if (newQuestions.length > 0) {
+        const payload = newQuestions.map((q, idx) => ({
+          question_type: q.question_type,
+          text: q.text,
+          points: q.points,
+          order: idx + 1,
+          keywords: q.question_type === 'qa' ? (q.keywords ? q.keywords.split(',').map((s) => s.trim()).filter(Boolean) : []) : undefined,
+          required_keywords: q.question_type === 'qa' ? (q.required_keywords ? q.required_keywords.split(',').map((s) => s.trim()).filter(Boolean) : []) : undefined,
+          negative_keywords: q.question_type === 'qa' ? (q.negative_keywords ? q.negative_keywords.split(',').map((s) => s.trim()).filter(Boolean) : []) : undefined,
+          acceptable_answers: q.question_type === 'qa' ? (q.acceptable_answers ? q.acceptable_answers.split(',').map((s) => s.trim()).filter(Boolean) : []) : undefined,
+          options: q.question_type === 'mcq' ? q.options.map((o, i) => ({ text: o.text, is_correct: o.is_correct, order: i + 1 })) : [],
+        }));
+        await coursesApi.createAssignmentQuestions(courseId, created.id, payload as unknown as { question_type: 'mcq' | 'qa'; text: string; points: number; order?: number; options?: { text: string; is_correct: boolean; order?: number }[]; }[]);
+      }
+
+      const refreshed = await coursesApi.getCourseAssignments(courseId, { module: modId });
+      setAssignments(refreshed);
+      setIsAssignOpen(false);
+      setAssignForm({ title: '', assignment_type: 'qa', description: '', total_points: 100, passing_grade: 60, max_attempts: 1 });
+      setNewQuestions([]);
+      toast({ title: 'Assignment created' });
+    } catch (err: unknown) {
+      const respData = (err as { response?: { data?: unknown } })?.response?.data;
+      const asRecord = (v: unknown): Record<string, unknown> | null =>
+        typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
+      const dataRec = asRecord(respData);
+      const detail = typeof respData === 'string'
+        ? respData
+        : (dataRec?.detail as string | undefined)
+          || Object.keys(dataRec || {}).map((k) => {
+               const v = dataRec ? dataRec[k] : undefined;
+               return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
+             }).shift()
+          || 'Failed to create assignment';
+      toast({ title: 'Error', description: String(detail) });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -485,6 +600,222 @@ const ModuleDetail: React.FC = () => {
                 </li>
               ))}
             </ol>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Assignments</CardTitle>
+            {isTeacherOrAdmin && (
+              <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">Create assignment</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create assignment</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="atitle">Title</Label>
+                      <Input id="atitle" value={assignForm.title} onChange={(e) => setAssignForm((f) => ({ ...f, title: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="atype">Type</Label>
+                        <select
+                          id="atype"
+                          className="w-full rounded-md border bg-background p-2 text-sm"
+                          value={assignForm.assignment_type}
+                          onChange={(e) => setAssignForm((f) => ({ ...f, assignment_type: e.target.value as 'mcq' | 'qa' }))}
+                        >
+                          <option value="qa">Q&A</option>
+                          <option value="mcq">MCQs</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="adesc">Description</Label>
+                      <Textarea id="adesc" rows={4} value={assignForm.description} onChange={(e) => setAssignForm((f) => ({ ...f, description: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="points">Total points</Label>
+                        <Input id="points" type="number" value={assignForm.total_points} onChange={(e) => setAssignForm((f) => ({ ...f, total_points: Number(e.target.value) }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="pass">Passing %</Label>
+                        <Input id="pass" type="number" value={assignForm.passing_grade} onChange={(e) => setAssignForm((f) => ({ ...f, passing_grade: Number(e.target.value) }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="attempts">Max attempts</Label>
+                        <Input id="attempts" type="number" min={1} value={assignForm.max_attempts ?? 1} onChange={(e) => setAssignForm((f) => ({ ...f, max_attempts: Math.max(1, Number(e.target.value)) }))} />
+                      </div>
+                    </div>
+
+                    {/* Question builder */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">Questions</div>
+                        <div className="flex gap-2">
+                          {assignForm.assignment_type === 'qa' ? (
+                            <Button type="button" size="sm" variant="outline" onClick={() => addQuestion('qa')}>Add Q&A</Button>
+                          ) : (
+                            <Button type="button" size="sm" onClick={() => addQuestion('mcq')}>Add MCQ</Button>
+                          )}
+                        </div>
+                      </div>
+                      {newQuestions.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">No questions yet. Add Q&A or MCQ.</div>
+                      ) : (
+                        <div className="space-y-4">
+                          {newQuestions.map((q, qi) => (
+                            <div key={q.id} className="rounded border p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 space-y-2">
+                                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                                    <div className="sm:col-span-4">
+                                      <Label>Question {qi + 1} ({q.question_type.toUpperCase()})</Label>
+                                      <Textarea
+                                        value={q.text}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, text: e.target.value } : it))}
+                                        rows={3}
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-1">
+                                      <Label>Points</Label>
+                                      <Input
+                                        type="number"
+                                        value={q.points}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, points: Number(e.target.value) } : it))}
+                                      />
+                                    </div>
+                                  </div>
+                                  {q.question_type === 'mcq' && (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <Label>Options</Label>
+                                        <Button type="button" size="sm" variant="outline" onClick={() => addOption(q.id!)}>Add option</Button>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {q.options.map((o) => (
+                                          <div key={o.id} className="grid grid-cols-1 sm:grid-cols-12 items-center gap-2">
+                                            <div className="sm:col-span-10">
+                                              <Input
+                                                value={o.text}
+                                                onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? {
+                                                  ...it,
+                                                  options: it.options.map((op) => op.id === o.id ? { ...op, text: e.target.value } : op)
+                                                } : it))}
+                                              />
+                                            </div>
+                                            <div className="sm:col-span-1 text-sm">
+                                              <label className="inline-flex items-center gap-1">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={o.is_correct}
+                                                  onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? {
+                                                    ...it,
+                                                    options: it.options.map((op) => op.id === o.id ? { ...op, is_correct: e.target.checked } : op)
+                                                  } : it))}
+                                                />
+                                                Correct
+                                              </label>
+                                            </div>
+                                            <div className="sm:col-span-1 justify-self-end">
+                                              <Button type="button" variant="destructive" size="sm" onClick={() => removeOption(q.id!, o.id!)}>X</Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {q.question_type === 'qa' && (
+                                    <div className="space-y-2">
+                                      <Label>Keywords (comma-separated)</Label>
+                                      <Input
+                                        value={q.keywords || ''}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, keywords: e.target.value } : it))}
+                                        placeholder="e.g. overfitting, generalization, variance"
+                                      />
+                                      <div className="text-xs text-muted-foreground">Used for auto-grading: more matches = more points.</div>
+                                      <Label>Required keywords (comma-separated)</Label>
+                                      <Input
+                                        value={q.required_keywords || ''}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, required_keywords: e.target.value } : it))}
+                                        placeholder="All must appear for credit"
+                                      />
+                                      <Label>Negative keywords (comma-separated)</Label>
+                                      <Input
+                                        value={q.negative_keywords || ''}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, negative_keywords: e.target.value } : it))}
+                                        placeholder="Penalize if present"
+                                      />
+                                      <Label>Acceptable answers (comma-separated, exact match)</Label>
+                                      <Input
+                                        value={q.acceptable_answers || ''}
+                                        onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? { ...it, acceptable_answers: e.target.value } : it))}
+                                        placeholder="Exact acceptable answers"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <Button type="button" variant="destructive" size="sm" onClick={() => removeQuestion(q.id!)}>Remove</Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAssignOpen(false)} disabled={isSaving}>Cancel</Button>
+                    <Button onClick={saveAssignment} disabled={isSaving || !assignForm.title.trim()}>
+                      {isSaving ? 'Saving...' : 'Create'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {assignments.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No assignments yet.</div>
+          ) : (
+            <ul className="space-y-3">
+              {assignments.map((a) => (
+                <li key={a.id} className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{a.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.assignment_type === 'mcq' ? 'MCQs' : 'Q&A'}
+                      {user?.role !== 'teacher' && a.my_submission_status ? (
+                        <span className="ml-2 inline-flex items-center gap-1">
+                          {a.my_submission_status === 'graded' ? '• Graded' : '• Submitted'}
+                          {typeof a.my_submission_grade === 'number' ? ` (${a.my_submission_grade}%)` : ''}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Passed/Failed badge for students when graded */}
+                    {user?.role !== 'teacher' && a.my_submission_status === 'graded' ? (
+                      <Badge variant="secondary">{a.passed ? 'Passed' : 'Failed'}</Badge>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant={user?.role === 'teacher' ? 'outline' : 'default'}
+                      onClick={() => navigate(`${basePath}/${courseId}/assignments/${a.id}`)}
+                    >
+                      {user?.role === 'teacher' ? 'Manage' : (a.my_submission_status ? 'Review' : 'View')}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

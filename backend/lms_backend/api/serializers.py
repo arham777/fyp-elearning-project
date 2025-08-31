@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
-    ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate
+    ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
+    AssignmentQuestion, AssignmentOption
 )
 
 class UserSerializer(serializers.ModelSerializer):
@@ -49,9 +50,111 @@ class ContentSerializer(serializers.ModelSerializer):
         return rep
 
 class AssignmentSerializer(serializers.ModelSerializer):
+    questions = serializers.SerializerMethodField(read_only=True)
+    my_submission_status = serializers.SerializerMethodField(read_only=True)
+    my_submission_grade = serializers.SerializerMethodField(read_only=True)
+    attempts_used = serializers.SerializerMethodField(read_only=True)
+    can_attempt = serializers.SerializerMethodField(read_only=True)
+    my_best_grade = serializers.SerializerMethodField(read_only=True)
+    passed = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Assignment
-        fields = ['id', 'course', 'module', 'title', 'description', 'due_date', 'total_points', 'passing_grade']
+        fields = [
+            'id', 'course', 'module', 'assignment_type', 'title', 'description',
+            'total_points', 'passing_grade', 'max_attempts', 'questions',
+            'my_submission_status', 'my_submission_grade',
+            'attempts_used', 'can_attempt', 'my_best_grade', 'passed'
+        ]
+        read_only_fields = ['course']
+
+    def get_questions(self, obj):
+        qs = obj.questions.all()
+        return AssignmentQuestionSerializer(qs, many=True).data
+
+    def get_my_submission_status(self, obj):
+        request = getattr(self, 'context', {}).get('request')
+        if not request or not hasattr(request, 'user'):
+            return None
+        try:
+            submission = obj.submissions.filter(enrollment__student=request.user).first()
+            return submission.status if submission else None
+        except Exception:
+            return None
+
+    def get_my_submission_grade(self, obj):
+        request = getattr(self, 'context', {}).get('request')
+        if not request or not hasattr(request, 'user'):
+            return None
+        try:
+            submission = obj.submissions.filter(enrollment__student=request.user).first()
+            return submission.grade if submission else None
+        except Exception:
+            return None
+
+    def _my_submissions(self, obj, user):
+        return obj.submissions.filter(enrollment__student=user)
+
+    def get_attempts_used(self, obj):
+        request = getattr(self, 'context', {}).get('request')
+        if not request or not hasattr(request, 'user'):
+            return 0
+        return self._my_submissions(obj, request.user).count()
+
+    def get_my_best_grade(self, obj):
+        request = getattr(self, 'context', {}).get('request')
+        if not request or not hasattr(request, 'user'):
+            return None
+        best = self._my_submissions(obj, request.user).filter(status='graded').order_by('-grade').first()
+        return best.grade if best else None
+
+    def get_passed(self, obj):
+        best_grade = self.get_my_best_grade(obj)
+        return bool(best_grade is not None and best_grade >= obj.passing_grade)
+
+    def get_can_attempt(self, obj):
+        request = getattr(self, 'context', {}).get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        subs = self._my_submissions(obj, request.user)
+        used = subs.count()
+        best = subs.filter(status='graded').order_by('-grade').first()
+        already_passed = bool(best and best.grade is not None and best.grade >= obj.passing_grade)
+        pending_qa = obj.assignment_type == 'qa' and subs.filter(status='submitted').exists()
+        return (used < obj.max_attempts) and (not already_passed) and (not pending_qa)
+
+class AssignmentOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssignmentOption
+        fields = ['id', 'text', 'is_correct', 'order']
+
+class AssignmentQuestionSerializer(serializers.ModelSerializer):
+    options = AssignmentOptionSerializer(many=True, required=False)
+    class Meta:
+        model = AssignmentQuestion
+        fields = [
+            'id', 'assignment', 'question_type', 'text', 'points', 'order',
+            'explanation', 'keywords', 'required_keywords', 'negative_keywords', 'acceptable_answers',
+            'options'
+        ]
+
+    def create(self, validated_data):
+        options_data = validated_data.pop('options', [])
+        question = super().create(validated_data)
+        for idx, opt in enumerate(options_data, start=1):
+            # Avoid passing 'order' twice if it exists in opt
+            opt_order = opt.pop('order', idx)
+            AssignmentOption.objects.create(question=question, order=opt_order, **opt)
+        return question
+
+    def update(self, instance, validated_data):
+        options_data = validated_data.pop('options', None)
+        instance = super().update(instance, validated_data)
+        if options_data is not None:
+            instance.options.all().delete()
+            for idx, opt in enumerate(options_data, start=1):
+                opt_order = opt.pop('order', idx)
+                AssignmentOption.objects.create(question=instance, order=opt_order, **opt)
+        return instance
 
 class CourseListSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer(read_only=True)
@@ -84,11 +187,18 @@ class ContentProgressSerializer(serializers.ModelSerializer):
         read_only_fields = ['completed_date']
 
 class AssignmentSubmissionSerializer(serializers.ModelSerializer):
+    student = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = AssignmentSubmission
-        fields = ['id', 'enrollment', 'assignment', 'submission_date', 'content', 'file', 
-                  'grade', 'status', 'feedback']
-        read_only_fields = ['submission_date', 'grade', 'status', 'feedback']
+        fields = ['id', 'enrollment', 'assignment', 'submission_date', 'attempt_number', 'content', 'answers', 'file', 
+                  'grade', 'status', 'feedback', 'student']
+        read_only_fields = ['enrollment', 'assignment', 'submission_date', 'attempt_number', 'grade', 'status', 'feedback', 'student']
+
+    def get_student(self, obj):
+        try:
+            return UserSerializer(obj.enrollment.student).data
+        except Exception:
+            return None
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     course = CourseListSerializer(read_only=True)

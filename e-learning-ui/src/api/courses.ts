@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate } from '@/types';
+import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate, Assignment, AssignmentQuestion, SubmissionAnswer, Submission } from '@/types';
 
 export const coursesApi = {
   async getCourses(params?: {
@@ -107,6 +107,82 @@ export const coursesApi = {
   async getModuleContentProgress(courseId: number, moduleId: number): Promise<number[]> {
     const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/progress/`);
     return response.data as number[];
+  },
+
+  async getCourseAssignments(courseId: number, params?: { module?: number }): Promise<Assignment[]> {
+    const response = await apiClient.get(`/courses/${courseId}/assignments/`, { params });
+    return response.data as Assignment[];
+  },
+
+  async createAssignment(
+    courseId: number,
+    payload: {
+      module?: number;
+      assignment_type: 'mcq' | 'qa';
+      title: string;
+      description: string;
+      total_points?: number;
+      passing_grade?: number;
+      max_attempts?: number;
+    }
+  ): Promise<Assignment> {
+    const response = await apiClient.post(`/courses/${courseId}/assignments/`, payload);
+    return response.data as Assignment;
+  },
+
+  async createAssignmentQuestions(
+    courseId: number,
+    assignmentId: number,
+    questions: Omit<AssignmentQuestion, 'assignment'>[]
+  ) {
+    // Bulk create one by one for now; could add backend bulk later
+    const results: AssignmentQuestion[] = [];
+    for (const [idx, q] of questions.entries()) {
+      const res = await apiClient.post(`/courses/${courseId}/assignments/${assignmentId}/questions/`, {
+        ...q,
+        assignment: assignmentId,
+        order: q.order ?? idx + 1,
+      });
+      results.push(res.data);
+    }
+    return results;
+  },
+
+  async getAssignment(courseId: number, assignmentId: number): Promise<Assignment & { questions?: AssignmentQuestion[] }> {
+    const response = await apiClient.get(`/courses/${courseId}/assignments/${assignmentId}/`);
+    return response.data;
+  },
+
+  async createAssignmentSubmission(
+    courseId: number,
+    assignmentId: number,
+    data: { content: string; answers?: SubmissionAnswer[]; file?: File | null }
+  ) {
+    if (data.file) {
+      const fd = new FormData();
+      fd.append('content', data.content || 'submission');
+      if (data.answers) fd.append('answers', JSON.stringify(data.answers));
+      fd.append('file', data.file);
+      const res = await apiClient.post(`/courses/${courseId}/assignments/${assignmentId}/submissions/`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const res = await apiClient.post(`/courses/${courseId}/assignments/${assignmentId}/submissions/`, {
+      content: data.content || 'submission',
+      answers: data.answers ?? [],
+    });
+    return res.data;
+  },
+
+  async getAssignmentSubmissions(courseId: number, assignmentId: number): Promise<Submission[]> {
+    const res = await apiClient.get(`/courses/${courseId}/assignments/${assignmentId}/submissions/`);
+    return res.data as Submission[];
+  },
+
+  async gradeSubmission(courseId: number, assignmentId: number, submissionId: number, grade: number, feedback?: string): Promise<Submission> {
+    const res = await apiClient.post(`/courses/${courseId}/assignments/${assignmentId}/submissions/${submissionId}/grade/`, { grade, feedback });
+    return res.data as Submission;
   },
 
   async getContent(courseId: number, moduleId: number, contentId: number) {

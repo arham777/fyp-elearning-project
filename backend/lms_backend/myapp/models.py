@@ -234,9 +234,15 @@ class Assignment(models.Model):
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE, related_name='assignments', null=True, blank=True)
     title = models.CharField(max_length=200)
     description = models.TextField()
-    due_date = models.DateTimeField()
     total_points = models.IntegerField(default=100)
     passing_grade = models.IntegerField(default=60)  # Percentage needed to pass
+    ASSIGNMENT_TYPES = (
+        ('mcq', 'MCQ'),
+        ('qa', 'Q&A'),
+    )
+    assignment_type = models.CharField(max_length=5, choices=ASSIGNMENT_TYPES, default='qa')
+    # Maximum number of attempts a student can make for this assignment
+    max_attempts = models.PositiveIntegerField(default=1)
 
     def __str__(self):
         return f"{self.title} - {self.course.title}"
@@ -251,14 +257,18 @@ class AssignmentSubmission(models.Model):
     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='submissions')
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
     submission_date = models.DateTimeField(default=timezone.now)
+    # Attempt number for this submission (1-based)
+    attempt_number = models.PositiveIntegerField(default=1)
     content = models.TextField()  # Text submission
+    # For MCQ and structured Q&A answers; each item: {question_id, selected_option_ids?: number[], text_answer?: string}
+    answers = models.JSONField(null=True, blank=True, default=list)
     file = models.FileField(upload_to='submissions/', null=True, blank=True)  # File submission
     grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='submitted')
     feedback = models.TextField(null=True, blank=True)
     
     class Meta:
-        unique_together = ('enrollment', 'assignment')
+        unique_together = ('enrollment', 'assignment', 'attempt_number')
         
     def __str__(self):
         return f"{self.enrollment.student.username} - {self.assignment.title}"
@@ -273,6 +283,50 @@ class AssignmentSubmission(models.Model):
         
         # Check if this grading affects overall course completion
         self.enrollment.check_completion_and_issue_certificate()
+
+# Assignment Questions and Options
+class AssignmentQuestion(models.Model):
+    QUESTION_TYPES = (
+        ('mcq', 'MCQ'),
+        ('qa', 'Q&A'),
+    )
+    id = models.AutoField(primary_key=True)
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='questions')
+    question_type = models.CharField(max_length=5, choices=QUESTION_TYPES)
+    text = models.TextField()
+    points = models.IntegerField(default=1)
+    order = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    explanation = models.TextField(null=True, blank=True)
+    # For Q&A auto-grading
+    # Optional/bonus keywords to match for partial credit
+    keywords = models.JSONField(null=True, blank=True, default=list)
+    # Required keywords; if provided and any are missing, question may score 0
+    required_keywords = models.JSONField(null=True, blank=True, default=list)
+    # Negative keywords; if present in the answer, reduce credit
+    negative_keywords = models.JSONField(null=True, blank=True, default=list)
+    # Acceptable exact answers (normalized, case-insensitive); if matched → full credit
+    acceptable_answers = models.JSONField(null=True, blank=True, default=list)
+    
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('assignment', 'order')
+    
+    def __str__(self):
+        return f"Q{self.order}: {self.text[:30]}..."
+
+class AssignmentOption(models.Model):
+    id = models.AutoField(primary_key=True)
+    question = models.ForeignKey(AssignmentQuestion, on_delete=models.CASCADE, related_name='options')
+    text = models.CharField(max_length=500)
+    is_correct = models.BooleanField(default=False)
+    order = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = ('question', 'order')
+    
+    def __str__(self):
+        return f"{self.text[:30]}... ({'correct' if self.is_correct else 'incorrect'})"
 
 # Certificates Model
 class Certificate(models.Model):
