@@ -185,12 +185,6 @@ const TeacherDashboard: React.FC = () => {
 							</Link>
 						</Button>
 						<Button variant="outline" className="h-16 flex flex-col space-y-1" asChild>
-							<Link to="/app/assignments">
-								<ClipboardList className="h-6 w-6" />
-								<span>View All Assignments</span>
-							</Link>
-						</Button>
-						<Button variant="outline" className="h-16 flex flex-col space-y-1" asChild>
 							<Link to="/app/students">
 								<Users className="h-6 w-6" />
 								<span>Manage Students</span>

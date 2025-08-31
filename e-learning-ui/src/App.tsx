@@ -103,7 +103,6 @@ const App = () => (
                 <Route path="my-courses/:id/modules/:moduleId" element={<ModuleDetail />} />
                 <Route path="my-courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
                 <Route path="my-courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
-                <Route path="assignments" element={<div>Assignments - Coming Soon</div>} />
                 <Route path="certificates" element={<CertificatesPage />} />
                 <Route path="certificates/:id" element={<CertificateView />} />
                 <Route path="create-course" element={<CreateCourse />} />
@@ -111,6 +110,8 @@ const App = () => (
                 <Route path="users" element={<UsersPage />} />
                 <Route path="settings" element={<div>Settings - Coming Soon</div>} />
                 <Route path="profile" element={<Profile />} />
+                {/* Redirect old /app/assignments URL to dashboard */}
+                <Route path="assignments" element={<Navigate to="/app" replace />} />
               </Route>
 
               {/* Catch-all route */}

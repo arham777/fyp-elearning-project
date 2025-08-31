@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { coursesApi } from '@/api/courses';
-import { Assignment, AssignmentQuestion, SubmissionAnswer, Submission } from '@/types';
+import { Assignment, AssignmentQuestion, SubmissionAnswer, Submission, User } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -31,6 +31,7 @@ const AssignmentDetail: React.FC = () => {
   const [inAttempt, setInAttempt] = useState(false);
   const [mySubmissions, setMySubmissions] = useState<Submission[] | null>(null);
   const [grading, setGrading] = useState<{ id: number; grade: string; feedback: string } | null>(null);
+  const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'admin';
 
   useEffect(() => {
     const load = async () => {
@@ -48,11 +49,7 @@ const AssignmentDetail: React.FC = () => {
   }, [courseId, aId]);
 
   const toggleOption = (qid: number, oid: number) => {
-    setMcqSelections((prev) => {
-      const cur = new Set(prev[qid] || []);
-      if (cur.has(oid)) cur.delete(oid); else cur.add(oid);
-      return { ...prev, [qid]: cur };
-    });
+    setMcqSelections((prev) => ({ ...prev, [qid]: new Set([oid]) }));
   };
 
   const computeMcqReview = React.useCallback((): { correct: number; wrong: number; total: number; percent: number } => {
@@ -145,6 +142,41 @@ const AssignmentDetail: React.FC = () => {
     }
   };
 
+  // Aggregate progress per student for teacher/admin
+  const teacherProgress = useMemo(() => {
+    if (!isTeacherOrAdmin || !Array.isArray(mySubmissions)) return [] as {
+      studentName: string;
+      attempts: number;
+      bestGrade: number | null;
+      lastStatus: string | null;
+      lastDate?: string;
+    }[];
+    const byId = new Map<number, { studentName: string; attempts: number; bestGrade: number | null; lastStatus: string | null; lastDate?: string }>();
+    for (const s of mySubmissions) {
+      const sUser = s.student as User | undefined;
+      const sid = sUser?.id ?? 0;
+      const display = [sUser?.first_name, sUser?.last_name]
+        .filter((v): v is string => Boolean(v))
+        .join(' ')
+        || sUser?.username
+        || sUser?.email
+        || `Student #${sid}`;
+      const prev = byId.get(sid) || { studentName: display, attempts: 0, bestGrade: null, lastStatus: null, lastDate: undefined };
+      prev.attempts += 1;
+      const grade = typeof s.grade === 'number' ? s.grade : null;
+      if (grade !== null && (prev.bestGrade === null || grade > prev.bestGrade)) prev.bestGrade = grade;
+      const dateStr = s.submission_date || s.submitted_at;
+      if (dateStr) {
+        if (!prev.lastDate || new Date(dateStr) > new Date(prev.lastDate)) {
+          prev.lastDate = dateStr;
+          prev.lastStatus = s.status ?? prev.lastStatus;
+        }
+      }
+      byId.set(sid, prev);
+    }
+    return Array.from(byId.values()).sort((a, b) => a.studentName.localeCompare(b.studentName));
+  }, [isTeacherOrAdmin, mySubmissions]);
+
   if (isLoading) return <div className="h-40 bg-muted rounded" />;
   if (!assignment) return <div className="text-muted-foreground">Assignment not found.</div>;
 
@@ -170,7 +202,7 @@ const AssignmentDetail: React.FC = () => {
       {/* Status panel */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <div>
               Passing: {assignment.passing_grade}%
               {typeof assignment.my_best_grade === 'number' && (
@@ -179,84 +211,115 @@ const AssignmentDetail: React.FC = () => {
                 </>
               )}
             </div>
-            <div>
-              Attempts: {assignment.attempts_used ?? 0}/{assignment.max_attempts}
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{assignment.assignment_type === 'mcq' ? 'Quiz' : 'Questions'}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {assignment.assignment_type === 'mcq' ? (
-            <div className="space-y-6">
-              {(assignment.questions || []).filter((q) => q.question_type === 'mcq').map((q, idx) => (
-                <div key={q.id} className="space-y-2">
-                  <div className="font-medium">{idx + 1}. {q.text}</div>
-                  <div className="space-y-2">
-                    {(q.options || []).map((opt) => (
-                      <label key={opt.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(mcqSelections[q.id!]?.has(opt.id!))}
-                          onChange={() => toggleOption(q.id!, opt.id!)}
-                          disabled={!inAttempt}
-                        />
-                        {opt.text}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {(assignment.questions || []).filter((q) => q.question_type === 'qa').map((q, idx) => (
-                <div key={q.id} className="space-y-2">
-                  <div className="font-medium">{idx + 1}. {q.text}</div>
-                  <Textarea rows={5} value={qaAnswers[q.id!] || ''} onChange={(e) => setQaAnswers((m) => ({ ...m, [q.id!]: e.target.value }))} disabled={!inAttempt} />
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Explanations revealed after pass or attempts exhausted */}
-          {!inAttempt && (assignment.passed || !assignment.can_attempt) && (
-            <div className="mt-6 space-y-4">
-              {(assignment.questions || []).map((q) => (
-                q.explanation ? (
-                  <div key={q.id} className="text-sm">
-                    <div className="font-medium">Explanation</div>
-                    <div className="text-muted-foreground whitespace-pre-wrap">{q.explanation}</div>
-                  </div>
-                ) : null
-              ))}
-            </div>
-          )}
-          {/* For Q&A: show last submitted answers when not in attempt */}
-          {!inAttempt && assignment.assignment_type === 'qa' && mySubmissions && mySubmissions.length > 0 && (
-            <div className="mt-6 space-y-3">
-              <div className="font-medium text-sm">Your last answers</div>
-              {(() => {
-                const last = [...mySubmissions].sort((a, b) => (a.attempt_number ?? 0) - (b.attempt_number ?? 0)).slice(-1)[0];
-                const ans = last?.answers ?? [];
-                return (assignment.questions || []).filter(q => q.question_type === 'qa').map((q) => {
-                  const a = ans.find(x => x.question_id === q.id);
-                  return (
-                    <div key={q.id} className="text-sm">
-                      <div className="text-muted-foreground">Q: {q.text}</div>
-                      <div className="whitespace-pre-wrap">A: {a?.text_answer || '—'}</div>
+      {!isTeacherOrAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{assignment.assignment_type === 'mcq' ? 'Quiz' : 'Questions'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {assignment.assignment_type === 'mcq' ? (
+              <div className="space-y-6">
+                {(assignment.questions || []).filter((q) => q.question_type === 'mcq').map((q, idx) => (
+                  <div key={q.id} className="space-y-2">
+                    <div className="font-medium">{idx + 1}. {q.text}</div>
+                    <div className="space-y-2">
+                      {(q.options || []).map((opt) => (
+                        <label key={opt.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={`q-${q.id}`}
+                            checked={Boolean(mcqSelections[q.id!]?.has(opt.id!))}
+                            onChange={() => toggleOption(q.id!, opt.id!)}
+                            disabled={!inAttempt}
+                          />
+                          {opt.text}
+                        </label>
+                      ))}
                     </div>
-                  );
-                });
-              })()}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {(assignment.questions || []).filter((q) => q.question_type === 'qa').map((q, idx) => (
+                  <div key={q.id} className="space-y-2">
+                    <div className="font-medium">{idx + 1}. {q.text}</div>
+                    <Textarea rows={5} value={qaAnswers[q.id!] || ''} onChange={(e) => setQaAnswers((m) => ({ ...m, [q.id!]: e.target.value }))} disabled={!inAttempt} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {!inAttempt && (assignment.passed || !assignment.can_attempt) && (
+              <div className="mt-6 space-y-4">
+                {(assignment.questions || []).map((q) => (
+                  q.explanation ? (
+                    <div key={q.id} className="text-sm">
+                      <div className="font-medium">Explanation</div>
+                      <div className="text-muted-foreground whitespace-pre-wrap">{q.explanation}</div>
+                    </div>
+                  ) : null
+                ))}
+              </div>
+            )}
+            {!inAttempt && assignment.assignment_type === 'qa' && mySubmissions && mySubmissions.length > 0 && (
+              <div className="mt-6 space-y-3">
+                <div className="font-medium text-sm">Your last answers</div>
+                {(() => {
+                  const last = [...mySubmissions].sort((a, b) => (a.attempt_number ?? 0) - (b.attempt_number ?? 0)).slice(-1)[0];
+                  const ans = last?.answers ?? [];
+                  return (assignment.questions || []).filter(q => q.question_type === 'qa').map((q) => {
+                    const a = ans.find(x => x.question_id === q.id);
+                    return (
+                      <div key={q.id} className="text-sm">
+                        <div className="text-muted-foreground">Q: {q.text}</div>
+                        <div className="whitespace-pre-wrap">A: {a?.text_answer || '—'}</div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
+      {isTeacherOrAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Students progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {teacherProgress.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No student attempts yet.</div>
+            ) : (
+              <div className="text-sm space-y-2">
+                <div className="hidden sm:grid sm:grid-cols-6 font-medium">
+                  <div className="sm:col-span-2">Student</div>
+                  <div>Attempts</div>
+                  <div>Best grade</div>
+                  <div>Status</div>
+                  <div>Last attempt</div>
+                </div>
+                {teacherProgress.map((p, i) => (
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-6 items-center gap-2 border rounded p-2 sm:p-2">
+                    <div className="sm:col-span-2">{p.studentName}</div>
+                    <div>{p.attempts}/{assignment.max_attempts}</div>
+                    <div>{typeof p.bestGrade === 'number' ? `${p.bestGrade}%` : '—'}</div>
+                    <div>{typeof p.bestGrade === 'number' ? (p.bestGrade >= (assignment.passing_grade ?? 0) ? 'Passed' : 'Failed') : (p.lastStatus ?? '—')}</div>
+                    <div>{p.lastDate ? new Date(p.lastDate).toLocaleString() : '—'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!isTeacherOrAdmin && (
       <div className="flex items-center justify-between">
         {assignment.assignment_type === 'mcq' && review && (
           <div className="text-sm text-muted-foreground">
@@ -288,61 +351,9 @@ const AssignmentDetail: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Teacher: submissions list and grading for Q&A */}
-      {user?.role !== 'student' && mySubmissions && mySubmissions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Submissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mySubmissions.map((s) => (
-                <div key={s.id} className="border rounded p-3 space-y-2">
-                  <div className="text-sm">
-                    Attempt #{s.attempt_number ?? '-'} • Status: {s.status ?? '-'} • Grade: {typeof s.grade === 'number' ? `${s.grade}%` : '—'}
-                  </div>
-                  {Array.isArray(s.answers) && s.answers.length > 0 && (
-                    <div className="space-y-2 text-sm">
-                      {(assignment?.questions || []).filter(q => q.question_type === 'qa').map((q) => {
-                        const a = s.answers?.find(x => x.question_id === q.id);
-                        return (
-                          <div key={q.id}>
-                            <div className="text-muted-foreground">Q: {q.text}</div>
-                            <div className="whitespace-pre-wrap">A: {a?.text_answer || '—'}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {user?.role !== 'student' && assignment?.assignment_type === 'qa' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
-                      <div className="sm:col-span-2">
-                        <Label>Grade (%)</Label>
-                        <Input
-                          type="number"
-                          value={grading?.id === s.id ? grading.grade : (typeof s.grade === 'number' ? String(s.grade) : '')}
-                          onChange={(e) => setGrading({ id: s.id!, grade: e.target.value, feedback: grading?.id === s.id ? (grading.feedback || '') : '' })}
-                        />
-                      </div>
-                      <div className="sm:col-span-3">
-                        <Label>Feedback</Label>
-                        <Input
-                          value={grading?.id === s.id ? grading.feedback : (s.feedback || '')}
-                          onChange={(e) => setGrading({ id: s.id!, grade: grading?.id === s.id ? grading.grade : (typeof s.grade === 'number' ? String(s.grade) : ''), feedback: e.target.value })}
-                        />
-                      </div>
-                      <div className="sm:col-span-1">
-                        <Button onClick={() => gradeSubmission(s)}>Save</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
+
+      {/* Teacher submissions panel removed per product decision */}
     </div>
   );
 };

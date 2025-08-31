@@ -12,6 +12,7 @@ import { Assignment, Content, CourseModule } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +33,6 @@ const ModuleDetail: React.FC = () => {
   const [contents, setContents] = useState<Content[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [marking, setMarking] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -94,7 +94,9 @@ const ModuleDetail: React.FC = () => {
         question_type: type,
         text: '',
         points: 1,
+        // MCQ starts with 3 mandatory options (non-removable)
         options: type === 'mcq' ? [
+          { id: crypto.randomUUID(), text: '', is_correct: false },
           { id: crypto.randomUUID(), text: '', is_correct: false },
           { id: crypto.randomUUID(), text: '', is_correct: false },
         ] : [],
@@ -103,12 +105,22 @@ const ModuleDetail: React.FC = () => {
   };
 
   const removeQuestion = (qid: string) => setNewQuestions((qs) => qs.filter((q) => q.id !== qid));
-  const addOption = (qid: string) => setNewQuestions((qs) => qs.map((q) => q.id === qid ? {
-    ...q, options: [...q.options, { id: crypto.randomUUID(), text: '', is_correct: false }]
-  } : q));
-  const removeOption = (qid: string, oid: string) => setNewQuestions((qs) => qs.map((q) => q.id === qid ? {
-    ...q, options: q.options.filter((o) => o.id !== oid)
-  } : q));
+  const addOption = (qid: string) => setNewQuestions((qs) => qs.map((q) => {
+    if (q.id !== qid) return q;
+    // Limit to max 5 options
+    if (q.options.length >= 5) return q;
+    return {
+      ...q,
+      options: [...q.options, { id: crypto.randomUUID(), text: '', is_correct: false }],
+    };
+  }));
+  const removeOption = (qid: string, oid: string) => setNewQuestions((qs) => qs.map((q) => {
+    if (q.id !== qid) return q;
+    const idx = q.options.findIndex((o) => o.id === oid);
+    // First 3 options are mandatory; do not remove them
+    if (idx > -1 && idx < 3) return q;
+    return { ...q, options: q.options.filter((o) => o.id !== oid) };
+  }));
 
   // Edit dialog state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -154,14 +166,16 @@ const ModuleDetail: React.FC = () => {
     }
   }, [contents, insertAfter]);
 
-  const handleComplete = async (contentId: number) => {
-    setMarking(contentId);
-    try {
-      await coursesApi.markContentComplete(courseId, modId, contentId);
-    } finally {
-      setMarking(null);
-    }
-  };
+  // Video completion stats for student view
+  const videoStats = useMemo(() => {
+    const videos = contents.filter((c) => c.content_type === 'video');
+    const total = videos.length;
+    const completed = videos.filter((c) => completedIds.includes(c.id)).length;
+    const percent = total ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, percent };
+  }, [contents, completedIds]);
+
+  // Completion is handled inside individual content pages now
 
   const deleteContent = async () => {
     if (!editing) return;
@@ -201,9 +215,9 @@ const ModuleDetail: React.FC = () => {
         max_attempts: assignForm.max_attempts,
       });
 
-      // If questions were built, send them now
-      if (newQuestions.length > 0) {
-        const payload = newQuestions.map((q, idx) => ({
+      // If questions were built, send only those matching selected type
+      if (visibleNewQuestions.length > 0) {
+        const payload = visibleNewQuestions.map((q, idx) => ({
           question_type: q.question_type,
           text: q.text,
           points: q.points,
@@ -305,6 +319,11 @@ const ModuleDetail: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  // Only show questions that match currently selected assignment type
+  const visibleNewQuestions = useMemo(() => {
+    return newQuestions.filter((q) => q.question_type === assignForm.assignment_type);
+  }, [newQuestions, assignForm.assignment_type]);
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -452,6 +471,16 @@ const ModuleDetail: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Contents</CardTitle>
+            {!isTeacherOrAdmin ? (
+              <div className="text-xs text-muted-foreground text-right">
+                <div>
+                  Videos: {videoStats.completed}/{videoStats.total} ({videoStats.percent}%)
+                </div>
+                <div className="mt-1 h-1 w-32 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-foreground" style={{ width: `${videoStats.percent}%` }} />
+                </div>
+              </div>
+            ) : null}
             {isTeacherOrAdmin && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
@@ -577,24 +606,18 @@ const ModuleDetail: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => handleOpen(c)}>
-                        {user?.role === 'teacher' ? 'View' : c.content_type === 'video' ? 'Watch content' : 'Read content'}
+                        {user?.role === 'teacher'
+                          ? 'View'
+                          : completedIds.includes(c.id)
+                            ? (c.content_type === 'video' ? 'Rewatch' : 'Read again')
+                            : (c.content_type === 'video' ? 'Watch content' : 'Read content')}
                       </Button>
                       {isTeacherOrAdmin && (
                         <Button size="sm" onClick={() => openEdit(c)}>Edit</Button>
                       )}
-                      {user?.role === 'student' && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleComplete(c.id)}
-                          disabled={marking === c.id || completedIds.includes(c.id)}
-                        >
-                          {completedIds.includes(c.id)
-                            ? 'Completed'
-                            : marking === c.id
-                              ? 'Marking...'
-                              : 'Mark complete'}
-                        </Button>
-                      )}
+                      {user?.role === 'student' && completedIds.includes(c.id) ? (
+                        <Badge variant="secondary">Completed</Badge>
+                      ) : null}
                     </div>
                   </div>
                 </li>
@@ -667,11 +690,13 @@ const ModuleDetail: React.FC = () => {
                           )}
                         </div>
                       </div>
-                      {newQuestions.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">No questions yet. Add Q&A or MCQ.</div>
+                      {visibleNewQuestions.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">
+                          {assignForm.assignment_type === 'qa' ? 'No Q&A questions yet. Add Q&A.' : 'No MCQs yet. Add MCQ.'}
+                        </div>
                       ) : (
                         <div className="space-y-4">
-                          {newQuestions.map((q, qi) => (
+                          {visibleNewQuestions.map((q, qi) => (
                             <div key={q.id} className="rounded border p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 space-y-2">
@@ -697,12 +722,20 @@ const ModuleDetail: React.FC = () => {
                                     <div className="space-y-2">
                                       <div className="flex items-center justify-between">
                                         <Label>Options</Label>
-                                        <Button type="button" size="sm" variant="outline" onClick={() => addOption(q.id!)}>Add option</Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => addOption(q.id!)}
+                                          disabled={q.options.length >= 5}
+                                        >
+                                          Add option
+                                        </Button>
                                       </div>
                                       <div className="space-y-2">
                                         {q.options.map((o) => (
                                           <div key={o.id} className="grid grid-cols-1 sm:grid-cols-12 items-center gap-2">
-                                            <div className="sm:col-span-10">
+                                            <div className="sm:col-span-8">
                                               <Input
                                                 value={o.text}
                                                 onChange={(e) => setNewQuestions((qs) => qs.map((it) => it.id === q.id ? {
@@ -711,8 +744,8 @@ const ModuleDetail: React.FC = () => {
                                                 } : it))}
                                               />
                                             </div>
-                                            <div className="sm:col-span-1 text-sm">
-                                              <label className="inline-flex items-center gap-1">
+                                            <div className="sm:col-span-3 text-sm">
+                                              <label className="inline-flex items-center gap-2 whitespace-nowrap">
                                                 <input
                                                   type="checkbox"
                                                   checked={o.is_correct}
@@ -724,9 +757,20 @@ const ModuleDetail: React.FC = () => {
                                                 Correct
                                               </label>
                                             </div>
-                                            <div className="sm:col-span-1 justify-self-end">
-                                              <Button type="button" variant="destructive" size="sm" onClick={() => removeOption(q.id!, o.id!)}>X</Button>
-                                            </div>
+                                            {q.options.findIndex((x) => x.id === o.id) >= 3 ? (
+                                              <div className="sm:col-span-1 justify-self-end">
+                                                <Button
+                                                  type="button"
+                                                  variant="destructive"
+                                                  size="icon"
+                                                  className="h-7 w-7 p-0"
+                                                  onClick={() => removeOption(q.id!, o.id!)}
+                                                  aria-label="Remove option"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+                                            ) : null}
                                           </div>
                                         ))}
                                       </div>
