@@ -5,27 +5,40 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
-import { Course } from '@/types';
+import { Course, Enrollment } from '@/types';
 
 const TeacherDashboard: React.FC = () => {
 	const { user } = useAuth();
 	const [myCourses, setMyCourses] = useState<Course[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [uniqueStudentsCount, setUniqueStudentsCount] = useState<number>(0);
 
 	useEffect(() => {
-		const fetchMyCourses = async () => {
+		const fetchData = async () => {
 			try {
 				// Backend filters teacher to only their courses
-				const courses = await coursesApi.getCourses({ page: 1 });
+				const [courses, enrollments] = await Promise.all([
+					coursesApi.getCourses({ page: 1 }),
+					coursesApi.getMyEnrollments(),
+				]);
 				setMyCourses(courses);
+
+				// Compute unique students across all teacher courses
+				const uniqueIds = new Set<number>();
+				(enrollments as Enrollment[]).forEach((enr) => {
+					const studentField: any = (enr as any).student;
+					const id = typeof studentField === 'object' ? studentField?.id : studentField;
+					if (typeof id === 'number') uniqueIds.add(id);
+				});
+				setUniqueStudentsCount(uniqueIds.size);
 			} catch (error) {
-				console.error('Failed to fetch teacher courses', error);
+				console.error('Failed to fetch teacher dashboard data', error);
 			} finally {
 				setIsLoading(false);
 			}
 		};
 
-		fetchMyCourses();
+		fetchData();
 	}, []);
 
 	const recentCourses = useMemo(() => {
@@ -75,8 +88,8 @@ const TeacherDashboard: React.FC = () => {
 						<Users className="h-4 w-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent className="pt-0">
-						<div className="text-xl font-semibold">0</div>
-						<p className="text-[11px] text-muted-foreground">No students yet</p>
+						<div className="text-xl font-semibold">{isLoading ? '—' : uniqueStudentsCount}</div>
+						<p className="text-[11px] text-muted-foreground">{uniqueStudentsCount === 0 ? 'No students yet' : 'Unique students across your courses'}</p>
 					</CardContent>
 				</Card>
 
