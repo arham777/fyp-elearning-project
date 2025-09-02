@@ -264,4 +264,82 @@ export const coursesApi = {
     }
     return data as ApiResponse<User>;
   },
+
+  async getAssignmentProgress(courseId: number): Promise<number[]> {
+    try {
+      const response = await apiClient.get(`/courses/${courseId}/assignments/progress/`);
+      return response.data as number[];
+    } catch (error) {
+      // Fallback: get completed assignments by checking submissions
+      const assignments = await this.getCourseAssignments(courseId);
+      const completedIds: number[] = [];
+      
+      for (const assignment of assignments) {
+        try {
+          const submissions = await this.getAssignmentSubmissions(courseId, assignment.id);
+          const userSubmission = submissions.find(s => s.grade !== null && s.grade >= (assignment.passing_grade || 60));
+          if (userSubmission) {
+            completedIds.push(assignment.id);
+          }
+        } catch {
+          // Skip if can't access submissions
+        }
+      }
+      return completedIds;
+    }
+  },
+
+  async getModuleProgress(courseId: number, moduleId: number): Promise<{
+    completedContentIds: number[];
+    completedAssignmentIds: number[];
+    assignmentResults: Record<number, { score: number; passed: boolean; totalPoints: number; attemptsUsed: number; maxAttempts: number; canRetake: boolean }>;
+  }> {
+    const [contentProgress, assignments] = await Promise.all([
+      this.getModuleContentProgress(courseId, moduleId),
+      this.getCourseAssignments(courseId, { module: moduleId })
+    ]);
+
+    const completedAssignmentIds: number[] = [];
+    const assignmentResults: Record<number, { score: number; passed: boolean; totalPoints: number; attemptsUsed: number; maxAttempts: number; canRetake: boolean }> = {};
+    
+    for (const assignment of assignments) {
+      try {
+        const submissions = await this.getAssignmentSubmissions(courseId, assignment.id);
+        const userSubmissions = submissions.filter(s => s.grade !== null);
+        const bestSubmission = userSubmissions.reduce((best, current) => 
+          !best || current.grade > best.grade ? current : best, null as any);
+        
+        if (bestSubmission) {
+          const score = bestSubmission.grade;
+          const totalPoints = assignment.total_points || 100;
+          const passingGrade = assignment.passing_grade || 60;
+          const passed = score >= passingGrade;
+          const attemptsUsed = userSubmissions.length;
+          const maxAttempts = assignment.max_attempts || 3;
+          const canRetake = attemptsUsed < maxAttempts && !passed;
+          
+          assignmentResults[assignment.id] = {
+            score,
+            passed,
+            totalPoints,
+            attemptsUsed,
+            maxAttempts,
+            canRetake
+          };
+          
+          if (passed) {
+            completedAssignmentIds.push(assignment.id);
+          }
+        }
+      } catch {
+        // Skip if can't access submissions
+      }
+    }
+
+    return {
+      completedContentIds: contentProgress,
+      completedAssignmentIds,
+      assignmentResults
+    };
+  },
 };

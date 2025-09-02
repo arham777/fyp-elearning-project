@@ -15,6 +15,7 @@ import CourseDetail from "@/pages/CourseDetail";
 import ModuleDetail from "@/pages/ModuleDetail";
 import ContentViewer from "@/pages/ContentViewer";
 import AssignmentDetail from "./pages/AssignmentDetail";
+import CourseViewer from "@/pages/CourseViewer";
 import NotFound from "@/pages/NotFound";
 import UsersPage from "@/pages/adminRole/Users";
 import Profile from "@/pages/Profile";
@@ -98,10 +99,10 @@ const App = () => (
                 <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />
                 <Route path="courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
                 <Route path="courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
-                {/* Aliases under my-courses to show enrolled course paths */}
-                <Route path="my-courses/:id" element={<CourseDetail />} />
-                <Route path="my-courses/:id/modules/:moduleId" element={<ModuleDetail />} />
-                <Route path="my-courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
+
+                <Route path="my-courses/:id" element={<CourseViewer />} />
+                <Route path="my-courses/:id/modules/:moduleId" element={<CourseViewer />} />
+                <Route path="my-courses/:id/modules/:moduleId/content/:contentId" element={<CourseViewer />} />
                 <Route path="my-courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
                 <Route path="certificates" element={<CertificatesPage />} />
                 <Route path="certificates/:id" element={<CertificateView />} />
