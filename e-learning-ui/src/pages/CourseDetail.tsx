@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import { useCourseNavigation } from '@/hooks/useCourseNavigation';
 import { coursesApi } from '@/api/courses';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import BackButton from '@/components/ui/back-button';
+import { updateEnrollmentCache } from '@/utils/courseNavigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,11 +44,14 @@ const CourseDetail: React.FC = () => {
   const courseId = Number(id);
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
+  const [moduleContents, setModuleContents] = useState<Record<number, any[]>>({});
+  const [moduleAssignments, setModuleAssignments] = useState<Record<number, any[]>>({});
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
+  const { navigateToCourse } = useCourseNavigation();
   const [myCertificates, setMyCertificates] = useState<Certificate[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<Enrollment[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -88,6 +93,33 @@ const CourseDetail: React.FC = () => {
             .filter((cid): cid is number => typeof cid === 'number')
         );
         setEnrolledCourseIds(ids);
+
+        // For non-enrolled students, fetch module contents and assignments for preview
+        const isEnrolledInCourse = ids.has(courseId);
+        if (user?.role === 'student' && !isEnrolledInCourse && mods.length > 0) {
+          const contentsMap: Record<number, any[]> = {};
+          const assignmentsMap: Record<number, any[]> = {};
+          
+          await Promise.all(
+            (mods as CourseModule[]).map(async (module) => {
+              try {
+                const [contents, assignments] = await Promise.all([
+                  coursesApi.getModuleContents(courseId, module.id).catch(() => []),
+                  coursesApi.getCourseAssignments(courseId, { module: module.id }).catch(() => [])
+                ]);
+                contentsMap[module.id] = contents;
+                assignmentsMap[module.id] = assignments;
+              } catch (error) {
+                // If we can't fetch contents/assignments, set empty arrays
+                contentsMap[module.id] = [];
+                assignmentsMap[module.id] = [];
+              }
+            })
+          );
+          
+          setModuleContents(contentsMap);
+          setModuleAssignments(assignmentsMap);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -131,6 +163,10 @@ const CourseDetail: React.FC = () => {
       const updated = new Set(enrolledCourseIds);
       updated.add(courseId);
       setEnrolledCourseIds(updated);
+      // Update the enrollment cache so navigation works immediately
+      updateEnrollmentCache(courseId, true);
+      // Navigate to my-courses route after successful enrollment
+      await navigateToCourse(courseId);
     } finally {
       setIsEnrolling(false);
     }
@@ -385,20 +421,54 @@ const CourseDetail: React.FC = () => {
           {modules.length === 0 ? (
             <div className="text-sm text-muted-foreground">No modules added yet.</div>
           ) : (
-            <ol className="space-y-3 list-decimal pl-6">
+            <ol className="space-y-4 list-decimal pl-6">
               {modules.map((m) => (
                 <li key={m.id} className="text-foreground">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">{m.title}</div>
                       {m.description && (
-                        <div className="text-sm text-muted-foreground">{m.description}</div>
+                        <div className="text-sm text-muted-foreground mb-2">{m.description}</div>
+                      )}
+                      
+                      {/* Show content preview for non-enrolled students */}
+                      {user?.role === 'student' && !isEnrolled && (moduleContents[m.id] || moduleAssignments[m.id]) && (
+                        <div className="ml-4 mt-2 space-y-1">
+                          {/* Contents */}
+                          {moduleContents[m.id]?.map((content: any) => (
+                            <div key={`content-${content.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
+                              <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
+                              <span>{content.title}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {content.content_type === 'video' ? 'Video' : 'Reading'}
+                              </Badge>
+                            </div>
+                          ))}
+                          
+                          {/* Assignments */}
+                          {moduleAssignments[m.id]?.map((assignment: any) => (
+                            <div key={`assignment-${assignment.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
+                              <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
+                              <span>{assignment.title}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {assignment.assignment_type === 'mcq' ? 'Quiz' : 'Assignment'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" asChild>
-                        <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
-                      </Button>
+                      {/* For non-enrolled students, show preview message instead of Open button */}
+                      {user?.role === 'student' && !isEnrolled ? (
+                        <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                          Enroll to access
+                        </div>
+                      ) : (
+                        <Button size="sm" asChild>
+                          <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
+                        </Button>
+                      )}
                       {isTeacher && (
                         <Button size="sm" onClick={() => openEdit(m)}>Edit</Button>
                       )}

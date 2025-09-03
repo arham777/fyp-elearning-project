@@ -8,6 +8,7 @@ import { coursesApi } from '@/api/courses';
 import { Enrollment, Course } from '@/types';
 import { BookOpen, Clock, Award, TrendingUp, Play, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { CourseLink } from '@/components/ui/CourseLink';
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -155,9 +156,9 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
                 <Button size="sm" asChild>
-                  <Link to={`/courses/${enrollment.course.id}`}>
+                  <CourseLink courseId={enrollment.course.id}>
                     Continue
-                  </Link>
+                  </CourseLink>
                 </Button>
               </div>
             ))}
@@ -200,9 +201,9 @@ const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
                 <Button size="sm" variant="outline" asChild>
-                  <Link to={`/courses/${course.id}`}>
+                  <CourseLink courseId={course.id}>
                     View
-                  </Link>
+                  </CourseLink>
                 </Button>
               </div>
             ))}
