@@ -133,11 +133,19 @@ class Enrollment(models.Model):
         
         # Get all assignments in the course
         total_assignment_count = Assignment.objects.filter(course=course).count()
-        completed_assignment_count = AssignmentSubmission.objects.filter(
-            enrollment=self,
-            status='graded',
-            grade__gte=60  # Passing grade (60%)
-        ).count()
+        
+        # Count completed assignments (passed with their individual passing grades)
+        completed_assignment_count = 0
+        for assignment in Assignment.objects.filter(course=course):
+            # Check if student has a passing submission for this assignment
+            passing_submission = AssignmentSubmission.objects.filter(
+                enrollment=self,
+                assignment=assignment,
+                status='graded',
+                grade__gte=assignment.passing_grade
+            ).exists()
+            if passing_submission:
+                completed_assignment_count += 1
         
         # Calculate total progress
         total_items = total_content_count + total_assignment_count
