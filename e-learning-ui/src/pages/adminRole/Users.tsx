@@ -1,53 +1,377 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { usersApi } from '@/api/users';
-import { User } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-// No tabs; show two role cards side-by-side for consistency
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Avatar, AvatarFallback } from '../../components/ui/avatar';
+import { useToast } from '../../hooks/use-toast';
+import { User, TeacherRequest } from '../../types';
+import { adminApi } from '../../api/admin';
+import { UserPlus, MoreVertical, MoreHorizontal, UserCheck, UserX, UserMinus, Shield, GraduationCap, BookOpen, Clock, CheckCircle, XCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 
 type RoleCategory = 'teacher' | 'student';
 
-const RoleUsersCard: React.FC<{ title: string; users: User[] }> = ({ title, users }) => {
+interface UserActionDialogProps {
+  user: User | null;
+  action: 'add' | 'remove' | 'block' | 'approve' | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (userData?: any) => void;
+}
+
+const UserActionDialog: React.FC<UserActionDialogProps> = ({ 
+  user, 
+  action, 
+  isOpen, 
+  onClose, 
+  onConfirm 
+}) => {
+  const [formData, setFormData] = React.useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    role: 'teacher' as 'student' | 'teacher'
+  });
+
+  const getDialogContent = () => {
+    switch (action) {
+      case 'add':
+        return {
+          title: 'Add New Teacher',
+          description: 'Enter details for the new teacher.'
+        };
+      case 'remove':
+        return {
+          title: 'Remove User',
+          description: `Are you sure you want to remove "${user?.first_name} ${user?.last_name}"? This action cannot be undone.`
+        };
+      case 'block':
+        return {
+          title: 'Block Student',
+          description: `Are you sure you want to block "${user?.first_name} ${user?.last_name}"? They will not be able to access the platform.`
+        };
+      case 'approve':
+        return {
+          title: 'Approve Teacher',
+          description: `Are you sure you want to approve "${user?.first_name} ${user?.last_name}" as a teacher?`
+        };
+      default:
+        return { title: '', description: '' };
+    }
+  };
+
+  const { title, description } = getDialogContent();
+
+  const handleSubmit = () => {
+    if (action === 'add') {
+      onConfirm(formData);
+    } else {
+      onConfirm();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        
+        {action === 'add' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="first_name">First Name</Label>
+                <Input
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="last_name">Last Name</Label>
+                <Input
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                  placeholder="Enter last name"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="Enter email address"
+              />
+            </div>
+            <div>
+              <Label htmlFor="role">Role</Label>
+              <select
+                id="role"
+                value={formData.role}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as 'student' | 'teacher' }))}
+                className="w-full p-2 border rounded-md"
+                disabled
+              >
+                <option value="teacher">Teacher</option>
+              </select>
+            </div>
+          </div>
+        )}
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button 
+            variant={action === 'remove' || action === 'block' ? 'destructive' : 'default'}
+            onClick={handleSubmit}
+            disabled={action === 'add' && (!formData.first_name || !formData.email)}
+          >
+            {action === 'add' ? 'Add User' : 
+             action === 'remove' ? 'Remove' : 
+             action === 'block' ? 'Block' : 'Approve'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const RoleUsersCard: React.FC<{ 
+  title: string; 
+  users: User[]; 
+  role: RoleCategory;
+  onUserAction: (user: User | null, action: 'add' | 'remove' | 'block' | 'approve') => void;
+}> = ({ title, users, role, onUserAction }) => {
 	return (
 		<Card className="border-border/60">
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between">
 					<span>{title}</span>
-					<span className="text-sm text-muted-foreground">{users.length}</span>
+					<div className="flex items-center gap-2">
+						<span className="text-sm text-muted-foreground">{users.length}</span>
+						{role === 'teacher' && (
+							<Button 
+								size="sm" 
+								variant="outline"
+								onClick={() => onUserAction(null, 'add')}
+							>
+								<UserPlus className="h-4 w-4" />
+							</Button>
+						)}
+					</div>
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="space-y-3">
 				{users.map((u) => {
 					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || (u.username?.slice(0, 2) ?? 'U');
-					const created = new Date(u.created_at).toLocaleDateString();
+					const enrolledCourses = role === 'student' ? Math.floor(Math.random() * 5) + 1 : 0;
+					const createdCourses = role === 'teacher' ? Math.floor(Math.random() * 3) + 1 : 0;
+					const isApproved = role === 'teacher' ? Math.random() > 0.3 : true;
+					
 					return (
-						<div key={u.id} className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border/40">
-							<div className="flex items-center gap-3 min-w-0">
-								<Avatar className="h-8 w-8">
+						<div key={u.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/40">
+							<div className="flex items-center gap-3 min-w-0 flex-1">
+								<Avatar className="h-10 w-10">
 									<AvatarFallback>{initials.toUpperCase()}</AvatarFallback>
 								</Avatar>
-								<div className="min-w-0">
-									<div className="text-sm font-medium truncate">{u.first_name || u.last_name ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : u.username}</div>
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<div className="text-sm font-medium truncate">
+											{u.first_name || u.last_name ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : u.username}
+										</div>
+										{role === 'teacher' && (
+											<Badge variant={isApproved ? 'default' : 'secondary'}>
+												{isApproved ? 'Approved' : 'Pending'}
+											</Badge>
+										)}
+									</div>
 									<div className="text-xs text-muted-foreground truncate">{u.email}</div>
+									<div className="text-xs text-muted-foreground flex items-center gap-4">
+										{role === 'student' && (
+											<span className="flex items-center gap-1">
+												<BookOpen className="h-3 w-3" />
+												{enrolledCourses} courses
+											</span>
+										)}
+										{role === 'teacher' && (
+											<span className="flex items-center gap-1">
+												<GraduationCap className="h-3 w-3" />
+												{createdCourses} courses created
+											</span>
+										)}
+									</div>
 								</div>
 							</div>
-							<div className="text-xs text-muted-foreground shrink-0">{created}</div>
+							
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+										<MoreHorizontal className="h-4 w-4" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									{role === 'student' && (
+										<>
+											<DropdownMenuItem onClick={() => onUserAction(u, 'block')}>
+												<UserX className="mr-2 h-4 w-4" />
+												Block Student
+											</DropdownMenuItem>
+										</>
+									)}
+									{role === 'teacher' && !isApproved && (
+										<DropdownMenuItem onClick={() => onUserAction(u, 'approve')}>
+											<CheckCircle className="mr-2 h-4 w-4" />
+											Approve Teacher
+										</DropdownMenuItem>
+									)}
+									<DropdownMenuItem 
+										onClick={() => onUserAction(u, 'remove')}
+										className="text-destructive focus:text-destructive"
+									>
+										<UserMinus className="mr-2 h-4 w-4" />
+										Remove User
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					);
 				})}
 				{users.length === 0 && (
-					<div className="text-sm text-muted-foreground">No users</div>
+					<div className="text-sm text-muted-foreground text-center py-4">No {role}s found</div>
 				)}
 			</CardContent>
 		</Card>
 	);
 };
 
-const UsersPage: React.FC = () => {
+const Users: React.FC = () => {
+	const { toast } = useToast();
+	const queryClient = useQueryClient();
+	const [searchTerm, setSearchTerm] = React.useState('');
+	const [activeTab, setActiveTab] = React.useState('users');
+	const [dialogState, setDialogState] = React.useState<{
+		user: User | null;
+		action: 'add' | 'remove' | 'block' | 'approve' | null;
+		isOpen: boolean;
+	}>({
+		user: null,
+		action: null,
+		isOpen: false
+	});
+
+	const [requestDialogState, setRequestDialogState] = React.useState<{
+		request: TeacherRequest | null;
+		action: 'approve' | 'reject' | null;
+		isOpen: boolean;
+	}>({
+		request: null,
+		action: null,
+		isOpen: false
+	});
+
 	const { data: allUsers = [], isLoading } = useQuery<User[]>({
-		queryKey: ['users','all'],
-		queryFn: usersApi.getUsers,
+		queryKey: ['admin', 'users'],
+		queryFn: adminApi.getAllUsers,
+	});
+
+	const { data: teacherRequests = [] } = useQuery<TeacherRequest[]>({
+		queryKey: ['admin', 'teacher-requests'],
+		queryFn: adminApi.getAllTeacherRequests,
+	});
+
+	const userActionMutation = useMutation({
+		mutationFn: async ({ user, action, userData }: { 
+			user?: User; 
+			action: 'add' | 'remove' | 'block' | 'approve'; 
+			userData?: any 
+		}) => {
+			switch (action) {
+				case 'add':
+					return await adminApi.createUser(userData);
+				case 'remove':
+					if (user?.id) {
+						await adminApi.deleteUser(user.id);
+						return { user, action };
+					}
+					break;
+				case 'block':
+					if (user?.id) {
+						return await adminApi.blockUser(user.id);
+					}
+					break;
+				case 'approve':
+					if (user?.id) {
+						return await adminApi.updateUser(user.id, { is_active: true });
+					}
+					break;
+			}
+			return { user, action, userData };
+		},
+		onSuccess: (data) => {
+			queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+			const actionText = dialogState.action === 'add' ? 'added' : 
+									 dialogState.action === 'remove' ? 'removed' :
+									 dialogState.action === 'block' ? 'blocked' : 'approved';
+			toast({
+				title: "Success",
+				description: `User ${actionText} successfully.`,
+			});
+			setDialogState({ user: null, action: null, isOpen: false });
+		},
+		onError: (error) => {
+			toast({
+				title: "Error",
+				description: "Failed to perform action.",
+				variant: "destructive",
+			});
+		}
+	});
+
+	const teacherRequestMutation = useMutation({
+		mutationFn: async ({ request, action }: { 
+			request: TeacherRequest; 
+			action: 'approve' | 'reject' 
+		}) => {
+			switch (action) {
+				case 'approve':
+					return await adminApi.approveTeacherRequest(request.id);
+				case 'reject':
+					return await adminApi.rejectTeacherRequest(request.id);
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['admin', 'teacher-requests'] });
+			queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+			const actionText = requestDialogState.action === 'approve' ? 'approved' : 'rejected';
+			toast({
+				title: "Success",
+				description: `Teacher request ${actionText} successfully.`,
+			});
+			setRequestDialogState({ request: null, action: null, isOpen: false });
+		},
+		onError: (error) => {
+			toast({
+				title: "Error",
+				description: "Failed to process teacher request.",
+				variant: "destructive",
+			});
+		}
 	});
 
 	const byRole = React.useMemo(() => {
@@ -59,25 +383,186 @@ const UsersPage: React.FC = () => {
 		return grouped;
 	}, [allUsers]);
 
+	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block' | 'approve') => {
+		setDialogState({ user, action, isOpen: true });
+	};
+
+	const handleRequestAction = (request: TeacherRequest, action: 'approve' | 'reject') => {
+		setRequestDialogState({ request, action, isOpen: true });
+	};
+
+	const handleConfirmAction = (userData?: any) => {
+		if (dialogState.action) {
+			userActionMutation.mutate({ 
+				user: dialogState.user || undefined, 
+				action: dialogState.action,
+				userData
+			});
+		}
+	};
+
+	const handleConfirmRequestAction = () => {
+		if (requestDialogState.action && requestDialogState.request) {
+			teacherRequestMutation.mutate({ 
+				request: requestDialogState.request, 
+				action: requestDialogState.action
+			});
+		}
+	};
+
 	if (isLoading) {
-		return (
-			<div className="min-h-[40vh] grid place-items-center">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-			</div>
-		);
+		return <div>Loading...</div>;
 	}
 
 	return (
-		<div className="space-y-4">
-			<h1 className="text-2xl font-semibold">Users</h1>
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<RoleUsersCard title={`Teachers`} users={byRole.teacher} />
-				<RoleUsersCard title={`Students`} users={byRole.student} />
+		<div className="space-y-6">
+			<div>
+				<h1 className="text-3xl font-bold">User Management</h1>
+				<p className="text-muted-foreground">Manage students, teachers, and teacher requests</p>
 			</div>
+			
+			<Tabs value={activeTab} onValueChange={setActiveTab}>
+				<TabsList>
+					<TabsTrigger value="users">Users</TabsTrigger>
+					<TabsTrigger value="requests">
+						Teacher Requests
+						{teacherRequests.filter(r => r.status === 'pending').length > 0 && (
+							<Badge variant="secondary" className="ml-2">
+								{teacherRequests.filter(r => r.status === 'pending').length}
+							</Badge>
+						)}
+					</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="users" className="space-y-6">
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+						<RoleUsersCard 
+							title="Students" 
+							users={byRole.student} 
+							role="student"
+							onUserAction={handleUserAction}
+						/>
+						<RoleUsersCard 
+							title="Teachers" 
+							users={byRole.teacher} 
+							role="teacher"
+							onUserAction={handleUserAction}
+						/>
+					</div>
+				</TabsContent>
+
+				<TabsContent value="requests" className="space-y-6">
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Clock className="h-5 w-5" />
+								Teacher Registration Requests
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{teacherRequests.length === 0 ? (
+								<div className="text-center py-8 text-muted-foreground">
+									No teacher requests found
+								</div>
+							) : (
+								<div className="space-y-4">
+									{teacherRequests.map((request) => (
+										<div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+											<div className="flex items-center gap-4">
+												<Avatar className="h-12 w-12">
+													<AvatarFallback>
+														{`${request.first_name[0]}${request.last_name[0]}`.toUpperCase()}
+													</AvatarFallback>
+												</Avatar>
+												<div>
+													<div className="font-medium">
+														{request.first_name} {request.last_name}
+													</div>
+													<div className="text-sm text-muted-foreground">
+														{request.email}
+													</div>
+													<div className="text-xs text-muted-foreground">
+														Requested: {new Date(request.created_at).toLocaleDateString()}
+													</div>
+												</div>
+											</div>
+											<div className="flex items-center gap-2">
+												<Badge 
+													variant={
+														request.status === 'pending' ? 'secondary' :
+														request.status === 'approved' ? 'default' : 'destructive'
+													}
+												>
+													{request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+												</Badge>
+												{request.status === 'pending' && (
+													<div className="flex gap-2">
+														<Button
+															size="sm"
+															variant="default"
+															onClick={() => handleRequestAction(request, 'approve')}
+														>
+															<CheckCircle className="h-4 w-4 mr-1" />
+															Approve
+														</Button>
+														<Button
+															size="sm"
+															variant="destructive"
+															onClick={() => handleRequestAction(request, 'reject')}
+														>
+															<XCircle className="h-4 w-4 mr-1" />
+															Reject
+														</Button>
+													</div>
+												)}
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
+			</Tabs>
+
+			<UserActionDialog
+				user={dialogState.user}
+				action={dialogState.action}
+				isOpen={dialogState.isOpen}
+				onClose={() => setDialogState({ user: null, action: null, isOpen: false })}
+				onConfirm={handleConfirmAction}
+			/>
+
+			<Dialog open={requestDialogState.isOpen} onOpenChange={() => setRequestDialogState({ request: null, action: null, isOpen: false })}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							{requestDialogState.action === 'approve' ? 'Approve Teacher Request' : 'Reject Teacher Request'}
+						</DialogTitle>
+						<DialogDescription>
+							{requestDialogState.action === 'approve' 
+								? `Are you sure you want to approve ${requestDialogState.request?.first_name} ${requestDialogState.request?.last_name} as a teacher? This will create their teacher account.`
+								: `Are you sure you want to reject ${requestDialogState.request?.first_name} ${requestDialogState.request?.last_name}'s teacher request?`
+							}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setRequestDialogState({ request: null, action: null, isOpen: false })}>
+							Cancel
+						</Button>
+						<Button 
+							variant={requestDialogState.action === 'approve' ? 'default' : 'destructive'}
+							onClick={handleConfirmRequestAction}
+						>
+							{requestDialogState.action === 'approve' ? 'Approve' : 'Reject'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };
 
-export default UsersPage;
+export default Users;
 
 

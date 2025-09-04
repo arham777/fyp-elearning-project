@@ -9,6 +9,7 @@ import RegisterForm from "@/components/auth/RegisterForm";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StudentDashboard from "@/pages/studentRole/StudentDashboard";
 import TeacherDashboard from "@/pages/teacherRole/TeacherDashboard";
+import AdminDashboard from "@/pages/adminRole/AdminDashboard";
 import CoursesCatalog from "@/pages/CoursesCatalog";
 import MyCourses from "@/pages/MyCourses";
 import CourseDetail from "@/pages/CourseDetail";
@@ -18,6 +19,9 @@ import AssignmentDetail from "./pages/AssignmentDetail";
 import CourseViewer from "@/pages/CourseViewer";
 import NotFound from "@/pages/NotFound";
 import UsersPage from "@/pages/adminRole/Users";
+import CourseManagement from "@/pages/adminRole/CourseManagement";
+import CertificateManagement from "@/pages/adminRole/CertificateManagement";
+import Settings from "@/pages/adminRole/Settings";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
@@ -26,6 +30,7 @@ import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
 import CertificateView from "@/pages/CertificateView";
+import TeacherRegistration from "@/pages/TeacherRegistration";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -56,7 +61,7 @@ const RoleDashboard: React.FC = () => {
     case 'teacher':
       return <TeacherDashboard />;
     case 'admin':
-      return <div>Admin Dashboard - Coming Soon</div>;
+      return <AdminDashboard />;
     default:
       return <StudentDashboard />;
   }
@@ -75,6 +80,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
+              <Route path="/teacher-registration" element={<TeacherRegistration />} />
 
               {/* Backward-compat redirects for old non-/app URLs */}
               <Route path="/courses/:id" element={<Navigate to="/app/courses/:id" replace />} />
@@ -109,7 +115,9 @@ const App = () => (
                 <Route path="create-course" element={<CreateCourse />} />
                 <Route path="students" element={<StudentsPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="settings" element={<div>Settings - Coming Soon</div>} />
+                <Route path="course-management" element={<CourseManagement />} />
+                <Route path="certificate-management" element={<CertificateManagement />} />
+                <Route path="settings" element={<Settings />} />
                 <Route path="profile" element={<Profile />} />
                 {/* Redirect old /app/assignments URL to dashboard */}
                 <Route path="assignments" element={<Navigate to="/app" replace />} />

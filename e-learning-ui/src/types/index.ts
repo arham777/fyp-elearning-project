@@ -10,7 +10,9 @@ export interface User {
   last_name?: string;
   role: UserRole;
   created_at: string;
+  date_joined?: string;
   avatar?: string;
+  is_active?: boolean;
 }
 
 export interface Course {
@@ -23,9 +25,12 @@ export interface Course {
   updated_at: string;
   thumbnail?: string;
   is_published: boolean;
+  status?: 'published' | 'draft' | 'pending' | 'rejected';
+  category?: string;
   modules?: CourseModule[];
   assignments?: Assignment[];
   enrollment_count?: number;
+  enrollments?: number;
 }
 
 export interface CourseModule {
@@ -176,4 +181,17 @@ export interface Certificate {
   course: Course;
   issue_date: string;
   verification_code: string;
+  is_revoked?: boolean;
+}
+
+export interface TeacherRequest {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  username: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  reviewed_at?: string;
+  reviewed_by?: User;
 }

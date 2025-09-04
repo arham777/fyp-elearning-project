@@ -134,10 +134,50 @@ class CourseViewSet(viewsets.ModelViewSet):
             # (Enrollment is handled via the enroll action)
             return Course.objects.all()
     
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'create':
+            permission_classes = [permissions.IsAuthenticated, IsTeacherOrAdmin]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+    
+    def create(self, request, *args, **kwargs):
+        print(f"Course creation request received")
+        print(f"Request data: {request.data}")
+        print(f"User: {request.user}")
+        print(f"User authenticated: {request.user.is_authenticated}")
+        print(f"User role: {getattr(request.user, 'role', 'No role')}")
+        
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            print(f"Serializer is valid: {serializer.validated_data}")
+        except Exception as e:
+            print(f"Serializer validation error: {e}")
+            print(f"Serializer errors: {serializer.errors}")
+            raise
+            
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
+        # Debug logging
+        print(f"User creating course: {self.request.user}")
+        print(f"User role: {self.request.user.role}")
+        print(f"User is authenticated: {self.request.user.is_authenticated}")
+        print(f"Serializer data: {serializer.validated_data}")
+        
         # Ensure the teacher field is set to the current user
-        if self.request.user.role == 'teacher' or self.request.user.role == 'admin':
+        try:
             serializer.save(teacher=self.request.user)
+            print("Course created successfully")
+        except Exception as e:
+            print(f"Error creating course: {e}")
+            raise
     
     @action(detail=True, methods=['get'], url_path='students',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])

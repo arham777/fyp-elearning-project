@@ -40,10 +40,14 @@ const CreateCourse: React.FC = () => {
 
 	const onSubmit = async (values: CreateCourseForm) => {
 		try {
+			console.log('User:', user);
+			console.log('Creating course with data:', values);
+			console.log('API Base URL:', import.meta.env.VITE_API_BASE_URL);
+			
 			const course = await coursesApi.createCourse({
-				title: values.title,
-				description: values.description,
-				price: values.price,
+				title: values.title.trim(),
+				description: values.description.trim(),
+				price: Number(values.price),
 			});
 
 			toast({
@@ -53,9 +57,36 @@ const CreateCourse: React.FC = () => {
 			reset();
 			navigate(`/app/courses/${course.id}`);
 		} catch (error: any) {
+			console.error('Full error object:', error);
+			console.error('Error response:', error?.response);
+			console.error('Error status:', error?.response?.status);
+			console.error('Error data:', error?.response?.data);
+			
+			let errorMessage = 'Please try again.';
+			
+			if (error?.response?.status === 401) {
+				errorMessage = 'Authentication failed. Please login again.';
+			} else if (error?.response?.status === 403) {
+				errorMessage = 'You do not have permission to create courses. Please contact admin.';
+			} else if (error?.response?.data) {
+				if (typeof error.response.data === 'string') {
+					errorMessage = error.response.data;
+				} else if (error.response.data.detail) {
+					errorMessage = error.response.data.detail;
+				} else if (error.response.data.message) {
+					errorMessage = error.response.data.message;
+				} else if (error.response.data.error) {
+					errorMessage = error.response.data.error;
+				} else {
+					errorMessage = JSON.stringify(error.response.data);
+				}
+			} else if (error?.message) {
+				errorMessage = error.message;
+			}
+			
 			toast({
 				title: 'Failed to create course',
-				description: error?.response?.data?.detail || 'Please try again.',
+				description: errorMessage,
 				variant: 'destructive',
 			});
 		}
