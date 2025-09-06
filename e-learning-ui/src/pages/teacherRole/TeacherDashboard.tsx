@@ -60,7 +60,7 @@ const TeacherDashboard: React.FC = () => {
 					</p>
 				</div>
 				<Button asChild>
-					<Link to="/app/create-course">
+					<Link to="/app/courses">
 						<Plus className="h-4 w-4 mr-2" />
 						Create Course
 					</Link>
@@ -133,7 +133,7 @@ const TeacherDashboard: React.FC = () => {
 									<p className="text-[11px] text-muted-foreground">Create your first course to get started.</p>
 								</div>
 								<Button asChild size="sm">
-									<Link to="/app/create-course">
+									<Link to="/app/courses">
 										<Plus className="h-4 w-4 mr-1" />
 										Create
 									</Link>
@@ -192,7 +192,7 @@ const TeacherDashboard: React.FC = () => {
 				<CardContent>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 						<Button variant="outline" className="h-16 flex flex-col space-y-1" asChild>
-							<Link to="/app/create-course">
+							<Link to="/app/courses">
 								<Plus className="h-6 w-6" />
 								<span>Create New Course</span>
 							</Link>

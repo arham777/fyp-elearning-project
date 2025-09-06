@@ -47,8 +47,13 @@ class AssignmentSubmissionAdmin(admin.ModelAdmin):
     list_filter = ('status', 'assignment__course')
     search_fields = ('enrollment__student__username', 'assignment__title')
 
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ('title', 'teacher', 'is_published', 'created_at', 'published_at')
+    list_filter = ('is_published', 'teacher')
+    search_fields = ('title', 'teacher__username', 'teacher__first_name', 'teacher__last_name')
+
 admin.site.register(User, UserAdmin)
-admin.site.register(Course)
+admin.site.register(Course, CourseAdmin)
 admin.site.register(CourseModule, CourseModuleAdmin)
 admin.site.register(Content, ContentAdmin)
 admin.site.register(Enrollment)

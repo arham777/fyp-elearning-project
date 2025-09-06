@@ -47,13 +47,18 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base leading-tight line-clamp-1">{course.title}</CardTitle>
           {(() => {
-            // Hide badge entirely on catalog for both roles per request
-            if (context === 'catalog') return null;
+            // On catalog page, hide badges for students but show for teachers
+            if (context === 'catalog' && !isTeacher) return null;
 
             // Teacher view (non-catalog pages): show enrollment count
             if (isTeacher) {
               return (
-                <Badge variant="secondary">{`${course.enrollment_count ?? 0} enrolled`}</Badge>
+                <div className="flex items-center gap-2">
+                  <UiBadge variant={course.is_published ? undefined : 'destructive'}>
+                    {course.is_published ? 'Published' : 'Draft'}
+                  </UiBadge>
+                  <Badge variant="secondary">{`${course.enrollment_count ?? 0} enrolled`}</Badge>
+                </div>
               );
             }
 

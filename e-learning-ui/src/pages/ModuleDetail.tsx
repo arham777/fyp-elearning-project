@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { coursesApi } from '@/api/courses';
-import { Assignment, Content, CourseModule } from '@/types';
+import { Assignment, Content, CourseModule, Course } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle as AlertTitle,
   AlertDialogTrigger as AlertTrigger,
 } from '@/components/ui/alert-dialog';
+import CKEditorReact from '@/components/richtext/CKEditorReact';
 
 const ModuleDetail: React.FC = () => {
   const { id, moduleId } = useParams();
@@ -38,6 +39,7 @@ const ModuleDetail: React.FC = () => {
   const { user } = useAuth();
   const [completedIds, setCompletedIds] = useState<number[]>([]);
   const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'admin';
+  const [course, setCourse] = useState<Course | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -140,16 +142,18 @@ const ModuleDetail: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [m, items, done, asgs] = await Promise.all([
+        const [m, items, done, asgs, crs] = await Promise.all([
           coursesApi.getCourseModule(courseId, modId),
           coursesApi.getModuleContents(courseId, modId),
           coursesApi.getModuleContentProgress(courseId, modId),
           coursesApi.getCourseAssignments(courseId, { module: modId }),
+          coursesApi.getCourse(courseId),
         ]);
         setModule(m);
         setContents(items);
         setCompletedIds(done ?? []);
         setAssignments(asgs ?? []);
+        setCourse(crs);
       } finally {
         setIsLoading(false);
       }
@@ -357,6 +361,12 @@ const ModuleDetail: React.FC = () => {
     );
   }, [editing, editForm, editInsertAfter]);
 
+  const canEdit = useMemo(() => {
+    if (user?.role === 'admin') return true;
+    if (user?.role === 'teacher') return course ? !course.is_published : false;
+    return false;
+  }, [user?.role, course]);
+
   const handleOpen = (content: Content) => {
     // Teachers view content details but won't watch/read as a student
     navigate(`${basePath}/${courseId}/modules/${modId}/content/${content.id}`);
@@ -481,12 +491,12 @@ const ModuleDetail: React.FC = () => {
                 </div>
               </div>
             ) : null}
-            {isTeacherOrAdmin && (
-              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            {canEdit && (
+              <Dialog modal={false} open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">Add Content</Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
                   <DialogHeader>
                     <DialogTitle>Add content</DialogTitle>
                     <DialogDescription>Provide details according to type.</DialogDescription>
@@ -538,13 +548,14 @@ const ModuleDetail: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        <Label htmlFor="text">Reading text</Label>
-                        <Textarea
-                          id="text"
+                      <div className="space-y-2 relative z-50">
+                        <Label htmlFor="create-reading-editor">Reading text</Label>
+                        <CKEditorReact
+                          id="create-reading-editor"
+                          className="pointer-events-auto"
                           value={form.text}
-                          onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))}
-                          rows={6}
+                          onChange={(html) => setForm((f) => ({ ...f, text: html }))}
+                          height={300}
                         />
                       </div>
                     )}
@@ -612,7 +623,7 @@ const ModuleDetail: React.FC = () => {
                             ? (c.content_type === 'video' ? 'Rewatch' : 'Read again')
                             : (c.content_type === 'video' ? 'Watch content' : 'Read content')}
                       </Button>
-                      {isTeacherOrAdmin && (
+                      {canEdit && (
                         <Button size="sm" onClick={() => openEdit(c)}>Edit</Button>
                       )}
                       {user?.role === 'student' && completedIds.includes(c.id) ? (
@@ -631,7 +642,7 @@ const ModuleDetail: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Assignments</CardTitle>
-            {isTeacherOrAdmin && (
+            {canEdit && (
               <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">Create assignment</Button>
@@ -864,9 +875,9 @@ const ModuleDetail: React.FC = () => {
         </CardContent>
       </Card>
 
-      {isTeacherOrAdmin && (
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent>
+      {canEdit && (
+        <Dialog modal={false} open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Edit content</DialogTitle>
               <DialogDescription>Update content details and save.</DialogDescription>
@@ -903,13 +914,14 @@ const ModuleDetail: React.FC = () => {
                   />
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="etext">Reading text</Label>
-                  <Textarea
-                    id="etext"
+                <div className="space-y-2 relative z-50">
+                  <Label htmlFor="edit-reading-editor">Reading text</Label>
+                  <CKEditorReact
+                    id="edit-reading-editor"
+                    className="pointer-events-auto"
                     value={editForm.text}
-                    onChange={(e) => setEditForm((f) => ({ ...f, text: e.target.value }))}
-                    rows={6}
+                    onChange={(html) => setEditForm((f) => ({ ...f, text: html }))}
+                    height={300}
                   />
                 </div>
               )}

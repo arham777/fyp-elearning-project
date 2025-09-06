@@ -162,7 +162,8 @@ class CourseListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'enrollment_count']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'enrollment_count']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'enrollment_count']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()
@@ -175,7 +176,8 @@ class CourseDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'modules', 'assignments', 'enrollment_count']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'modules', 'assignments', 'enrollment_count']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'modules', 'assignments', 'enrollment_count']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()

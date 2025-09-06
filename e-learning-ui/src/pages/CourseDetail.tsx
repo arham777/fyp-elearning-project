@@ -56,6 +56,8 @@ const CourseDetail: React.FC = () => {
   const [myEnrollments, setMyEnrollments] = useState<Enrollment[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
   const [newModule, setNewModule] = useState<{ title: string; description: string }>({
     title: '',
     description: '',
@@ -172,6 +174,36 @@ const CourseDetail: React.FC = () => {
     }
   };
 
+  const handlePublish = async () => {
+    if (!course) return;
+    try {
+      setIsPublishing(true);
+      const updated = await coursesApi.publishCourse(courseId);
+      setCourse(updated);
+      toast({ title: 'Course published', description: 'Your course is now visible to students.' });
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || 'Failed to publish course';
+      toast({ title: 'Error', description: String(detail), variant: 'destructive' });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!course) return;
+    try {
+      setIsUnpublishing(true);
+      const updated = await coursesApi.unpublishCourse(courseId);
+      setCourse(updated);
+      toast({ title: 'Course unpublished', description: 'The course is now hidden from students.' });
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || 'Failed to unpublish course';
+      toast({ title: 'Error', description: String(detail), variant: 'destructive' });
+    } finally {
+      setIsUnpublishing(false);
+    }
+  };
+
   // Edit helpers
   const openEdit = (mod: CourseModule) => {
     setEditing(mod);
@@ -280,29 +312,89 @@ const CourseDetail: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{course.title}</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">{course.description}</p>
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            {isTeacher && (
+              course.is_published ? (
+                <Badge>Published</Badge>
+              ) : (
+                <Badge variant="destructive">Draft</Badge>
+              )
+            )}
+            <Badge variant="secondary">
+              {isTeacher ? `${course.enrollment_count ?? 0} enrolled` : formatPKR(course.price)}
+            </Badge>
+            {user?.role === 'student' && hasCertificate && (
+              <Badge>Completed</Badge>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <BackButton to={basePath} />
-          <Badge variant="secondary">
-            {isTeacher ? `${course.enrollment_count ?? 0} enrolled` : formatPKR(course.price)}
-          </Badge>
-          {user?.role === 'student' && hasCertificate && (
-            <Badge>Completed</Badge>
-          )}
-          {!isTeacher && (
-            isEnrolled ? (
-              <Button className="h-9" asChild>
-                <Link to="#">{hasCertificate ? 'Review' : 'Continue'}</Link>
-              </Button>
-            ) : (
-              <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
-                {isEnrolling ? 'Enrolling...' : 'Enroll now'}
-              </Button>
-            )
-          )}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-3">
+            {isTeacher && (
+              course.is_published ? (
+                <AlertDialog>
+                  <AlertTrigger asChild>
+                    <Button variant="outline" className="h-9" disabled={isUnpublishing}>
+                      {isUnpublishing ? 'Unpublishing…' : 'Unpublish'}
+                    </Button>
+                  </AlertTrigger>
+                  <AlertContent>
+                    <AlertHeader>
+                      <AlertTitle>Unpublish this course?</AlertTitle>
+                      <AlertDescription>
+                        This will hide the course from students and block new enrollments. Existing enrolled
+                        students may still access content. You can publish it again later.
+                      </AlertDescription>
+                    </AlertHeader>
+                    <AlertFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleUnpublish} disabled={isUnpublishing}>
+                        {isUnpublishing ? 'Unpublishing…' : 'Confirm Unpublish'}
+                      </AlertDialogAction>
+                    </AlertFooter>
+                  </AlertContent>
+                </AlertDialog>
+              ) : (
+                <AlertDialog>
+                  <AlertTrigger asChild>
+                    <Button className="h-9" disabled={isPublishing}>
+                      {isPublishing ? 'Publishing…' : 'Publish'}
+                    </Button>
+                  </AlertTrigger>
+                  <AlertContent>
+                    <AlertHeader>
+                      <AlertTitle>Publish this course?</AlertTitle>
+                      <AlertDescription>
+                        Once published, students will be able to discover and enroll in this course. Make sure
+                        you have at least one module and content or assignment added.
+                      </AlertDescription>
+                    </AlertHeader>
+                    <AlertFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
+                        {isPublishing ? 'Publishing…' : 'Confirm Publish'}
+                      </AlertDialogAction>
+                    </AlertFooter>
+                  </AlertContent>
+                </AlertDialog>
+              )
+            )}
+            {!isTeacher && (
+              isEnrolled ? (
+                <Button className="h-9" asChild>
+                  <Link to="#">{hasCertificate ? 'Review' : 'Continue'}</Link>
+                </Button>
+              ) : (
+                <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
+                  {isEnrolling ? 'Enrolling...' : 'Enroll now'}
+                </Button>
+              )
+            )}
+            <BackButton to={basePath} />
+          </div>
         </div>
       </div>
 
@@ -324,7 +416,7 @@ const CourseDetail: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Modules</CardTitle>
-            {isTeacher && (
+            {isTeacher && !course.is_published && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">Add Module</Button>
@@ -469,7 +561,7 @@ const CourseDetail: React.FC = () => {
                           <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
                         </Button>
                       )}
-                      {isTeacher && (
+                      {isTeacher && !course.is_published && (
                         <Button size="sm" onClick={() => openEdit(m)}>Edit</Button>
                       )}
                     </div>
@@ -481,7 +573,7 @@ const CourseDetail: React.FC = () => {
         </CardContent>
       </Card>
 
-      {isTeacher && (
+      {isTeacher && !course.is_published && (
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent>
             <DialogHeader>

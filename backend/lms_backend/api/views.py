@@ -132,13 +132,14 @@ class CourseViewSet(viewsets.ModelViewSet):
         else:
             # Students can browse all available courses
             # (Enrollment is handled via the enroll action)
-            return Course.objects.all()
+            # Only published courses are visible to students
+            return Course.objects.filter(is_published=True)
     
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
         """
-        if self.action == 'create':
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish']:
             permission_classes = [permissions.IsAuthenticated, IsTeacherOrAdmin]
         else:
             permission_classes = [permissions.IsAuthenticated]
@@ -178,6 +179,23 @@ class CourseViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"Error creating course: {e}")
             raise
+
+    def perform_update(self, serializer):
+        course = self.get_object()
+        user = self.request.user
+        if user.role != 'admin' and course.teacher_id != user.id:
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to edit this course"
+            })
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if user.role != 'admin' and instance.teacher_id != user.id:
+            raise serializers.ValidationError({
+                'detail': "You don't have permission to delete this course"
+            })
+        instance.delete()
     
     @action(detail=True, methods=['get'], url_path='students',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
@@ -228,7 +246,12 @@ class CourseViewSet(viewsets.ModelViewSet):
     def enroll(self, request, pk=None):
         course = self.get_object()
         user = request.user
-        
+
+        # Prevent enrollment into draft/unpublished courses
+        if not course.is_published:
+            return Response({"detail": "This course is not yet published."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         # Check if already enrolled
         if Enrollment.objects.filter(student=user, course=course).exists():
             return Response({"detail": "Already enrolled in this course"}, 
@@ -239,13 +262,69 @@ class CourseViewSet(viewsets.ModelViewSet):
         return Response(EnrollmentSerializer(enrollment).data, 
                         status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='publish',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def publish(self, request, pk=None):
+        """Publish a course after basic readiness checks.
+
+        Rules:
+        - Only the course teacher or admin may publish
+        - Course must have at least 1 module
+        - Course must have at least 1 content item or 1 assignment overall
+        """
+        course = self.get_object()
+        user = request.user
+
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to publish this course"},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        modules_count = course.modules.count()
+        contents_count = Content.objects.filter(module__course=course).count()
+        assignments_count = course.assignments.count()
+
+        if modules_count == 0:
+            return Response({"detail": "Add at least one module before publishing."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if contents_count == 0 and assignments_count == 0:
+            return Response({"detail": "Add content or assignments before publishing."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not course.is_published:
+            course.is_published = True
+            course.published_at = timezone.now()
+            course.save(update_fields=["is_published", "published_at"])
+
+        return Response(CourseDetailSerializer(course).data)
+
+    @action(detail=True, methods=['post'], url_path='unpublish',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def unpublish(self, request, pk=None):
+        """Unpublish a course (teacher owner or admin)."""
+        course = self.get_object()
+        user = request.user
+
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to unpublish this course"},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        if course.is_published:
+            course.is_published = False
+            course.save(update_fields=["is_published"])
+
+        return Response(CourseDetailSerializer(course).data)
+
 class CourseModuleViewSet(viewsets.ModelViewSet):
     serializer_class = CourseModuleSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         course_id = self.kwargs.get('course_pk')
-        return CourseModule.objects.filter(course_id=course_id).order_by('order')
+        qs = CourseModule.objects.filter(course_id=course_id).order_by('order')
+        # Students should only see modules for published courses
+        if getattr(self.request.user, 'role', None) == 'student':
+            qs = qs.filter(course__is_published=True)
+        return qs
     
     def perform_create(self, serializer):
         course_id = self.kwargs.get('course_pk')
@@ -327,7 +406,11 @@ class ContentViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         module_id = self.kwargs.get('module_pk')
-        return Content.objects.filter(module_id=module_id).order_by('order')
+        qs = Content.objects.filter(module_id=module_id).order_by('order')
+        # Students should only see content for modules whose course is published
+        if getattr(self.request.user, 'role', None) == 'student':
+            qs = qs.filter(module__course__is_published=True)
+        return qs
     
     def perform_create(self, serializer):
         module_id = self.kwargs.get('module_pk')

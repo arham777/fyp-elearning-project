@@ -30,6 +30,16 @@ export const coursesApi = {
     return response.data;
   },
 
+  async publishCourse(id: number): Promise<Course> {
+    const response = await apiClient.post(`/courses/${id}/publish/`);
+    return response.data as Course;
+  },
+
+  async unpublishCourse(id: number): Promise<Course> {
+    const response = await apiClient.post(`/courses/${id}/unpublish/`);
+    return response.data as Course;
+  },
+
   async deleteCourse(id: number): Promise<void> {
     await apiClient.delete(`/courses/${id}/`);
   },

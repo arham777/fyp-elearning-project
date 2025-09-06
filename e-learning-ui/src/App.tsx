@@ -25,7 +25,6 @@ import Settings from "@/pages/adminRole/Settings";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
-import CreateCourse from "@/pages/teacherRole/CreateCourse";
 import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
@@ -112,7 +111,6 @@ const App = () => (
                 <Route path="my-courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
                 <Route path="certificates" element={<CertificatesPage />} />
                 <Route path="certificates/:id" element={<CertificateView />} />
-                <Route path="create-course" element={<CreateCourse />} />
                 <Route path="students" element={<StudentsPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="course-management" element={<CourseManagement />} />

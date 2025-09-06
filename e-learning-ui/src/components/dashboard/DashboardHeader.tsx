@@ -33,7 +33,6 @@ const DashboardHeader: React.FC = () => {
     { to: '/app/my-courses', label: 'My Courses', roles: ['student'] },
     { to: '/app/courses', label: 'Courses', roles: ['student','teacher'] },
     { to: '/app/certificates', label: 'Certificates', roles: ['student'] },
-    { to: '/app/create-course', label: 'Create', roles: ['teacher'] },
     { to: '/app/students', label: 'Students', roles: ['teacher'] },
     { to: '/app/users', label: 'Users', roles: ['admin'] },
     { to: '/app/settings', label: 'Settings', roles: ['admin'] },

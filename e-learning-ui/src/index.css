@@ -202,4 +202,72 @@
     opacity: 1;
     transform: translateY(0);
   }
+
+  /* CKEditor 5 theme alignment and pointer events */
+  .ck.ck-editor { @apply bg-card border border-border rounded-md bg-card; z-index: 60; }
+  .ck.ck-toolbar { @apply bg-card border-b border-border rounded-t-md; }
+  .ck.ck-editor__main > .ck-editor__editable, .ck.ck-content {
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+    min-height: 240px;
+  }
+  .dark .ck.ck-editor__main > .ck-editor__editable, .dark .ck.ck-content {
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  /* Make CKEditor use our palette via its CSS variables */
+  :root .ck {
+    --ck-color-base-background: hsl(var(--card));
+    --ck-color-base-foreground: hsl(var(--foreground));
+    --ck-color-text: hsl(var(--foreground));
+    --ck-color-base-border: hsl(var(--border));
+    --ck-color-focus-border: hsl(var(--ring));
+    --ck-color-focus-shadow: hsl(var(--ring));
+    --ck-color-toolbar-background: hsl(var(--card));
+    --ck-color-toolbar-border: hsl(var(--border));
+    --ck-color-dropdown-panel-background: hsl(var(--popover));
+    --ck-color-dropdown-panel-border: hsl(var(--border));
+    --ck-color-button-default-foreground: hsl(var(--foreground));
+    --ck-color-button-default-background: hsl(var(--card));
+    --ck-color-button-default-hover-background: hsl(var(--muted));
+    --ck-color-button-default-active-background: hsl(var(--accent-neutral));
+    --ck-color-icon: hsl(var(--foreground));
+    --ck-color-tooltip-background: hsl(var(--ink));
+    --ck-color-tooltip-text: hsl(var(--foreground));
+  }
+  .dark .ck {
+    --ck-color-base-background: hsl(var(--card));
+    --ck-color-base-foreground: hsl(var(--foreground));
+    --ck-color-text: hsl(var(--foreground));
+    --ck-color-base-border: hsl(var(--border));
+    --ck-color-focus-border: hsl(var(--ring));
+    --ck-color-focus-shadow: hsl(var(--ring));
+    --ck-color-toolbar-background: hsl(var(--card));
+    --ck-color-toolbar-border: hsl(var(--border));
+    --ck-color-dropdown-panel-background: hsl(var(--popover));
+    --ck-color-dropdown-panel-border: hsl(var(--border));
+    --ck-color-button-default-foreground: hsl(var(--foreground));
+    --ck-color-button-default-background: hsl(var(--card));
+    --ck-color-button-default-hover-background: hsl(var(--muted));
+    --ck-color-button-default-active-background: hsl(var(--accent-neutral));
+    --ck-color-icon: hsl(var(--foreground));
+    --ck-color-tooltip-background: hsl(var(--ink));
+    --ck-color-tooltip-text: hsl(var(--foreground));
+  }
+  /* Ensure toolbar labels/icons use correct foreground */
+  .ck.ck-toolbar, .ck .ck-button, .ck .ck-dropdown__button {
+    color: hsl(var(--foreground)) !important;
+  }
+  .ck .ck-placeholder {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  /* Ensure editor remains interactive inside modals */
+  .ck, .ck * {
+    pointer-events: auto !important;
+  }
+  /* Better link visibility inside editor */
+  .ck.ck-content a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+  }
 }

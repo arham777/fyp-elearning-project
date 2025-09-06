@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { coursesApi } from '@/api/courses';
 import { Course, Enrollment, Certificate } from '@/types';
 import { Search } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import CourseCard from '@/components/courses/CourseCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import CreateCourseForm from '@/components/courses/CreateCourseForm';
 
 const CoursesCatalog: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -14,6 +17,8 @@ const CoursesCatalog: React.FC = () => {
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -47,6 +52,8 @@ const CoursesCatalog: React.FC = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
+  // Modal opens only via the button on this page
+
   const visibleCourses = useMemo(() => {
     // Students should only see courses they are NOT enrolled in
     if (user?.role === 'student') {
@@ -61,7 +68,7 @@ const CoursesCatalog: React.FC = () => {
         <div className="animate-pulse">
           <div className="h-8 bg-muted rounded w-64 mb-6"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="h-80 bg-muted rounded-lg"></div>
             ))}
           </div>
@@ -72,9 +79,14 @@ const CoursesCatalog: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Courses</h1>
-        <p className="text-sm text-muted-foreground mt-1">Browse available courses</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Courses</h1>
+          <p className="text-sm text-muted-foreground mt-1">Browse available courses</p>
+        </div>
+        {user?.role === 'teacher' && (
+          <Button onClick={() => setIsCreateOpen(true)}>Create Course</Button>
+        )}
       </div>
 
       <div className="relative">
@@ -106,6 +118,27 @@ const CoursesCatalog: React.FC = () => {
           <h3 className="text-lg font-medium text-foreground mb-2">No courses available</h3>
           <p className="text-muted-foreground">You may already be enrolled in all visible courses.</p>
         </div>
+      )}
+
+      {/* Create Course Dialog for Teachers */}
+      {user?.role === 'teacher' && (
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Create Course</DialogTitle>
+              <DialogDescription>
+                Provide basic details for your new course.
+              </DialogDescription>
+            </DialogHeader>
+            <CreateCourseForm
+              onCancel={() => setIsCreateOpen(false)}
+              onCreated={(course) => {
+                setIsCreateOpen(false);
+                navigate(`/app/courses/${course.id}`);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

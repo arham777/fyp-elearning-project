@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,52 @@ const ContentViewer: React.FC = () => {
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
   }, [location.pathname]);
+
+  // Prepare sanitized HTML for reading content and support CKEditor MediaEmbed output
+  const readingHtml = useMemo(() => {
+    if (!content?.text) return '';
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content.text, 'text/html');
+      const oembeds = Array.from(doc.querySelectorAll('oembed[url]')) as HTMLElement[];
+      for (const el of oembeds) {
+        const url = el.getAttribute('url') || el.getAttribute('data-oembed-url') || '';
+        if (!url) continue;
+        let iframe: HTMLIFrameElement | null = null;
+        if (/youtube\.com\/watch\?v=|youtu\.be\//i.test(url)) {
+          const match = url.match(/[?&]v=([^&]+)|youtu\.be\/([^?&]+)/i);
+          const id = match?.[1] || match?.[2];
+          if (id) {
+            iframe = doc.createElement('iframe');
+            iframe.src = `https://www.youtube.com/embed/${id}`;
+            iframe.width = '560';
+            iframe.height = '315';
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+            iframe.setAttribute('allowfullscreen', 'true');
+          }
+        } else if (/vimeo\.com\//i.test(url)) {
+          const match = url.match(/vimeo\.com\/(\d+)/i);
+          const id = match?.[1];
+          if (id) {
+            iframe = doc.createElement('iframe');
+            iframe.src = `https://player.vimeo.com/video/${id}`;
+            iframe.width = '560';
+            iframe.height = '315';
+            iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture');
+            iframe.setAttribute('allowfullscreen', 'true');
+          }
+        }
+        if (iframe) {
+          const figure = el.closest('figure') || el.parentElement;
+          figure?.replaceChild(iframe, el);
+        }
+      }
+      const html = doc.body.innerHTML;
+      return DOMPurify.sanitize(html, { ADD_ATTR: ['allow', 'allowfullscreen'] });
+    } catch {
+      return DOMPurify.sanitize(content.text);
+    }
+  }, [content?.text]);
 
   const formatTime = (secs: number) => {
     if (!Number.isFinite(secs)) return '0:00';
@@ -222,7 +269,7 @@ const ContentViewer: React.FC = () => {
             <>
               <div className="prose prose-invert max-w-none text-sm leading-6">
                 {content.text ? (
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{content.text}</div>
+                  <div dangerouslySetInnerHTML={{ __html: readingHtml }} />
                 ) : (
                   <div className="text-muted-foreground">No text provided.</div>
                 )}
