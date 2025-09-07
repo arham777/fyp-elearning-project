@@ -24,7 +24,7 @@ import {
   AlertDialogTitle as AlertTitle,
   AlertDialogTrigger as AlertTrigger,
 } from '@/components/ui/alert-dialog';
-import CKEditorReact from '@/components/richtext/CKEditorReact';
+import ProfessionalRichTextEditor from '@/components/richtext/ProfessionalRichTextEditor';
 
 const ModuleDetail: React.FC = () => {
   const { id, moduleId } = useParams();
@@ -550,12 +550,13 @@ const ModuleDetail: React.FC = () => {
                     ) : (
                       <div className="space-y-2 relative z-50">
                         <Label htmlFor="create-reading-editor">Reading text</Label>
-                        <CKEditorReact
+                        <ProfessionalRichTextEditor
                           id="create-reading-editor"
                           className="pointer-events-auto"
                           value={form.text}
                           onChange={(html) => setForm((f) => ({ ...f, text: html }))}
                           height={300}
+                          placeholder="Write your reading content here..."
                         />
                       </div>
                     )}
@@ -916,12 +917,13 @@ const ModuleDetail: React.FC = () => {
               ) : (
                 <div className="space-y-2 relative z-50">
                   <Label htmlFor="edit-reading-editor">Reading text</Label>
-                  <CKEditorReact
+                  <ProfessionalRichTextEditor
                     id="edit-reading-editor"
                     className="pointer-events-auto"
                     value={editForm.text}
                     onChange={(html) => setEditForm((f) => ({ ...f, text: html }))}
                     height={300}
+                    placeholder="Edit your reading content..."
                   />
                 </div>
               )}
