@@ -31,6 +31,8 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
   const quillRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const mountedRef = useRef(false);
+  // Track last HTML we emitted to avoid feedback loops
+  const lastHtmlRef = useRef<string | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -77,6 +79,8 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
         theme: 'snow',
         placeholder,
         readOnly: disabled,
+        // Ensure Quill knows which element is scrollable for auto-scrolling to the caret
+        scrollingContainer: editorRef.current,
         modules: {
           toolbar: [
             [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
@@ -110,19 +114,57 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
 
       quillRef.current = quill;
 
-      // Set initial content
+      // Set initial content safely via Quill clipboard so internal Delta stays consistent
       if (value) {
-        quill.root.innerHTML = value;
+        lastHtmlRef.current = value;
+        // Use clipboard API to avoid selection reset bugs
+        if (typeof quill.clipboard?.dangerouslyPasteHTML === 'function') {
+          quill.clipboard.dangerouslyPasteHTML(value, 'api');
+        } else {
+          quill.root.innerHTML = value;
+        }
       }
 
+      // Helper to keep the caret in view within our scrolling container
+      const ensureCaretInView = () => {
+        try {
+          const scrollEl: HTMLElement | null = editorRef.current;
+          if (!scrollEl) return;
+          const range = quill.getSelection();
+          if (!range) return;
+          const bounds = quill.getBounds(range.index, range.length || 0);
+          const margin = 16; // some breathing room
+          const top = bounds.top;
+          const bottom = (bounds as any).bottom ?? (bounds.top + bounds.height);
+          const viewTop = scrollEl.scrollTop;
+          const viewBottom = viewTop + scrollEl.clientHeight;
+          if (bottom + margin > viewBottom) {
+            scrollEl.scrollTop = bottom + margin - scrollEl.clientHeight;
+          } else if (top - margin < viewTop) {
+            scrollEl.scrollTop = Math.max(0, top - margin);
+          }
+        } catch (_) { /* ignore */ }
+      };
+
       // Handle changes
-      const changeHandler = () => {
+      const changeHandler = (_delta: any, _oldDelta: any, source: 'user' | 'api' | 'silent') => {
         if (!mountedRef.current) return;
+        // Only propagate changes that originated from the user to avoid loops
+        if (source !== 'user') return;
         const html = quill.root.innerHTML;
+        lastHtmlRef.current = html;
         onChange?.(html === '<p><br></p>' ? '' : html);
+        // Keep caret visible when typing near the bottom
+        ensureCaretInView();
       };
 
       quill.on('text-change', changeHandler);
+
+      // Also react to manual selection changes (mouse click, arrow keys)
+      const selHandler = (_range: any, _old: any, source: 'user' | 'api' | 'silent') => {
+        if (source === 'user') ensureCaretInView();
+      };
+      quill.on('selection-change', selHandler);
 
       // Auto focus if needed
       if (autoFocus) {
@@ -138,6 +180,7 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
       if (quillRef.current) {
         try {
           quillRef.current.off('text-change');
+          quillRef.current.off('selection-change');
         } catch (e) {
           // Ignore cleanup errors
         }
@@ -148,11 +191,20 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
 
   // Update content when value prop changes
   useEffect(() => {
-    if (quillRef.current && value !== undefined && mountedRef.current) {
-      const currentContent = quillRef.current.root.innerHTML;
-      if (currentContent !== value) {
-        quillRef.current.root.innerHTML = value || '';
-      }
+    if (!quillRef.current || value === undefined || !mountedRef.current) return;
+    const quill = quillRef.current;
+    const currentHtml = quill.root.innerHTML;
+    // Ignore updates that we ourselves just emitted
+    if (value === currentHtml || value === lastHtmlRef.current) return;
+    // Preserve cursor position if possible
+    const savedRange = quill.getSelection();
+    if (typeof quill.clipboard?.dangerouslyPasteHTML === 'function') {
+      quill.clipboard.dangerouslyPasteHTML(value || '', 'api');
+    } else {
+      quill.root.innerHTML = value || '';
+    }
+    if (savedRange) {
+      try { quill.setSelection(savedRange); } catch { /* noop */ }
     }
   }, [value]);
 
@@ -177,35 +229,54 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
   }
 
   return (
-    <div className={`professional-rich-text-editor ${className}`} id={id}>
+    <div
+      className={`professional-rich-text-editor ${className}`}
+      id={id}
+      style={{ ['--editor-height' as any]: `${height}px` }}
+    >
       <div 
         ref={editorRef}
-        style={{ minHeight: height }}
         className="bg-background"
       />
-      <style jsx>{`
+      <style>{`
+        /* Wrapper keeps radius and clips inner borders for a clean edge */
+        .professional-rich-text-editor {
+          background: hsl(var(--background));
+          border-radius: 0.375rem;
+          overflow: hidden;
+          position: relative;
+          border: 1px solid hsl(var(--border));
+        }
+        
+        /* Toolbar: bottom divider only (sides provided by wrapper) */
         .professional-rich-text-editor .ql-toolbar {
-          border-top: 1px solid hsl(var(--border));
-          border-left: 1px solid hsl(var(--border));
-          border-right: 1px solid hsl(var(--border));
-          border-bottom: none;
+          box-sizing: border-box;
+          border: 0;
+          border-bottom: 1px solid hsl(var(--border));
           background: hsl(var(--background));
           border-radius: 0.375rem 0.375rem 0 0;
         }
         
         .professional-rich-text-editor .ql-container {
-          border-bottom: 1px solid hsl(var(--border));
-          border-left: 1px solid hsl(var(--border));
-          border-right: 1px solid hsl(var(--border));
-          border-top: none;
+          box-sizing: border-box;
+          border: 0;
           border-radius: 0 0 0.375rem 0.375rem;
           font-family: inherit;
+          /* Make the editor area scrollable while keeping a fixed working height */
+          min-height: var(--editor-height, 300px);
+          max-height: var(--editor-height, 300px);
+          overflow-y: auto;
+          overflow-x: hidden;
+          position: relative;
+          /* No bottom border; wrapper provides outer frame */
         }
         
         .professional-rich-text-editor .ql-editor {
           color: hsl(var(--foreground));
           font-size: 14px;
           line-height: 1.5;
+          /* Give a bit of padding inside the editor */
+          padding: 12px 14px;
         }
         
         .professional-rich-text-editor .ql-editor.ql-blank::before {
@@ -329,6 +400,7 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
         .professional-rich-text-editor .ql-editor ol {
           margin: 0.5rem 0;
           padding-left: 1.5rem;
+          list-style-position: outside; /* Ensures bullets/numbers are visible */
         }
         
         .professional-rich-text-editor .ql-editor li {
