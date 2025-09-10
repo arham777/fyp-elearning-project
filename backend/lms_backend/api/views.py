@@ -928,3 +928,47 @@ class NotificationViewSet(viewsets.ModelViewSet):
         if count:
             qs.update(is_read=True)
         return Response({'success': True, 'marked': count})
+
+    @action(detail=False, methods=['post'], url_path='broadcast')
+    def broadcast(self, request):
+        """Broadcast an announcement to all teachers or all students (admin only).
+
+        Expected payload:
+        {
+          "audience": "teacher" | "student" | "teachers" | "students",
+          "title": string,
+          "message": string,
+          "notif_type": "info" | "warning" | "success"
+        }
+        """
+        user = request.user
+        if getattr(user, 'role', None) != 'admin':
+            return Response({"detail": "Only admin can broadcast notifications."}, status=status.HTTP_403_FORBIDDEN)
+
+        audience_raw = (request.data.get('audience') or '').strip().lower()
+        title = (request.data.get('title') or '').strip()
+        message = (request.data.get('message') or '').strip()
+        notif_type = (request.data.get('notif_type') or 'info').strip()
+
+        if audience_raw not in {'teacher', 'teachers', 'student', 'students'}:
+            return Response({"detail": "audience must be 'teacher' or 'student'."}, status=status.HTTP_400_BAD_REQUEST)
+        if not title or not message:
+            return Response({"detail": "Both title and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        role = 'teacher' if audience_raw in {'teacher', 'teachers'} else 'student'
+        recipients = User.objects.filter(role=role, is_active=True)
+        count = recipients.count()
+
+        if count == 0:
+            return Response({'success': True, 'created': 0})
+
+        Notification.objects.bulk_create([
+            Notification(
+                user=u,
+                title=title,
+                message=message,
+                notif_type=notif_type
+            ) for u in recipients
+        ])
+
+        return Response({'success': True, 'created': count})

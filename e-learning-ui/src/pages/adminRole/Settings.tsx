@@ -24,6 +24,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { notificationsApi } from '@/api/notifications';
 
 // Mock settings data - replace with real API
 interface PlatformSettings {
@@ -86,6 +87,12 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = React.useState<PlatformSettings>(mockSettings);
   const [hasChanges, setHasChanges] = React.useState(false);
 
+  // Local state for broadcast announcements (does not affect platform settings save)
+  const [announceTitle, setAnnounceTitle] = React.useState('');
+  const [announceMessage, setAnnounceMessage] = React.useState('');
+  const [announceType, setAnnounceType] = React.useState<'info' | 'warning' | 'success'>('info');
+  const [audience, setAudience] = React.useState<'teachers' | 'students'>('students');
+
   // Mock query - replace with real API
   const { data: currentSettings, isLoading } = useQuery<PlatformSettings>({
     queryKey: ['settings', 'platform'],
@@ -137,6 +144,32 @@ const Settings: React.FC = () => {
   const handleSave = () => {
     saveSettingsMutation.mutate(settings);
   };
+
+  const broadcastMutation = useMutation({
+    mutationFn: async () => {
+      return notificationsApi.broadcast(
+        audience,
+        announceTitle.trim(),
+        announceMessage.trim(),
+        announceType
+      );
+    },
+    onSuccess: (res) => {
+      toast({
+        title: 'Announcement sent',
+        description: `Sent to ${res.created} ${audience}.`
+      });
+      setAnnounceTitle('');
+      setAnnounceMessage('');
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to send',
+        description: 'Please try again.',
+        variant: 'destructive'
+      });
+    }
+  });
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -324,7 +357,7 @@ const Settings: React.FC = () => {
             Announcements
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Enable Announcements</Label>
@@ -336,32 +369,71 @@ const Settings: React.FC = () => {
             />
           </div>
 
+          <Separator />
+
           <div className="space-y-2">
-            <Label htmlFor="announcement-type">Announcement Type</Label>
-            <Select 
-              value={settings.announcements.announcement_type} 
-              onValueChange={(value) => handleSettingChange('announcements', 'announcement_type', value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-base">Send Announcement</Label>
+            <p className="text-sm text-muted-foreground">Send a notification to all Teachers or all Students</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="audience">Audience</Label>
+              <Select value={audience} onValueChange={(v: 'teachers' | 'students') => setAudience(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select audience" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="teachers">Teachers</SelectItem>
+                  <SelectItem value="students">Students</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="send-type">Type</Label>
+              <Select value={announceType} onValueChange={(v: 'info' | 'warning' | 'success') => setAnnounceType(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="announcement-text">Announcement Text</Label>
+            <Label htmlFor="announce-title">Title</Label>
+            <Input
+              id="announce-title"
+              value={announceTitle}
+              onChange={(e) => setAnnounceTitle(e.target.value)}
+              placeholder="Enter announcement title"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="announce-message">Message</Label>
             <Textarea
-              id="announcement-text"
-              value={settings.announcements.current_announcement}
-              onChange={(e) => handleSettingChange('announcements', 'current_announcement', e.target.value)}
+              id="announce-message"
+              value={announceMessage}
+              onChange={(e) => setAnnounceMessage(e.target.value)}
               placeholder="Enter your announcement message"
               rows={3}
             />
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={() => broadcastMutation.mutate()}
+              disabled={broadcastMutation.isPending || !announceTitle.trim() || !announceMessage.trim()}
+              className="min-w-36"
+            >
+              {broadcastMutation.isPending ? 'Sending...' : 'Send Announcement'}
+            </Button>
           </div>
         </CardContent>
       </Card>

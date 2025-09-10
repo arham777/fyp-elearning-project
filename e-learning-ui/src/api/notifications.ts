@@ -33,5 +33,23 @@ export const notificationsApi = {
   async markAllRead(): Promise<number> {
     const res = await apiClient.post('/notifications/mark_all_read/');
     return Number(res.data?.marked ?? 0);
+  },
+
+  async broadcast(
+    audience: 'teacher' | 'student' | 'teachers' | 'students',
+    title: string,
+    message: string,
+    notif_type: 'info' | 'warning' | 'success' = 'info'
+  ): Promise<{ success: boolean; created: number }> {
+    const res = await apiClient.post('/notifications/broadcast/', {
+      audience,
+      title,
+      message,
+      notif_type
+    });
+    return {
+      success: Boolean(res.data?.success),
+      created: Number(res.data?.created ?? 0)
+    };
   }
 };
