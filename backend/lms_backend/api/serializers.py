@@ -159,28 +159,38 @@ class AssignmentQuestionSerializer(serializers.ModelSerializer):
 class CourseListSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer(read_only=True)
     enrollment_count = serializers.SerializerMethodField(read_only=True)
+    # Compatibility alias so frontend can use course.status
+    status = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'enrollment_count']
-        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'enrollment_count']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'enrollment_count']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'enrollment_count']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()
+    
+    def get_status(self, obj):
+        # Map new workflow field to legacy-compatible key used in frontend
+        return getattr(obj, 'publication_status', 'draft')
 
 class CourseDetailSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer(read_only=True)
     modules = CourseModuleSerializer(many=True, read_only=True)
     assignments = AssignmentSerializer(many=True, read_only=True)
     enrollment_count = serializers.SerializerMethodField(read_only=True)
+    status = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'modules', 'assignments', 'enrollment_count']
-        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'modules', 'assignments', 'enrollment_count']
+        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'modules', 'assignments', 'enrollment_count']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'modules', 'assignments', 'enrollment_count']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()
+
+    def get_status(self, obj):
+        return getattr(obj, 'publication_status', 'draft')
 
 class ContentProgressSerializer(serializers.ModelSerializer):
     class Meta:

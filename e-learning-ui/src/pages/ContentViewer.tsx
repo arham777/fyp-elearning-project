@@ -33,9 +33,15 @@ const ContentViewer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const MIN_WATCH_PERCENT = 95;
 
-  const basePath = useMemo(() => {
-    return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
-  }, [location.pathname]);
+  const backTo = useMemo(() => {
+    // If opened from admin read-only route, return to admin course view
+    if (location.pathname.startsWith('/app/admin/courses')) {
+      return `/app/admin/courses/${courseId}`;
+    }
+    // Otherwise, go back to module page under student/teacher flows
+    const base = location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
+    return `${base}/${courseId}/modules/${modId}`;
+  }, [location.pathname, courseId, modId]);
 
   // Prepare sanitized HTML for reading content and support CKEditor MediaEmbed output
   const readingHtml = useMemo(() => {
@@ -246,7 +252,7 @@ const ContentViewer: React.FC = () => {
           <p className="text-xs text-muted-foreground mt-1">{content.content_type === 'video' ? 'Video' : 'Reading'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <BackButton to={`${basePath}/${courseId}/modules/${modId}`} />
+          <BackButton to={backTo} />
           {user?.role === 'student' && content.content_type === 'video' && (
             <Button
               onClick={markComplete}

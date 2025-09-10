@@ -26,6 +26,7 @@ export interface Course {
   thumbnail?: string;
   is_published: boolean;
   status?: 'published' | 'draft' | 'pending' | 'rejected';
+  approval_note?: string;
   category?: string;
   modules?: CourseModule[];
   assignments?: Assignment[];

@@ -13,7 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion
+    AssignmentQuestion, Notification
 )
 
 from .serializers import (
@@ -139,7 +139,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         """
         Instantiates and returns the list of permissions that this view requires.
         """
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish', 'approve', 'reject']:
             permission_classes = [permissions.IsAuthenticated, IsTeacherOrAdmin]
         else:
             permission_classes = [permissions.IsAuthenticated]
@@ -265,10 +265,9 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='publish',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
     def publish(self, request, pk=None):
-        """Publish a course after basic readiness checks.
+        """Teacher: submit for admin approval (pending). Admin: direct publish.
 
-        Rules:
-        - Only the course teacher or admin may publish
+        Readiness checks:
         - Course must have at least 1 module
         - Course must have at least 1 content item or 1 assignment overall
         """
@@ -284,17 +283,39 @@ class CourseViewSet(viewsets.ModelViewSet):
         assignments_count = course.assignments.count()
 
         if modules_count == 0:
-            return Response({"detail": "Add at least one module before publishing."},
+            return Response({"detail": "Add at least one module before submitting for approval."},
                             status=status.HTTP_400_BAD_REQUEST)
         if contents_count == 0 and assignments_count == 0:
-            return Response({"detail": "Add content or assignments before publishing."},
+            return Response({"detail": "Add content or assignments before submitting for approval."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        if not course.is_published:
+        # If admin -> force publish
+        if user.role == 'admin':
             course.is_published = True
             course.published_at = timezone.now()
-            course.save(update_fields=["is_published", "published_at"])
+            course.publication_status = 'published'
+            course.approved_at = timezone.now()
+            # Clear any previous note
+            course.approval_note = None
+            course.save(update_fields=["is_published", "published_at", "publication_status", "approved_at", "approval_note"])
+            # Notify teacher
+            Notification.objects.create(
+                user=course.teacher,
+                title="Course published",
+                message=f"Your course '{course.title}' has been published by admin.",
+                course=course,
+                notif_type='course_approval'
+            )
+            return Response(CourseDetailSerializer(course).data)
 
+        # Teacher -> set pending
+        course.publication_status = 'pending'
+        course.submitted_for_approval_at = timezone.now()
+        # Ensure not published yet
+        course.is_published = False
+        course.save(update_fields=["publication_status", "submitted_for_approval_at", "is_published"])
+
+        # Notify admins could be implemented separately; here we only update state
         return Response(CourseDetailSerializer(course).data)
 
     @action(detail=True, methods=['post'], url_path='unpublish',
@@ -310,8 +331,64 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         if course.is_published:
             course.is_published = False
-            course.save(update_fields=["is_published"])
+            course.publication_status = 'draft'
+            course.save(update_fields=["is_published", "publication_status"])
 
+        return Response(CourseDetailSerializer(course).data)
+
+    @action(detail=True, methods=['post'], url_path='approve',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def approve(self, request, pk=None):
+        """Approve a pending course (admin only)."""
+        # Only admin permitted
+        if request.user.role != 'admin':
+            return Response({"detail": "Only admin can approve courses."}, status=status.HTTP_403_FORBIDDEN)
+        course = self.get_object()
+        note = request.data.get('note') or ''
+        # Only approve if in pending or rejected/draft and ready
+        if course.modules.count() == 0:
+            return Response({"detail": "Add at least one module before approval."}, status=status.HTTP_400_BAD_REQUEST)
+        if Content.objects.filter(module__course=course).count() == 0 and course.assignments.count() == 0:
+            return Response({"detail": "Add content or assignments before approval."}, status=status.HTTP_400_BAD_REQUEST)
+        course.is_published = True
+        course.published_at = timezone.now()
+        course.publication_status = 'published'
+        course.approval_note = note or None
+        course.approved_at = timezone.now()
+        course.save(update_fields=["is_published", "published_at", "publication_status", "approval_note", "approved_at"])
+        # Notify teacher
+        Notification.objects.create(
+            user=course.teacher,
+            title="Course approved",
+            message=(note or f"Your course '{course.title}' has been approved and published."),
+            course=course,
+            notif_type='course_approval'
+        )
+        return Response(CourseDetailSerializer(course).data)
+
+    @action(detail=True, methods=['post'], url_path='reject',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def reject(self, request, pk=None):
+        """Reject a course with a note (admin only)."""
+        if request.user.role != 'admin':
+            return Response({"detail": "Only admin can reject courses."}, status=status.HTTP_403_FORBIDDEN)
+        course = self.get_object()
+        note = (request.data.get('note') or '').strip()
+        if not note:
+            return Response({"detail": "Rejection note is required."}, status=status.HTTP_400_BAD_REQUEST)
+        course.is_published = False
+        course.publication_status = 'rejected'
+        course.approval_note = note
+        course.rejected_at = timezone.now()
+        course.save(update_fields=["is_published", "publication_status", "approval_note", "rejected_at"])
+        # Notify teacher
+        Notification.objects.create(
+            user=course.teacher,
+            title="Course rejected",
+            message=f"Your course '{course.title}' was rejected. Reason: {note}",
+            course=course,
+            notif_type='course_approval'
+        )
         return Response(CourseDetailSerializer(course).data)
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
@@ -798,3 +875,37 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             "issue_date": certificate.issue_date,
             "verification_code": certificate.verification_code
         })
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.Serializer  # will override methods
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        data = [{
+            'id': n.id,
+            'title': n.title,
+            'message': n.message,
+            'course': n.course_id,
+            'notif_type': n.notif_type,
+            'is_read': n.is_read,
+            'created_at': n.created_at,
+        } for n in qs]
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        cnt = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread': cnt})
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        n = self.get_queryset().filter(pk=pk).first()
+        if not n:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        n.is_read = True
+        n.save(update_fields=['is_read'])
+        return Response({'success': True})

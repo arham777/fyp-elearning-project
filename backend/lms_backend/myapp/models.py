@@ -64,6 +64,18 @@ class Course(models.Model):
     # Draft/Publish workflow
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
+    # Enhanced admin-approval workflow
+    PUBLICATION_STATUSES = (
+        ('draft', 'Draft'),
+        ('pending', 'Pending Approval'),
+        ('published', 'Published'),
+        ('rejected', 'Rejected'),
+    )
+    publication_status = models.CharField(max_length=10, choices=PUBLICATION_STATUSES, default='draft')
+    approval_note = models.TextField(null=True, blank=True)
+    submitted_for_approval_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title
@@ -353,3 +365,21 @@ class Certificate(models.Model):
 
     def __str__(self):
         return f"{self.student.username} - {self.course.title} - {self.verification_code}"
+
+# Basic Notification model for approval workflow and general alerts
+class Notification(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    # Optional linkage to a course for course-related notifications
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+    notif_type = models.CharField(max_length=50, default='info')  # e.g., course_approval, system
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Notification to {self.user.username}: {self.title}"

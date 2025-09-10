@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/api/admin';
 import { Course } from '@/types';
@@ -39,68 +40,9 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import CourseActionDialog from '@/components/admin/CourseActionDialog';
 
-interface CourseActionDialogProps {
-  course: Course | null;
-  action: 'approve' | 'reject' | 'delete' | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-const CourseActionDialog: React.FC<CourseActionDialogProps> = ({ 
-  course, 
-  action, 
-  isOpen, 
-  onClose, 
-  onConfirm 
-}) => {
-  const getDialogContent = () => {
-    if (!course || !action) return { title: '', description: '' };
-    
-    switch (action) {
-      case 'approve':
-        return {
-          title: 'Approve Course',
-          description: `Are you sure you want to approve "${course.title}"? It will be published and available to students.`
-        };
-      case 'reject':
-        return {
-          title: 'Reject Course',
-          description: `Are you sure you want to reject "${course.title}"? The teacher will be notified.`
-        };
-      case 'delete':
-        return {
-          title: 'Delete Course',
-          description: `Are you sure you want to permanently delete "${course.title}"? This action cannot be undone.`
-        };
-      default:
-        return { title: '', description: '' };
-    }
-  };
-
-  const { title, description } = getDialogContent();
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button 
-            variant={action === 'delete' || action === 'reject' ? 'destructive' : 'default'}
-            onClick={onConfirm}
-          >
-            {action === 'approve' ? 'Approve' : action === 'reject' ? 'Reject' : 'Delete'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
+ 
 
 const getStatusBadge = (status: Course['status']) => {
   switch (status) {
@@ -120,15 +62,18 @@ const getStatusBadge = (status: Course['status']) => {
 const CourseManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [dialogState, setDialogState] = React.useState<{
     course: Course | null;
     action: 'approve' | 'reject' | 'delete' | null;
     isOpen: boolean;
+    note: string;
   }>({
     course: null,
     action: null,
     isOpen: false,
+    note: '',
   });
 
   const { data: courses = [], isLoading } = useQuery<Course[]>({
@@ -137,12 +82,12 @@ const CourseManagement: React.FC = () => {
   });
 
   const courseActionMutation = useMutation({
-    mutationFn: async ({ course, action }: { course: Course; action: 'approve' | 'reject' | 'delete' }) => {
+    mutationFn: async ({ course, action, note }: { course: Course; action: 'approve' | 'reject' | 'delete'; note?: string }) => {
       switch (action) {
         case 'approve':
-          return await adminApi.approveCourse(course.id);
+          return await adminApi.approveCourse(course.id, note);
         case 'reject':
-          return await adminApi.rejectCourse(course.id);
+          return await adminApi.rejectCourse(course.id, note || '');
         case 'delete':
           await adminApi.deleteCourse(course.id);
           return { course, action };
@@ -156,7 +101,7 @@ const CourseManagement: React.FC = () => {
         title: "Success",
         description: `Course ${actionText} successfully.`,
       });
-      setDialogState({ course: null, action: null, isOpen: false });
+      setDialogState({ course: null, action: null, isOpen: false, note: '' });
     },
     onError: () => {
       toast({
@@ -168,14 +113,19 @@ const CourseManagement: React.FC = () => {
   });
 
   const handleCourseAction = (course: Course, action: 'approve' | 'reject' | 'delete') => {
-    setDialogState({ course, action, isOpen: true });
+    setDialogState({ course, action, isOpen: true, note: '' });
   };
 
   const handleConfirmAction = () => {
     if (dialogState.course && dialogState.action) {
+      if (dialogState.action === 'reject' && !dialogState.note.trim()) {
+        toast({ title: 'Rejection note required', description: 'Please provide a reason to help the teacher fix issues.', variant: 'destructive' });
+        return;
+      }
       courseActionMutation.mutate({ 
         course: dialogState.course, 
-        action: dialogState.action 
+        action: dialogState.action,
+        note: dialogState.note.trim() || undefined,
       });
     }
   };
@@ -309,7 +259,7 @@ const CourseManagement: React.FC = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/app/admin/courses/${course.id}`)}>
                       <Eye className="mr-2 h-4 w-4" />
                       View Course
                     </DropdownMenuItem>
@@ -361,7 +311,9 @@ const CourseManagement: React.FC = () => {
         course={dialogState.course}
         action={dialogState.action}
         isOpen={dialogState.isOpen}
-        onClose={() => setDialogState({ course: null, action: null, isOpen: false })}
+        note={dialogState.note}
+        setNote={(v) => setDialogState((s) => ({ ...s, note: v }))}
+        onClose={() => setDialogState({ course: null, action: null, isOpen: false, note: '' })}
         onConfirm={handleConfirmAction}
       />
     </div>

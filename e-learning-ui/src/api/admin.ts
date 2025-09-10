@@ -108,13 +108,13 @@ export const adminApi = {
     return Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
   },
 
-  async approveCourse(courseId: number): Promise<Course> {
-    const response = await apiClient.patch(`/courses/${courseId}/`, { status: 'published' });
+  async approveCourse(courseId: number, note?: string): Promise<Course> {
+    const response = await apiClient.post(`/courses/${courseId}/approve/`, { note });
     return response.data;
   },
 
-  async rejectCourse(courseId: number): Promise<Course> {
-    const response = await apiClient.patch(`/courses/${courseId}/`, { status: 'rejected' });
+  async rejectCourse(courseId: number, note: string): Promise<Course> {
+    const response = await apiClient.post(`/courses/${courseId}/reject/`, { note });
     return response.data;
   },
 

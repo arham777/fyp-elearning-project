@@ -180,7 +180,14 @@ const CourseDetail: React.FC = () => {
       setIsPublishing(true);
       const updated = await coursesApi.publishCourse(courseId);
       setCourse(updated);
-      toast({ title: 'Course published', description: 'Your course is now visible to students.' });
+      const statusText = (updated as any)?.status || (updated.is_published ? 'published' : 'draft');
+      if (statusText === 'pending') {
+        toast({ title: 'Submitted for approval', description: 'Your course has been sent to the admin for review. You will be notified once a decision is made.' });
+      } else if (statusText === 'published') {
+        toast({ title: 'Course published', description: 'Your course is now visible to students.' });
+      } else {
+        toast({ title: 'Updated', description: 'Course status updated.' });
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Failed to publish course';
       toast({ title: 'Error', description: String(detail), variant: 'destructive' });
@@ -319,6 +326,10 @@ const CourseDetail: React.FC = () => {
             {isTeacher && (
               course.is_published ? (
                 <Badge>Published</Badge>
+              ) : (course as any).status === 'pending' ? (
+                <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending approval</Badge>
+              ) : (course as any).status === 'rejected' ? (
+                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Rejected</Badge>
               ) : (
                 <Badge variant="destructive">Draft</Badge>
               )
@@ -357,25 +368,29 @@ const CourseDetail: React.FC = () => {
                     </AlertFooter>
                   </AlertContent>
                 </AlertDialog>
+              ) : (course as any).status === 'pending' ? (
+                <Button className="h-9" disabled>
+                  Pending approval
+                </Button>
               ) : (
                 <AlertDialog>
                   <AlertTrigger asChild>
                     <Button className="h-9" disabled={isPublishing}>
-                      {isPublishing ? 'Publishing…' : 'Publish'}
+                      {isPublishing ? 'Submitting…' : ((course as any).status === 'rejected' ? 'Resubmit for approval' : 'Submit for approval')}
                     </Button>
                   </AlertTrigger>
                   <AlertContent>
                     <AlertHeader>
-                      <AlertTitle>Publish this course?</AlertTitle>
+                      <AlertTitle>Submit for admin approval?</AlertTitle>
                       <AlertDescription>
-                        Once published, students will be able to discover and enroll in this course. Make sure
-                        you have at least one module and content or assignment added.
+                        Once approved by admin, your course will be published and visible to students. Make sure
+                        you have at least one module and some content or assignment added.
                       </AlertDescription>
                     </AlertHeader>
                     <AlertFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
-                        {isPublishing ? 'Publishing…' : 'Confirm Publish'}
+                        {isPublishing ? 'Submitting…' : 'Confirm Submit'}
                       </AlertDialogAction>
                     </AlertFooter>
                   </AlertContent>
@@ -397,6 +412,25 @@ const CourseDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {isTeacher && (course as any).status === 'rejected' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base text-red-600">Rejected by Admin</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              {course.approval_note ? (
+                <>
+                  <span className="font-medium text-foreground">Reason:</span> {course.approval_note}
+                </>
+              ) : (
+                'Your course was rejected. Please make the necessary changes and resubmit for approval.'
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!isTeacher && isEnrolled && (
         <Card>

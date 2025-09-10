@@ -30,6 +30,7 @@ import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
 import CertificateView from "@/pages/CertificateView";
 import TeacherRegistration from "@/pages/TeacherRegistration";
+import AdminCourseView from "@/pages/adminRole/AdminCourseView";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -104,6 +105,10 @@ const App = () => (
                 <Route path="courses/:id/modules/:moduleId" element={<ModuleDetail />} />
                 <Route path="courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
                 <Route path="courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
+                {/* Admin read-only course view */}
+                <Route path="admin/courses/:id" element={<AdminCourseView />} />
+                {/* Admin-scoped content viewer (keeps admin back navigation) */}
+                <Route path="admin/courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
 
                 <Route path="my-courses/:id" element={<CourseViewer />} />
                 <Route path="my-courses/:id/modules/:moduleId" element={<CourseViewer />} />

@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { notificationsApi, type NotificationItem } from '@/api/notifications';
 import {
   Sheet,
   SheetContent,
@@ -27,6 +28,9 @@ const DashboardHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [notifOpen, setNotifOpen] = React.useState(false);
+  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
 
   const baseLinks = [
     { to: '/app', label: 'Dashboard', roles: ['student','teacher','admin'] },
@@ -34,6 +38,7 @@ const DashboardHeader: React.FC = () => {
     { to: '/app/courses', label: 'Courses', roles: ['student','teacher'] },
     { to: '/app/certificates', label: 'Certificates', roles: ['student'] },
     { to: '/app/students', label: 'Students', roles: ['teacher'] },
+    { to: '/app/course-management', label: 'Courses', roles: ['admin'] },
     { to: '/app/users', label: 'Users', roles: ['admin'] },
     { to: '/app/settings', label: 'Settings', roles: ['admin'] },
   ];
@@ -47,6 +52,31 @@ const DashboardHeader: React.FC = () => {
     const value = `${first}${last}` || fallback;
     return value.toUpperCase();
   }, [user]);
+
+  // Fetch unread count on mount and every 60s
+  React.useEffect(() => {
+    let timer: any;
+    const fetchCount = async () => {
+      try {
+        const cnt = await notificationsApi.unreadCount();
+        setUnreadCount(cnt);
+      } catch {}
+    };
+    if (user) {
+      fetchCount();
+      timer = setInterval(fetchCount, 60000);
+    }
+    return () => timer && clearInterval(timer);
+  }, [user]);
+
+  const openNotifications = async () => {
+    try {
+      const list = await notificationsApi.list();
+      setNotifications(list);
+      // Optimistically reset unread counter when opening
+      setUnreadCount(0);
+    } catch {}
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-background">
@@ -95,9 +125,36 @@ const DashboardHeader: React.FC = () => {
               />
             </div>
 
-            <Button aria-label="Notifications" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ink/10">
-              <Bell className="h-4 w-4" />
-            </Button>
+            <DropdownMenu open={notifOpen} onOpenChange={(o) => { setNotifOpen(o); if (o) openNotifications(); }}>
+              <DropdownMenuTrigger asChild>
+                <Button aria-label="Notifications" variant="ghost" size="icon" className="relative h-8 w-8 rounded-full hover:bg-ink/10">
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[1rem] px-1 rounded-full bg-red-600 text-[10px] leading-4 text-white grid place-items-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-auto p-0">
+                <div className="p-3 border-b">
+                  <div className="text-sm font-medium">Notifications</div>
+                </div>
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">No notifications</div>
+                ) : (
+                  notifications.map((n) => (
+                    <DropdownMenuItem key={n.id} className="whitespace-normal py-3" onClick={async () => { await notificationsApi.markRead(n.id); }}>
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium">{n.title}</div>
+                        <div className="text-xs text-muted-foreground">{n.message}</div>
+                        <div className="text-[10px] text-muted-foreground">{new Date(n.created_at).toLocaleString()}</div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Mobile Navigation Trigger */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
