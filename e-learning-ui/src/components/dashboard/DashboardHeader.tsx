@@ -71,10 +71,15 @@ const DashboardHeader: React.FC = () => {
 
   const openNotifications = async () => {
     try {
+      // Mark all as read on first open so the badge clears immediately
+      if (unreadCount > 0) {
+        await notificationsApi.markAllRead();
+        setUnreadCount(0);
+      }
+    } catch {}
+    try {
       const list = await notificationsApi.list();
       setNotifications(list);
-      // Optimistically reset unread counter when opening
-      setUnreadCount(0);
     } catch {}
   };
 

@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { User, Course, Certificate, TeacherRequest } from '../types';
+import { User, Course, Certificate } from '../types';
 
 export interface Enrollment {
   id: number;
@@ -148,34 +148,7 @@ export const adminApi = {
   },
 
   // Teacher Request Management
-  async getAllTeacherRequests(): Promise<TeacherRequest[]> {
-    const response = await apiClient.get('/teacher-requests/');
-    return Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
-  },
-
-  async createTeacherRequest(requestData: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    username: string;
-  }): Promise<TeacherRequest> {
-    const response = await apiClient.post('/teacher-requests/', requestData);
-    return response.data;
-  },
-
-  async approveTeacherRequest(requestId: number): Promise<User> {
-    const response = await apiClient.post(`/teacher-requests/${requestId}/approve/`);
-    return response.data;
-  },
-
-  async rejectTeacherRequest(requestId: number): Promise<TeacherRequest> {
-    const response = await apiClient.post(`/teacher-requests/${requestId}/reject/`);
-    return response.data;
-  },
-
-  async deleteTeacherRequest(requestId: number): Promise<void> {
-    await apiClient.delete(`/teacher-requests/${requestId}/`);
-  },
+  // (Teacher requests removed; teachers can self-register like students)
 
   // Analytics and Reports
   async getUserGrowthData(): Promise<Array<{ month: string; users: number }>> {

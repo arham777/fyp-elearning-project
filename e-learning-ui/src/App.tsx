@@ -29,7 +29,6 @@ import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
 import CertificateView from "@/pages/CertificateView";
-import TeacherRegistration from "@/pages/TeacherRegistration";
 import AdminCourseView from "@/pages/adminRole/AdminCourseView";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
@@ -80,7 +79,6 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
-              <Route path="/teacher-registration" element={<TeacherRegistration />} />
 
               {/* Backward-compat redirects for old non-/app URLs */}
               <Route path="/courses/:id" element={<Navigate to="/app/courses/:id" replace />} />

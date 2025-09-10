@@ -28,5 +28,10 @@ export const notificationsApi = {
 
   async markRead(id: number): Promise<void> {
     await apiClient.post(`/notifications/${id}/mark_read/`);
+  },
+
+  async markAllRead(): Promise<number> {
+    const res = await apiClient.post('/notifications/mark_all_read/');
+    return Number(res.data?.marked ?? 0);
   }
 };

@@ -315,7 +315,18 @@ class CourseViewSet(viewsets.ModelViewSet):
         course.is_published = False
         course.save(update_fields=["publication_status", "submitted_for_approval_at", "is_published"])
 
-        # Notify admins could be implemented separately; here we only update state
+        # Notify all admins of the approval request
+        admin_users = User.objects.filter(role='admin', is_active=True)
+        Notification.objects.bulk_create([
+            Notification(
+                user=admin,
+                title="Course approval request",
+                message=f"Course '{course.title}' was submitted by {course.teacher.username} and awaits approval.",
+                course=course,
+                notif_type='course_approval_request'
+            ) for admin in admin_users
+        ])
+
         return Response(CourseDetailSerializer(course).data)
 
     @action(detail=True, methods=['post'], url_path='unpublish',
@@ -909,3 +920,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
         n.is_read = True
         n.save(update_fields=['is_read'])
         return Response({'success': True})
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        qs = self.get_queryset().filter(is_read=False)
+        count = qs.count()
+        if count:
+            qs.update(is_read=True)
+        return Response({'success': True, 'marked': count})

@@ -415,6 +415,15 @@ const CourseViewer: React.FC = () => {
       const content = moduleData.contents.find(c => c.id === selectedContent.id);
       if (!content) return null;
 
+      // Determine if this is the very last content item in the module
+      const isLastContentInModule = (() => {
+        if (!moduleData.contents || moduleData.contents.length === 0) return false;
+        const sorted = moduleData.contents
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        return content.id === sorted[sorted.length - 1]?.id;
+      })();
+
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -526,8 +535,44 @@ const CourseViewer: React.FC = () => {
               )}
               
               <div className="mt-6 flex justify-between">
-                <Button variant="outline" onClick={goToNextIncomplete}>
-                  Next Lesson
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (isLastContentInModule) {
+                      try {
+                        if (!moduleData.completedContentIds.includes(content.id)) {
+                          await coursesApi.markContentComplete(
+                            courseId,
+                            selectedContent.moduleId,
+                            content.id
+                          );
+                          // Refresh module data after marking complete
+                          const updatedProgress = await coursesApi.getModuleProgress(
+                            courseId,
+                            selectedContent.moduleId
+                          );
+                          setModuleContents(prev => prev.map(md =>
+                            md.module.id === selectedContent.moduleId
+                              ? {
+                                  ...md,
+                                  completedContentIds: updatedProgress.completedContentIds,
+                                  completedAssignmentIds: updatedProgress.completedAssignmentIds,
+                                  assignmentResults: updatedProgress.assignmentResults
+                                }
+                              : md
+                          ));
+                        }
+                      } catch (error) {
+                        console.error('Failed to mark content as complete before navigating:', error);
+                      } finally {
+                        navigate(`${basePath}/${courseId}/modules/${selectedContent.moduleId}`);
+                      }
+                    } else {
+                      goToNextIncomplete();
+                    }
+                  }}
+                >
+                  {isLastContentInModule ? 'Finish' : 'Next Lesson'}
                 </Button>
                 {!moduleData.completedContentIds.includes(content.id) && (
                   <Button 

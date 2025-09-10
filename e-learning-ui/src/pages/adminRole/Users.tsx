@@ -2,15 +2,14 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Avatar, AvatarFallback } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
-import { User, TeacherRequest } from '../../types';
+import { User } from '../../types';
 import { adminApi } from '../../api/admin';
-import { UserPlus, MoreVertical, MoreHorizontal, UserCheck, UserX, UserMinus, Shield, GraduationCap, BookOpen, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, UserX, UserMinus, GraduationCap, BookOpen } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +22,7 @@ type RoleCategory = 'teacher' | 'student';
 
 interface UserActionDialogProps {
   user: User | null;
-  action: 'add' | 'remove' | 'block' | 'approve' | null;
+  action: 'add' | 'remove' | 'block' | null;
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (userData?: any) => void;
@@ -59,11 +58,6 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
         return {
           title: 'Block Student',
           description: `Are you sure you want to block "${user?.first_name} ${user?.last_name}"? They will not be able to access the platform.`
-        };
-      case 'approve':
-        return {
-          title: 'Approve Teacher',
-          description: `Are you sure you want to approve "${user?.first_name} ${user?.last_name}" as a teacher?`
         };
       default:
         return { title: '', description: '' };
@@ -144,7 +138,7 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
           >
             {action === 'add' ? 'Add User' : 
              action === 'remove' ? 'Remove' : 
-             action === 'block' ? 'Block' : 'Approve'}
+             action === 'block' ? 'Block' : 'Confirm'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -156,7 +150,7 @@ const RoleUsersCard: React.FC<{
   title: string; 
   users: User[]; 
   role: RoleCategory;
-  onUserAction: (user: User | null, action: 'add' | 'remove' | 'block' | 'approve') => void;
+  onUserAction: (user: User | null, action: 'add' | 'remove' | 'block') => void;
 }> = ({ title, users, role, onUserAction }) => {
 	return (
 		<Card className="border-border/60">
@@ -165,15 +159,6 @@ const RoleUsersCard: React.FC<{
 					<span>{title}</span>
 					<div className="flex items-center gap-2">
 						<span className="text-sm text-muted-foreground">{users.length}</span>
-						{role === 'teacher' && (
-							<Button 
-								size="sm" 
-								variant="outline"
-								onClick={() => onUserAction(null, 'add')}
-							>
-								<UserPlus className="h-4 w-4" />
-							</Button>
-						)}
 					</div>
 				</CardTitle>
 			</CardHeader>
@@ -182,7 +167,6 @@ const RoleUsersCard: React.FC<{
 					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || (u.username?.slice(0, 2) ?? 'U');
 					const enrolledCourses = role === 'student' ? Math.floor(Math.random() * 5) + 1 : 0;
 					const createdCourses = role === 'teacher' ? Math.floor(Math.random() * 3) + 1 : 0;
-					const isApproved = role === 'teacher' ? Math.random() > 0.3 : true;
 					
 					return (
 						<div key={u.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/40">
@@ -195,11 +179,6 @@ const RoleUsersCard: React.FC<{
 										<div className="text-sm font-medium truncate">
 											{u.first_name || u.last_name ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : u.username}
 										</div>
-										{role === 'teacher' && (
-											<Badge variant={isApproved ? 'default' : 'secondary'}>
-												{isApproved ? 'Approved' : 'Pending'}
-											</Badge>
-										)}
 									</div>
 									<div className="text-xs text-muted-foreground truncate">{u.email}</div>
 									<div className="text-xs text-muted-foreground flex items-center gap-4">
@@ -234,12 +213,6 @@ const RoleUsersCard: React.FC<{
 											</DropdownMenuItem>
 										</>
 									)}
-									{role === 'teacher' && !isApproved && (
-										<DropdownMenuItem onClick={() => onUserAction(u, 'approve')}>
-											<CheckCircle className="mr-2 h-4 w-4" />
-											Approve Teacher
-										</DropdownMenuItem>
-									)}
 									<DropdownMenuItem 
 										onClick={() => onUserAction(u, 'remove')}
 										className="text-destructive focus:text-destructive"
@@ -267,20 +240,10 @@ const Users: React.FC = () => {
 	const [activeTab, setActiveTab] = React.useState('users');
 	const [dialogState, setDialogState] = React.useState<{
 		user: User | null;
-		action: 'add' | 'remove' | 'block' | 'approve' | null;
+		action: 'add' | 'remove' | 'block' | null;
 		isOpen: boolean;
 	}>({
 		user: null,
-		action: null,
-		isOpen: false
-	});
-
-	const [requestDialogState, setRequestDialogState] = React.useState<{
-		request: TeacherRequest | null;
-		action: 'approve' | 'reject' | null;
-		isOpen: boolean;
-	}>({
-		request: null,
 		action: null,
 		isOpen: false
 	});
@@ -290,15 +253,11 @@ const Users: React.FC = () => {
 		queryFn: adminApi.getAllUsers,
 	});
 
-	const { data: teacherRequests = [] } = useQuery<TeacherRequest[]>({
-		queryKey: ['admin', 'teacher-requests'],
-		queryFn: adminApi.getAllTeacherRequests,
-	});
 
 	const userActionMutation = useMutation({
 		mutationFn: async ({ user, action, userData }: { 
 			user?: User; 
-			action: 'add' | 'remove' | 'block' | 'approve'; 
+			action: 'add' | 'remove' | 'block'; 
 			userData?: any 
 		}) => {
 			switch (action) {
@@ -315,19 +274,13 @@ const Users: React.FC = () => {
 						return await adminApi.blockUser(user.id);
 					}
 					break;
-				case 'approve':
-					if (user?.id) {
-						return await adminApi.updateUser(user.id, { is_active: true });
-					}
-					break;
 			}
 			return { user, action, userData };
 		},
 		onSuccess: (data) => {
 			queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
 			const actionText = dialogState.action === 'add' ? 'added' : 
-									 dialogState.action === 'remove' ? 'removed' :
-									 dialogState.action === 'block' ? 'blocked' : 'approved';
+									 dialogState.action === 'remove' ? 'removed' : 'blocked';
 			toast({
 				title: "Success",
 				description: `User ${actionText} successfully.`,
@@ -343,37 +296,6 @@ const Users: React.FC = () => {
 		}
 	});
 
-	const teacherRequestMutation = useMutation({
-		mutationFn: async ({ request, action }: { 
-			request: TeacherRequest; 
-			action: 'approve' | 'reject' 
-		}) => {
-			switch (action) {
-				case 'approve':
-					return await adminApi.approveTeacherRequest(request.id);
-				case 'reject':
-					return await adminApi.rejectTeacherRequest(request.id);
-			}
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['admin', 'teacher-requests'] });
-			queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-			const actionText = requestDialogState.action === 'approve' ? 'approved' : 'rejected';
-			toast({
-				title: "Success",
-				description: `Teacher request ${actionText} successfully.`,
-			});
-			setRequestDialogState({ request: null, action: null, isOpen: false });
-		},
-		onError: (error) => {
-			toast({
-				title: "Error",
-				description: "Failed to process teacher request.",
-				variant: "destructive",
-			});
-		}
-	});
-
 	const byRole = React.useMemo(() => {
 		const grouped: Record<RoleCategory, User[]> = { teacher: [], student: [] };
 		for (const u of allUsers) {
@@ -383,12 +305,8 @@ const Users: React.FC = () => {
 		return grouped;
 	}, [allUsers]);
 
-	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block' | 'approve') => {
+	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block') => {
 		setDialogState({ user, action, isOpen: true });
-	};
-
-	const handleRequestAction = (request: TeacherRequest, action: 'approve' | 'reject') => {
-		setRequestDialogState({ request, action, isOpen: true });
 	};
 
 	const handleConfirmAction = (userData?: any) => {
@@ -401,14 +319,6 @@ const Users: React.FC = () => {
 		}
 	};
 
-	const handleConfirmRequestAction = () => {
-		if (requestDialogState.action && requestDialogState.request) {
-			teacherRequestMutation.mutate({ 
-				request: requestDialogState.request, 
-				action: requestDialogState.action
-			});
-		}
-	};
 
 	if (isLoading) {
 		return <div>Loading...</div>;
@@ -418,22 +328,14 @@ const Users: React.FC = () => {
 		<div className="space-y-6">
 			<div>
 				<h1 className="text-3xl font-bold">User Management</h1>
-				<p className="text-muted-foreground">Manage students, teachers, and teacher requests</p>
+				<p className="text-muted-foreground">Manage students and teachers</p>
 			</div>
 			
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
 				<TabsList>
 					<TabsTrigger value="users">Users</TabsTrigger>
-					<TabsTrigger value="requests">
-						Teacher Requests
-						{teacherRequests.filter(r => r.status === 'pending').length > 0 && (
-							<Badge variant="secondary" className="ml-2">
-								{teacherRequests.filter(r => r.status === 'pending').length}
-							</Badge>
-						)}
-					</TabsTrigger>
 				</TabsList>
-
+				
 				<TabsContent value="users" className="space-y-6">
 					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 						<RoleUsersCard 
@@ -450,79 +352,6 @@ const Users: React.FC = () => {
 						/>
 					</div>
 				</TabsContent>
-
-				<TabsContent value="requests" className="space-y-6">
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<Clock className="h-5 w-5" />
-								Teacher Registration Requests
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{teacherRequests.length === 0 ? (
-								<div className="text-center py-8 text-muted-foreground">
-									No teacher requests found
-								</div>
-							) : (
-								<div className="space-y-4">
-									{teacherRequests.map((request) => (
-										<div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
-											<div className="flex items-center gap-4">
-												<Avatar className="h-12 w-12">
-													<AvatarFallback>
-														{`${request.first_name[0]}${request.last_name[0]}`.toUpperCase()}
-													</AvatarFallback>
-												</Avatar>
-												<div>
-													<div className="font-medium">
-														{request.first_name} {request.last_name}
-													</div>
-													<div className="text-sm text-muted-foreground">
-														{request.email}
-													</div>
-													<div className="text-xs text-muted-foreground">
-														Requested: {new Date(request.created_at).toLocaleDateString()}
-													</div>
-												</div>
-											</div>
-											<div className="flex items-center gap-2">
-												<Badge 
-													variant={
-														request.status === 'pending' ? 'secondary' :
-														request.status === 'approved' ? 'default' : 'destructive'
-													}
-												>
-													{request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-												</Badge>
-												{request.status === 'pending' && (
-													<div className="flex gap-2">
-														<Button
-															size="sm"
-															variant="default"
-															onClick={() => handleRequestAction(request, 'approve')}
-														>
-															<CheckCircle className="h-4 w-4 mr-1" />
-															Approve
-														</Button>
-														<Button
-															size="sm"
-															variant="destructive"
-															onClick={() => handleRequestAction(request, 'reject')}
-														>
-															<XCircle className="h-4 w-4 mr-1" />
-															Reject
-														</Button>
-													</div>
-												)}
-											</div>
-										</div>
-									))}
-								</div>
-							)}
-						</CardContent>
-					</Card>
-				</TabsContent>
 			</Tabs>
 
 			<UserActionDialog
@@ -533,32 +362,6 @@ const Users: React.FC = () => {
 				onConfirm={handleConfirmAction}
 			/>
 
-			<Dialog open={requestDialogState.isOpen} onOpenChange={() => setRequestDialogState({ request: null, action: null, isOpen: false })}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>
-							{requestDialogState.action === 'approve' ? 'Approve Teacher Request' : 'Reject Teacher Request'}
-						</DialogTitle>
-						<DialogDescription>
-							{requestDialogState.action === 'approve' 
-								? `Are you sure you want to approve ${requestDialogState.request?.first_name} ${requestDialogState.request?.last_name} as a teacher? This will create their teacher account.`
-								: `Are you sure you want to reject ${requestDialogState.request?.first_name} ${requestDialogState.request?.last_name}'s teacher request?`
-							}
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setRequestDialogState({ request: null, action: null, isOpen: false })}>
-							Cancel
-						</Button>
-						<Button 
-							variant={requestDialogState.action === 'approve' ? 'default' : 'destructive'}
-							onClick={handleConfirmRequestAction}
-						>
-							{requestDialogState.action === 'approve' ? 'Approve' : 'Reject'}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 };
