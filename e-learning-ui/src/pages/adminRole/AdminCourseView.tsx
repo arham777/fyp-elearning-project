@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { adminApi } from '@/api/admin';
 import CourseActionDialog from '@/components/admin/CourseActionDialog';
 import { useToast } from '@/hooks/use-toast';
+import { Star } from 'lucide-react';
 
 const StatusBadge: React.FC<{ course: Course | null }> = ({ course }) => {
   if (!course) return null;
@@ -128,9 +129,22 @@ const AdminCourseView: React.FC = () => {
         <div className="flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{course.title}</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">{course.description}</p>
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <div className="mt-3 flex items-center gap-3 flex-wrap text-sm text-muted-foreground">
             <StatusBadge course={course} />
             <Badge variant="secondary">{course.enrollment_count ?? 0} enrolled</Badge>
+            {(typeof (course as any).average_rating === 'number') && (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }).map((_, idx) => {
+                  const starVal = idx + 1;
+                  const activeFill = (((course as any).average_rating ?? 0) >= starVal);
+                  return (
+                    <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                  );
+                })}
+                <span className="ml-1">{Number(((course as any).average_rating ?? 0) as number).toFixed(1)}</span>
+                <span>({(course as any).ratings_count ?? 0})</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -199,6 +213,9 @@ const AdminCourseView: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Ratings List */}
+      <RatingsList courseId={courseId} />
+
       <CourseActionDialog
         course={dialogState.course}
         action={dialogState.action}
@@ -213,3 +230,71 @@ const AdminCourseView: React.FC = () => {
 };
 
 export default AdminCourseView;
+
+// Simple ratings list component for admins
+const RatingsList: React.FC<{ courseId: number }> = ({ courseId }) => {
+  const [ratings, setRatings] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await coursesApi.getCourseRatings(courseId);
+        const arr = Array.isArray(data) ? data : (data?.results ?? []);
+        setRatings(arr);
+      } catch (e) {
+        setError('Failed to load ratings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [courseId]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Ratings and Reviews</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && (
+          <div className="py-6 text-sm text-muted-foreground">Loading ratings…</div>
+        )}
+        {error && (
+          <div className="py-6 text-sm text-destructive">{error}</div>
+        )}
+        {!loading && !error && ratings.length === 0 && (
+          <div className="py-6 text-sm text-muted-foreground">No ratings yet.</div>
+        )}
+        <div className="space-y-4">
+          {ratings.map((r) => (
+            <div key={r.id} className="border rounded-md p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">
+                  {r?.student?.first_name || r?.student?.username}
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {Array.from({ length: 5 }).map((_, idx) => {
+                    const starVal = idx + 1;
+                    const activeFill = ((r?.rating ?? 0) >= starVal);
+                    return (
+                      <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    );
+                  })}
+                  <span className="ml-1">{Number(r?.rating ?? 0).toFixed(1)}</span>
+                </div>
+              </div>
+              {r?.review && (
+                <div className="mt-2 text-sm text-muted-foreground">{r.review}</div>
+              )}
+              <div className="mt-1 text-xs text-muted-foreground">
+                {r?.updated_at ? new Date(r.updated_at).toLocaleString() : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

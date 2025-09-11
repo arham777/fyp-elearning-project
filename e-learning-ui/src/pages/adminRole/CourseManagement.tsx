@@ -37,7 +37,8 @@ import {
   Eye,
   Users,
   Clock,
-  BookOpen
+  BookOpen,
+  Star
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import CourseActionDialog from '@/components/admin/CourseActionDialog';
@@ -248,6 +249,20 @@ const CourseManagement: React.FC = () => {
                       <span>{course.enrollment_count || course.enrollments || 0} enrolled</span>
                     </div>
                     
+                    {typeof (course as any).average_rating === 'number' && (
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, idx) => {
+                          const starVal = idx + 1;
+                          const activeFill = (((course as any).average_rating ?? 0) >= starVal);
+                          return (
+                            <Star key={idx} className={`h-3.5 w-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                          );
+                        })}
+                        <span className="ml-1">{Number(((course as any).average_rating ?? 0) as number).toFixed(1)}</span>
+                        <span>({(course as any).ratings_count ?? 0})</span>
+                      </div>
+                    )}
+
                     <span>Created {new Date(course.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
