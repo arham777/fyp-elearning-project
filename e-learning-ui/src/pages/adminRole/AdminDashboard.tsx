@@ -37,9 +37,16 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   
   const { data: dashboardStats, isLoading, error } = useQuery({
-    queryKey: ['admin', 'dashboard-stats'],
+    queryKey: ['admin', 'dashboard-stats', { months: 12 }],
     queryFn: adminApi.getDashboardStats,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    // Faster refresh for near real-time updates
+    refetchInterval: 10000, // 10 seconds
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 60_000,
   });
 
   if (isLoading) {

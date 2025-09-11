@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,8 @@ import { Course } from '@/types';
 import { Badge as UiBadge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { Progress } from '@/components/ui/progress';
+import { Star } from 'lucide-react';
+import { coursesApi } from '@/api/courses';
 
 interface CourseCardProps {
   course: Course;
@@ -40,6 +42,14 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
   const isTeacher = user?.role === 'teacher';
   const teacher = course.teacher;
   const teacherName = `${teacher?.first_name || teacher?.username || 'Instructor'}${teacher?.last_name ? ` ${teacher.last_name}` : ''}`;
+  const [myRating, setMyRating] = useState<number | null>((course as any)?.my_rating ?? null);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [avgRating, setAvgRating] = useState<number>((course as any)?.average_rating ?? 0);
+  const [ratingsCount, setRatingsCount] = useState<number>((course as any)?.ratings_count ?? 0);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const canRate = useMemo(() => {
+    return (user?.role === 'student') && !!isEnrolled && !!isCompleted;
+  }, [user?.role, isEnrolled, isCompleted]);
 
   return (
     <Card className="hover:shadow-sm transition-shadow h-full flex flex-col">
@@ -79,6 +89,48 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
             );
           })()}
         </div>
+        {typeof avgRating === 'number' && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {Array.from({ length: 5 }).map((_, idx) => {
+              const starVal = idx + 1;
+              const activeFill = canRate
+                ? ((hoverRating || myRating || 0) >= starVal)
+                : ((avgRating ?? 0) >= starVal);
+              if (!canRate) {
+                return (
+                  <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                );
+              }
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  className="p-0.5"
+                  onMouseEnter={() => setHoverRating(starVal)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  onClick={async () => {
+                    try {
+                      setIsSubmittingRating(true);
+                      await coursesApi.rateCourse(course.id, starVal);
+                      setMyRating(starVal);
+                      const updated = await coursesApi.getCourse(course.id);
+                      setAvgRating((updated as any)?.average_rating ?? avgRating);
+                      setRatingsCount((updated as any)?.ratings_count ?? ratingsCount);
+                    } finally {
+                      setIsSubmittingRating(false);
+                    }
+                  }}
+                  disabled={isSubmittingRating}
+                  aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
+                >
+                  <Star className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                </button>
+              );
+            })}
+            <span className="ml-1">{Number((avgRating ?? 0) as number).toFixed(1)}</span>
+            <span>({ratingsCount ?? 0})</span>
+          </div>
+        )}
         <CardDescription className="text-sm line-clamp-2">
           {course.description}
         </CardDescription>

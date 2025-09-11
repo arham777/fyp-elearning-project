@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q, Max, F
+from django.db.models import Q, Max, F, Count
+from django.db.models.functions import TruncMonth
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,14 +14,15 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion, Notification
+    AssignmentQuestion, Notification, CourseRating
 )
 
 from .serializers import (
     UserSerializer, CourseListSerializer, CourseDetailSerializer,
     CourseModuleSerializer, ContentSerializer, EnrollmentSerializer,
     ContentProgressSerializer, PaymentSerializer, AssignmentSerializer,
-    AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer
+    AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer,
+    CourseRatingSerializer
 )
 
 from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher
@@ -196,6 +198,57 @@ class CourseViewSet(viewsets.ModelViewSet):
                 'detail': "You don't have permission to delete this course"
             })
         instance.delete()
+    
+    @action(detail=True, methods=['get'], url_path='ratings', permission_classes=[permissions.IsAuthenticated])
+    def ratings(self, request, pk=None):
+        """List ratings for this course (paginated if backend configured)."""
+        course = self.get_object()
+        qs = CourseRating.objects.filter(course=course).order_by('-updated_at')
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = CourseRatingSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = CourseRatingSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='rate', permission_classes=[permissions.IsAuthenticated, IsStudent])
+    def rate(self, request, pk=None):
+        """Create or update the authenticated student's rating for this course.
+
+        Constraints:
+        - Student must be enrolled in the course
+        - Enrollment status must be 'completed'
+        - rating must be 1..5
+        - optional review text
+        """
+        course = self.get_object()
+        user = request.user
+
+        # Ensure enrollment exists and is completed
+        enrollment = Enrollment.objects.filter(student=user, course=course).first()
+        if not enrollment:
+            return Response({"detail": "You must be enrolled in this course to rate it."}, status=status.HTTP_400_BAD_REQUEST)
+        if enrollment.status != 'completed':
+            return Response({"detail": "You can rate only after completing the course."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            rating_value = int(request.data.get('rating', 0))
+        except (TypeError, ValueError):
+            rating_value = 0
+        if rating_value < 1 or rating_value > 5:
+            return Response({"detail": "rating must be between 1 and 5"}, status=status.HTTP_400_BAD_REQUEST)
+        review_text = request.data.get('review')
+
+        cr, created = CourseRating.objects.get_or_create(course=course, student=user, defaults={
+            'rating': rating_value,
+            'review': review_text or None,
+        })
+        if not created:
+            cr.rating = rating_value
+            cr.review = review_text or None
+            cr.save(update_fields=['rating', 'review', 'updated_at'])
+
+        return Response(CourseRatingSerializer(cr).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'], url_path='students',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
@@ -644,6 +697,66 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             return Enrollment.objects.filter(course__teacher=user)
         else:
             return Enrollment.objects.filter(student=user)
+
+    @action(detail=False, methods=['get'], url_path='stats/monthly', permission_classes=[permissions.IsAuthenticated])
+    def stats_monthly(self, request):
+        """Return monthly enrollment counts for the last N months (default 6).
+
+        Response format: [{"month": "Jan", "enrollments": 12}, ...]
+        """
+        try:
+            months_param = int(request.query_params.get('months', '6'))
+        except ValueError:
+            months_param = 6
+        months_param = max(1, min(months_param, 24))
+
+        now = timezone.now()
+        # First day of the current month at midnight
+        first_of_current = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Helper to shift months relative to a date (works without external deps)
+        def shift_months(dt, delta):
+            m = dt.month - 1 + delta
+            y = dt.year + m // 12
+            m = m % 12 + 1
+            return dt.replace(year=y, month=m, day=1)
+
+        start_date = shift_months(first_of_current, -(months_param - 1))
+
+        # Aggregate enrollments by month using the DB, scoped by role
+        user = request.user
+        if user.role == 'admin':
+            base_qs = Enrollment.objects.filter(enrollment_date__gte=start_date)
+        elif user.role == 'teacher':
+            base_qs = Enrollment.objects.filter(course__teacher=user, enrollment_date__gte=start_date)
+        else:
+            base_qs = Enrollment.objects.filter(student=user, enrollment_date__gte=start_date)
+        aggregated = (
+            base_qs
+            .annotate(month=TruncMonth('enrollment_date'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+
+        # Build a map for fast lookup
+        counts_by_month = {item['month'].date(): item['count'] for item in aggregated}
+
+        # Produce a continuous series including months with 0
+        series = []
+        cursor = start_date
+        for _ in range(months_param):
+            key = cursor.date()
+            month_label = cursor.strftime('%b')
+            series.append({
+                'month': month_label,
+                'year': cursor.year,
+                'month_key': cursor.strftime('%Y-%m'),
+                'enrollments': int(counts_by_month.get(key, 0))
+            })
+            cursor = shift_months(cursor, 1)
+
+        return Response(series)
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer

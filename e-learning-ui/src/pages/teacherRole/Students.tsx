@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 
 const StudentRow: React.FC<{ student: User }> = ({ student }) => {
-	const initials = `${student.first_name?.[0] ?? ''}${student.last_name?.[0] ?? ''}` || (student.username?.slice(0, 2) ?? 'U');
+	const initials = `${student.first_name?.[0] ?? ''}${student.last_name?.[0] ?? ''}` || ((student.username?.slice(0, 2) ?? 'U'));
 	return (
 		<div className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border/40">
 			<div className="flex items-center gap-3 min-w-0">

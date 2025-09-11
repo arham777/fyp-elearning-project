@@ -5,7 +5,10 @@ export interface Enrollment {
   id: number;
   student: User;
   course: Course;
-  enrolled_at: string;
+  // Backend uses `enrollment_date`; some legacy UI still expects `enrolled_at`.
+  // Make both optional and prefer `enrollment_date` when present.
+  enrolled_at?: string;
+  enrollment_date?: string;
 }
 
 export interface AdminStats {
@@ -31,11 +34,11 @@ export const adminApi = {
   // Dashboard Statistics
   async getDashboardStats(): Promise<AdminStats> {
     try {
-      // Fetch all necessary data in parallel
+      // Fetch users, courses, enrollments in parallel
       const [usersResponse, coursesResponse, enrollmentsResponse] = await Promise.all([
-        apiClient.get('/users/'),
-        apiClient.get('/courses/'),
-        apiClient.get('/enrollments/')
+        apiClient.get('/users/?page_size=1000'),
+        apiClient.get('/courses/?page_size=1000'),
+        apiClient.get('/enrollments/?page_size=1000')
       ]);
 
       const users = Array.isArray(usersResponse.data) ? usersResponse.data : (usersResponse.data?.results ?? []);
@@ -48,8 +51,19 @@ export const adminApi = {
       const totalCourses = courses.length;
       const totalEnrollments = enrollments.length;
 
-      // Calculate monthly enrollments (last 6 months)
-      const monthlyEnrollments = calculateMonthlyEnrollments(enrollments);
+      // Try to fetch backend-aggregated monthly enrollments; fallback to client-side calc
+      let monthlyEnrollments: Array<{ month: string; enrollments: number }> = [];
+      try {
+        const monthlyResponse = await apiClient.get('/enrollments/stats/monthly/?months=12');
+        monthlyEnrollments = (Array.isArray(monthlyResponse.data) ? monthlyResponse.data : [])
+          .map((item: any) => ({
+            month: item?.year ? `${item.month} ${String(item.year).slice(-2)}` : String(item?.month ?? ''),
+            enrollments: Number(item?.enrollments ?? 0)
+          }));
+      } catch (e) {
+        console.warn('Falling back to client-side monthly enrollment calculation:', e);
+        monthlyEnrollments = calculateMonthlyEnrollments(enrollments, 12);
+      }
 
       // Get recent data
       const recentUsers = users.slice(-5).reverse();
@@ -173,24 +187,30 @@ export const adminApi = {
 };
 
 // Helper functions
-function calculateMonthlyEnrollments(enrollments: Enrollment[]): Array<{ month: string; enrollments: number }> {
+function calculateMonthlyEnrollments(
+  enrollments: Enrollment[],
+  monthsCount: number = 12
+): Array<{ month: string; enrollments: number }> {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const currentDate = new Date();
   const monthlyData: Array<{ month: string; enrollments: number }> = [];
 
-  // Get last 6 months
-  for (let i = 5; i >= 0; i--) {
+  // Get trailing monthsCount months
+  const span = Math.max(1, monthsCount);
+  for (let i = span - 1; i >= 0; i--) {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
     const monthName = months[date.getMonth()];
     
     const monthEnrollments = enrollments.filter(enrollment => {
-      if (!enrollment.enrolled_at) return false;
-      const enrollmentDate = new Date(enrollment.enrolled_at);
-      return enrollmentDate.getMonth() === date.getMonth() && 
+      const dtStr = (enrollment.enrollment_date || enrollment.enrolled_at);
+      if (!dtStr) return false;
+      const enrollmentDate = new Date(dtStr);
+      return enrollmentDate.getMonth() === date.getMonth() &&
              enrollmentDate.getFullYear() === date.getFullYear();
     }).length;
 
-    monthlyData.push({ month: monthName, enrollments: monthEnrollments });
+    // Include year for clarity, matching backend normalization style
+    monthlyData.push({ month: `${monthName} ${String(date.getFullYear()).slice(-2)}`, enrollments: monthEnrollments });
   }
 
   return monthlyData;

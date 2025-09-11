@@ -1,7 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Custom User Manager
 class UserManager(BaseUserManager):
@@ -383,3 +383,24 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification to {self.user.username}: {self.title}"
+
+# Course Ratings Model
+class CourseRating(models.Model):
+    id = models.AutoField(primary_key=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='ratings')
+    student = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='course_ratings',
+        limit_choices_to={'role': 'student'}
+    )
+    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    review = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('course', 'student')
+
+    def __str__(self):
+        return f"{self.course.title} - {self.student.username}: {self.rating}"

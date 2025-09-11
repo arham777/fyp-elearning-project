@@ -32,6 +32,9 @@ export interface Course {
   assignments?: Assignment[];
   enrollment_count?: number;
   enrollments?: number;
+  average_rating?: number; // computed on backend
+  ratings_count?: number; // computed on backend
+  my_rating?: number | null; // current student's rating if any
 }
 
 export interface CourseModule {

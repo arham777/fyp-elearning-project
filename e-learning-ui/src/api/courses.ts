@@ -20,6 +20,16 @@ export const coursesApi = {
     return response.data;
   },
 
+  async getCourseRatings(id: number) {
+    const response = await apiClient.get(`/courses/${id}/ratings/`);
+    return response.data;
+  },
+
+  async rateCourse(id: number, rating: number, review?: string) {
+    const response = await apiClient.post(`/courses/${id}/rate/`, { rating, review });
+    return response.data;
+  },
+
   async createCourse(courseData: Partial<Course>): Promise<Course> {
     const response = await apiClient.post('/courses/', courseData);
     return response.data;

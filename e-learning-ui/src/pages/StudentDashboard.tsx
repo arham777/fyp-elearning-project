@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { coursesApi } from '@/api/courses';
 import { Enrollment, Course } from '@/types';
-import { BookOpen, Clock, Award, TrendingUp, Play, Calendar } from 'lucide-react';
+import { BookOpen, Clock, Award, TrendingUp, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CourseLink } from '@/components/ui/CourseLink';
 
@@ -211,22 +211,7 @@ const StudentDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Upcoming Assignments */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Upcoming Assignments</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-6 text-muted-foreground">
-            <Calendar className="h-10 w-10 mx-auto mb-2 opacity-50" />
-            <p>No upcoming assignments</p>
-            <p className="text-[11px]">You're all caught up!</p>
-          </div>
-        </CardContent>
-      </Card>
+      
     </div>
   );
 };

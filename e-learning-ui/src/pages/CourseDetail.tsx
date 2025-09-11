@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Course, CourseModule, Enrollment, Certificate } from '@/types';
+import { Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -75,6 +76,9 @@ const CourseDetail: React.FC = () => {
   });
   const [editInsertAfter, setEditInsertAfter] = useState<string>('__unchanged__');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [myRating, setMyRating] = useState<number | null>(null);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -86,6 +90,7 @@ const CourseDetail: React.FC = () => {
           user?.role === 'student' ? coursesApi.getMyCertificates().catch(() => []) : Promise.resolve([]),
         ]);
         setCourse(c);
+        setMyRating((c as any)?.my_rating ?? null);
         setModules(mods as CourseModule[]);
         setMyEnrollments(enrollments as Enrollment[]);
         setMyCertificates(certs as Certificate[]);
@@ -142,6 +147,9 @@ const CourseDetail: React.FC = () => {
     const enrollment = myEnrollments.find((e) => e.course?.id === courseId);
     return enrollment?.progress ?? 0;
   }, [myEnrollments, courseId]);
+  const canRate = useMemo(() => {
+    return (user?.role === 'student') && isEnrolled && (hasCertificate || (progressPercent >= 100));
+  }, [user?.role, isEnrolled, hasCertificate, progressPercent]);
 
   const refreshModules = async () => {
     const mods = await coursesApi.getCourseModules(courseId).catch(() => [] as CourseModule[]);
@@ -340,6 +348,47 @@ const CourseDetail: React.FC = () => {
             {user?.role === 'student' && hasCertificate && (
               <Badge>Completed</Badge>
             )}
+            {(typeof (course as any).average_rating === 'number') && (
+              <div className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
+                {Array.from({ length: 5 }).map((_, idx) => {
+                  const starVal = idx + 1;
+                  const activeFill = canRate
+                    ? ((hoverRating || myRating || 0) >= starVal)
+                    : ((((course as any).average_rating ?? 0) >= starVal));
+                  if (!canRate) {
+                    return (
+                      <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    );
+                  }
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="p-0.5"
+                      onMouseEnter={() => setHoverRating(starVal)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      onClick={async () => {
+                        try {
+                          setIsSubmittingRating(true);
+                          await coursesApi.rateCourse(courseId, starVal);
+                          setMyRating(starVal);
+                          const updated = await coursesApi.getCourse(courseId);
+                          setCourse(updated);
+                        } finally {
+                          setIsSubmittingRating(false);
+                        }
+                      }}
+                      disabled={isSubmittingRating}
+                      aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
+                    >
+                      <Star className={`w-4 h-4 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    </button>
+                  );
+                })}
+                <span className="ml-1">{Number(((course as any).average_rating ?? 0) as number).toFixed(1)}</span>
+                <span>({(course as any).ratings_count ?? 0})</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -441,6 +490,50 @@ const CourseDetail: React.FC = () => {
             <div className="flex items-center gap-3">
               <Progress value={progressPercent} className="max-w-xs" />
               <span className="text-sm text-muted-foreground">{progressPercent}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {user?.role === 'student' && hasCertificate && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Rate this course</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              {Array.from({ length: 5 }).map((_, idx) => {
+                const starVal = idx + 1;
+                const active = (hoverRating || myRating || 0) >= starVal;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    className="p-0.5"
+                    onMouseEnter={() => setHoverRating(starVal)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    onClick={async () => {
+                      try {
+                        setIsSubmittingRating(true);
+                        await coursesApi.rateCourse(courseId, starVal);
+                        setMyRating(starVal);
+                        // refresh course header numbers
+                        const updated = await coursesApi.getCourse(courseId);
+                        setCourse(updated);
+                      } finally {
+                        setIsSubmittingRating(false);
+                      }
+                    }}
+                    disabled={isSubmittingRating}
+                    aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
+                  >
+                    <Star className={`w-6 h-6 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                  </button>
+                );
+              })}
+              {typeof myRating === 'number' && (
+                <span className="text-sm text-muted-foreground ml-1">Your rating: {myRating}/5</span>
+              )}
             </div>
           </CardContent>
         </Card>

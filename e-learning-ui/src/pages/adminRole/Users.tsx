@@ -164,7 +164,7 @@ const RoleUsersCard: React.FC<{
 			</CardHeader>
 			<CardContent className="space-y-3">
 				{users.map((u) => {
-					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || (u.username?.slice(0, 2) ?? 'U');
+					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || ((u.username?.slice(0, 2) ?? 'U'));
 					const enrolledCourses = role === 'student' ? Math.floor(Math.random() * 5) + 1 : 0;
 					const createdCourses = role === 'teacher' ? Math.floor(Math.random() * 3) + 1 : 0;
 					
