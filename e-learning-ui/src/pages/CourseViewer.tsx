@@ -55,6 +55,7 @@ const CourseViewer: React.FC = () => {
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const MIN_WATCH_PERCENT = 95;
+  const [showCourseCompleted, setShowCourseCompleted] = useState(false);
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -265,6 +266,11 @@ const CourseViewer: React.FC = () => {
     };
   }, [moduleContents]);
 
+  // Sorted modules by order for next/last computations
+  const sortedModules = useMemo(() => {
+    return moduleContents.slice().sort((a, b) => a.module.order - b.module.order);
+  }, [moduleContents]);
+
   // Check if module is unlocked
   const isModuleUnlocked = useCallback((moduleIndex: number): boolean => {
     if (moduleIndex === 0) return true; // First module is always unlocked
@@ -401,9 +407,18 @@ const CourseViewer: React.FC = () => {
     if (!selectedContent) {
       return (
         <div className="flex flex-col items-center justify-center h-64 text-center">
-          <h3 className="text-lg font-medium mb-2">Welcome to {course?.title}</h3>
-          <p className="text-muted-foreground mb-4">Select a lesson from the sidebar to get started</p>
-          <Button onClick={goToNextIncomplete}>Continue Learning</Button>
+          {showCourseCompleted ? (
+            <>
+              <h3 className="text-lg font-medium mb-2">Course completed !!</h3>
+              <p className="text-muted-foreground">You have finished all modules and items.</p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-medium mb-2">Welcome to {course?.title}</h3>
+              <p className="text-muted-foreground mb-4">Select a lesson from the sidebar to get started</p>
+              <Button onClick={goToNextIncomplete}>Continue Learning</Button>
+            </>
+          )}
         </div>
       );
     }
@@ -415,14 +430,29 @@ const CourseViewer: React.FC = () => {
       const content = moduleData.contents.find(c => c.id === selectedContent.id);
       if (!content) return null;
 
-      // Determine if this is the very last content item in the module
-      const isLastContentInModule = (() => {
-        if (!moduleData.contents || moduleData.contents.length === 0) return false;
-        const sorted = moduleData.contents
-          .slice()
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        return content.id === sorted[sorted.length - 1]?.id;
+      // Determine if this is the very last item (content or assignment) in the module
+      const isLastItemInModule = (() => {
+        const allItems = [
+          ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+          ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+        ].sort((a, b) => a.order - b.order);
+        const last = allItems[allItems.length - 1];
+        return last?.type === 'content' && last?.id === content.id;
       })();
+
+      // Check if the immediate next item in the module is an assignment
+      const { nextItem, nextItemIsAssignment } = (() => {
+        const allItems = [
+          ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+          ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+        ].sort((a, b) => a.order - b.order);
+        const idx = allItems.findIndex(it => it.type === 'content' && it.id === content.id);
+        const next = idx >= 0 ? allItems[idx + 1] : undefined;
+        return { nextItem: next, nextItemIsAssignment: next?.type === 'assignment' };
+      })();
+
+      const currentModuleIndex = sortedModules.findIndex(md => md.module.id === selectedContent.moduleId);
+      const isLastModule = currentModuleIndex === sortedModules.length - 1;
 
       return (
         <div className="space-y-4">
@@ -538,7 +568,7 @@ const CourseViewer: React.FC = () => {
                 <Button
                   variant="outline"
                   onClick={async () => {
-                    if (isLastContentInModule) {
+                    if (isLastItemInModule) {
                       try {
                         if (!moduleData.completedContentIds.includes(content.id)) {
                           await coursesApi.markContentComplete(
@@ -563,17 +593,57 @@ const CourseViewer: React.FC = () => {
                           ));
                         }
                       } catch (error) {
-                        console.error('Failed to mark content as complete before navigating:', error);
+                        console.error('Failed to mark content as complete before finishing:', error);
                       } finally {
-                        navigate(`${basePath}/${courseId}/modules/${selectedContent.moduleId}`);
+                        // If it is the last module's last item, show course completed message
+                        if (isLastModule) {
+                          setShowCourseCompleted(true);
+                        }
+                        // Close the currently open content
+                        setSelectedContent(null);
                       }
                     } else {
-                      goToNextIncomplete();
+                      if (nextItem) {
+                        setSelectedContent({ type: nextItem.type, id: nextItem.id, moduleId: selectedContent.moduleId });
+                      } else {
+                        goToNextIncomplete();
+                      }
                     }
                   }}
                 >
-                  {isLastContentInModule ? 'Finish' : 'Next Lesson'}
+                  {isLastItemInModule ? 'Finish' : (nextItemIsAssignment ? 'Next Assignment' : 'Next Lesson')}
                 </Button>
+                {isLastItemInModule && !isLastModule && (
+                  <Button
+                    onClick={() => {
+                      const nextModule = sortedModules[currentModuleIndex + 1];
+                      if (!nextModule) return;
+                      // Expand next module
+                      setExpandedModules(new Set([nextModule.module.id]));
+                      // Choose first incomplete item in next module, else first item
+                      const allNextItems = [
+                        ...nextModule.contents.map(c => ({ ...c, type: 'content' as const, order: c.order ?? 0 })),
+                        ...nextModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a.order ?? 999) }))
+                      ].sort((a, b) => a.order - b.order);
+
+                      let target: { type: 'content' | 'assignment'; id: number } | null = null;
+                      for (const it of allNextItems) {
+                        const isCompleted = it.type === 'content'
+                          ? nextModule.completedContentIds.includes(it.id)
+                          : nextModule.completedAssignmentIds.includes(it.id);
+                        if (!isCompleted) { target = { type: it.type, id: it.id }; break; }
+                      }
+                      if (!target && allNextItems[0]) {
+                        target = { type: allNextItems[0].type, id: allNextItems[0].id };
+                      }
+                      if (target) {
+                        setSelectedContent({ type: target.type, id: target.id, moduleId: nextModule.module.id });
+                      }
+                    }}
+                  >
+                    Next Module
+                  </Button>
+                )}
                 {!moduleData.completedContentIds.includes(content.id) && (
                   <Button 
                     onClick={async () => {
@@ -609,6 +679,19 @@ const CourseViewer: React.FC = () => {
     } else {
       const assignment = moduleData.assignments.find(a => a.id === selectedContent.id);
       if (!assignment) return null;
+
+      // Determine if this is the very last item (content or assignment) in the module
+      const isLastItemInModule = (() => {
+        const allItems = [
+          ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+          ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+        ].sort((a, b) => a.order - b.order);
+        const last = allItems[allItems.length - 1];
+        return last?.type === 'assignment' && last?.id === assignment.id;
+      })();
+
+      const currentModuleIndex = sortedModules.findIndex(md => md.module.id === selectedContent.moduleId);
+      const isLastModule = currentModuleIndex === sortedModules.length - 1;
 
       return (
         <div className="space-y-4">
@@ -687,6 +770,73 @@ const CourseViewer: React.FC = () => {
                     return 'Start Assignment';
                   })()}
                 </Button>
+                <div className="mt-6 flex justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (isLastItemInModule) {
+                        // On last item of last module, close and show completed
+                        if (isLastModule) {
+                          setShowCourseCompleted(true);
+                        }
+                        setSelectedContent(null);
+                      } else {
+                        // When viewing an assignment, advance to the immediate next item, if any
+                        const allItems = [
+                          ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+                          ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+                        ].sort((a, b) => a.order - b.order);
+                        const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
+                        const next = idx >= 0 ? allItems[idx + 1] : undefined;
+                        if (next) {
+                          setSelectedContent({ type: next.type, id: next.id, moduleId: selectedContent.moduleId });
+                        } else {
+                          goToNextIncomplete();
+                        }
+                      }
+                    }}
+                  >
+                    {(() => {
+                      if (isLastItemInModule) return 'Finish';
+                      const allItems = [
+                        ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+                        ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+                      ].sort((a, b) => a.order - b.order);
+                      const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
+                      const next = idx >= 0 ? allItems[idx + 1] : undefined;
+                      if (next?.type === 'assignment') return 'Next Assignment';
+                      return 'Next Lesson';
+                    })()}
+                  </Button>
+                  {isLastItemInModule && !isLastModule && (
+                    <Button
+                      onClick={() => {
+                        const nextModule = sortedModules[currentModuleIndex + 1];
+                        if (!nextModule) return;
+                        setExpandedModules(new Set([nextModule.module.id]));
+                        const allNextItems = [
+                          ...nextModule.contents.map(c => ({ ...c, type: 'content' as const, order: c.order ?? 0 })),
+                          ...nextModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a.order ?? 999) }))
+                        ].sort((a, b) => a.order - b.order);
+                        let target: { type: 'content' | 'assignment'; id: number } | null = null;
+                        for (const it of allNextItems) {
+                          const isCompleted = it.type === 'content'
+                            ? nextModule.completedContentIds.includes(it.id)
+                            : nextModule.completedAssignmentIds.includes(it.id);
+                          if (!isCompleted) { target = { type: it.type, id: it.id }; break; }
+                        }
+                        if (!target && allNextItems[0]) {
+                          target = { type: allNextItems[0].type, id: allNextItems[0].id };
+                        }
+                        if (target) {
+                          setSelectedContent({ type: target.type, id: target.id, moduleId: nextModule.module.id });
+                        }
+                      }}
+                    >
+                      Next Module
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
