@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { Course, CourseModule, Content, Assignment, Enrollment, Certificate } from '@/types';
@@ -570,6 +571,52 @@ const CourseViewer: React.FC = () => {
       const currentModuleIndex = sortedModules.findIndex(md => md.module.id === selectedContent.moduleId);
       const isLastModule = currentModuleIndex === sortedModules.length - 1;
 
+      // Prepare sanitized HTML for reading content and support CKEditor oembed embeds
+      const readingHtml = (() => {
+        if (!content?.text) return '';
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(content.text, 'text/html');
+          const oembeds = Array.from(doc.querySelectorAll('oembed[url]')) as HTMLElement[];
+          for (const el of oembeds) {
+            const url = el.getAttribute('url') || el.getAttribute('data-oembed-url') || '';
+            if (!url) continue;
+            let iframe: HTMLIFrameElement | null = null;
+            if (/youtube\.com\/watch\?v=|youtu\.be\//i.test(url)) {
+              const match = url.match(/[?&]v=([^&]+)|youtu\.be\/([^?&]+)/i);
+              const id = (match && (match[1] || match[2])) || null;
+              if (id) {
+                iframe = doc.createElement('iframe');
+                iframe.src = `https://www.youtube.com/embed/${id}`;
+                iframe.width = '560';
+                iframe.height = '315';
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+                iframe.setAttribute('allowfullscreen', 'true');
+              }
+            } else if (/vimeo\.com\//i.test(url)) {
+              const match = url.match(/vimeo\.com\/(\d+)/i);
+              const id = match?.[1];
+              if (id) {
+                iframe = doc.createElement('iframe');
+                iframe.src = `https://player.vimeo.com/video/${id}`;
+                iframe.width = '560';
+                iframe.height = '315';
+                iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture');
+                iframe.setAttribute('allowfullscreen', 'true');
+              }
+            }
+            if (iframe) {
+              const figure = el.closest('figure') || el.parentElement;
+              figure?.replaceChild(iframe, el);
+            }
+          }
+          const html = doc.body.innerHTML;
+          return DOMPurify.sanitize(html, { ADD_ATTR: ['allow', 'allowfullscreen'] });
+        } catch {
+          return DOMPurify.sanitize(content.text);
+        }
+      })();
+
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -668,9 +715,9 @@ const CourseViewer: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="prose max-w-none">
+                <div className="prose prose-invert max-w-none text-sm leading-6">
                   {content.text ? (
-                    <div className="whitespace-pre-wrap">{content.text}</div>
+                    <div dangerouslySetInnerHTML={{ __html: readingHtml }} />
                   ) : (
                     <div className="bg-muted rounded-lg p-8 text-center">
                       <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-2" />

@@ -107,6 +107,8 @@ const App = () => (
                 <Route path="admin/courses/:id" element={<AdminCourseView />} />
                 {/* Admin-scoped content viewer (keeps admin back navigation) */}
                 <Route path="admin/courses/:id/modules/:moduleId/content/:contentId" element={<ContentViewer />} />
+                {/* Admin-scoped assignment detail */}
+                <Route path="admin/courses/:id/assignments/:assignmentId" element={<AssignmentDetail />} />
 
                 <Route path="my-courses/:id" element={<CourseViewer />} />
                 <Route path="my-courses/:id/modules/:moduleId" element={<CourseViewer />} />

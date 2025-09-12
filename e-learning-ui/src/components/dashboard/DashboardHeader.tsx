@@ -3,7 +3,7 @@ import { Bell, Search, GraduationCap, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from "next-themes";
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -27,6 +27,7 @@ const DashboardHeader: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
@@ -55,12 +56,14 @@ const DashboardHeader: React.FC = () => {
 
   // Fetch unread count on mount and every 60s
   React.useEffect(() => {
-    let timer: any;
+    let timer: ReturnType<typeof setInterval> | undefined;
     const fetchCount = async () => {
       try {
         const cnt = await notificationsApi.unreadCount();
         setUnreadCount(cnt);
-      } catch {}
+      } catch (err) {
+        console.warn('Failed to fetch unread notification count', err);
+      }
     };
     if (user) {
       fetchCount();
@@ -76,11 +79,15 @@ const DashboardHeader: React.FC = () => {
         await notificationsApi.markAllRead();
         setUnreadCount(0);
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to mark all notifications as read', err);
+    }
     try {
       const list = await notificationsApi.list();
       setNotifications(list);
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to load notifications', err);
+    }
   };
 
   return (
@@ -149,7 +156,21 @@ const DashboardHeader: React.FC = () => {
                   <div className="p-4 text-sm text-muted-foreground">No notifications</div>
                 ) : (
                   notifications.map((n) => (
-                    <DropdownMenuItem key={n.id} className="whitespace-normal py-3" onClick={async () => { await notificationsApi.markRead(n.id); }}>
+                    <DropdownMenuItem
+                      key={n.id}
+                      className="whitespace-normal py-3"
+                      onClick={async () => {
+                        try { await notificationsApi.markRead(n.id); } catch (err) { console.warn('Failed to mark notification as read', err); }
+                        setNotifOpen(false);
+                        if (n.course) {
+                          if (user?.role === 'admin') {
+                            navigate(`/app/admin/courses/${n.course}`);
+                          } else {
+                            navigate(`/app/courses/${n.course}`);
+                          }
+                        }
+                      }}
+                    >
                       <div className="space-y-1">
                         <div className="text-sm font-medium">{n.title}</div>
                         <div className="text-xs text-muted-foreground">{n.message}</div>

@@ -2,18 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { useAuth } from '@/contexts/AuthContext';
-import { Course, CourseModule, Content } from '@/types';
+import { Course, CourseModule, Content, Assignment } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { adminApi } from '@/api/admin';
 import CourseActionDialog from '@/components/admin/CourseActionDialog';
 import { useToast } from '@/hooks/use-toast';
-import { Star } from 'lucide-react';
+import { Star, FileText } from 'lucide-react';
 
 const StatusBadge: React.FC<{ course: Course | null }> = ({ course }) => {
   if (!course) return null;
-  const status = (course as any).status as Course['status'] | undefined;
+  const status = (course as unknown as { status?: Course['status'] }).status;
   if (course.is_published) return <Badge>Published</Badge>;
   if (status === 'pending') return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending approval</Badge>;
   if (status === 'rejected') return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Rejected</Badge>;
@@ -29,6 +29,7 @@ const AdminCourseView: React.FC = () => {
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [moduleContents, setModuleContents] = useState<Record<number, Content[]>>({});
+  const [moduleAssignments, setModuleAssignments] = useState<Record<number, Assignment[]>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [dialogState, setDialogState] = useState<{
@@ -53,15 +54,22 @@ const AdminCourseView: React.FC = () => {
         setCourse(c);
         setModules(mods as CourseModule[]);
         const contentsMap: Record<number, Content[]> = {};
+        const assignmentsMap: Record<number, Assignment[]> = {};
         for (const mod of mods as CourseModule[]) {
           try {
-            const contents = await coursesApi.getModuleContents(courseId, mod.id);
+            const [contents, assignments] = await Promise.all([
+              coursesApi.getModuleContents(courseId, mod.id).catch(() => [] as Content[]),
+              coursesApi.getCourseAssignments(courseId, { module: mod.id }).catch(() => [] as Assignment[]),
+            ]);
             contentsMap[mod.id] = contents as Content[];
+            assignmentsMap[mod.id] = assignments as Assignment[];
           } catch {
-            contentsMap[mod.id] = [];
+            contentsMap[mod.id] = contentsMap[mod.id] || [];
+            assignmentsMap[mod.id] = assignmentsMap[mod.id] || [];
           }
         }
         setModuleContents(contentsMap);
+        setModuleAssignments(assignmentsMap);
       } finally {
         setLoading(false);
       }
@@ -132,24 +140,24 @@ const AdminCourseView: React.FC = () => {
           <div className="mt-3 flex items-center gap-3 flex-wrap text-sm text-muted-foreground">
             <StatusBadge course={course} />
             <Badge variant="secondary">{course.enrollment_count ?? 0} enrolled</Badge>
-            {(typeof (course as any).average_rating === 'number') && (
+            {(typeof (course as unknown as { average_rating?: number }).average_rating === 'number') && (
               <div className="flex items-center gap-1">
                 {Array.from({ length: 5 }).map((_, idx) => {
                   const starVal = idx + 1;
-                  const activeFill = (((course as any).average_rating ?? 0) >= starVal);
+                  const activeFill = (((course as unknown as { average_rating?: number }).average_rating ?? 0) >= starVal);
                   return (
                     <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
                   );
                 })}
-                <span className="ml-1">{Number(((course as any).average_rating ?? 0) as number).toFixed(1)}</span>
-                <span>({(course as any).ratings_count ?? 0})</span>
+                <span className="ml-1">{Number(((course as unknown as { average_rating?: number }).average_rating ?? 0)).toFixed(1)}</span>
+                <span>({(course as unknown as { ratings_count?: number }).ratings_count ?? 0})</span>
               </div>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Approve / Reject visible when pending */}
-          {((course as any).status === 'pending') && (
+          {((course as unknown as { status?: Course['status'] }).status === 'pending') && (
             <>
               <Button size="sm" onClick={() => openAction('approve')}>Approve</Button>
               <Button size="sm" variant="destructive" onClick={() => openAction('reject')}>Reject</Button>
@@ -159,7 +167,7 @@ const AdminCourseView: React.FC = () => {
         </div>
       </div>
 
-      {((course as any)?.status === 'rejected') && (
+      {((course as unknown as { status?: Course['status'] })?.status === 'rejected') && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base text-red-600">Rejected (Teacher-visible note)</CardTitle>
@@ -190,7 +198,7 @@ const AdminCourseView: React.FC = () => {
                       <div className="text-sm text-muted-foreground">{m.description}</div>
                     )}
                   </div>
-                  <Badge variant="outline">{(moduleContents[m.id] || []).length} items</Badge>
+                  <Badge variant="outline">{((moduleContents[m.id] || []).length + (moduleAssignments[m.id] || []).length)} items</Badge>
                 </div>
                 {(moduleContents[m.id] || []).length > 0 && (
                   <div className="px-4 pb-4 text-sm space-y-2">
@@ -202,6 +210,24 @@ const AdminCourseView: React.FC = () => {
                         </div>
                         <Button size="sm" variant="outline" asChild>
                           <Link to={`/app/admin/courses/${courseId}/modules/${m.id}/content/${c.id}`}>View</Link>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(moduleAssignments[m.id] || []).length > 0 && (
+                  <div className="px-4 pb-4 text-sm space-y-2">
+                    {(moduleAssignments[m.id] || []).map((a) => (
+                      <div key={a.id} className="flex items-center justify-between border rounded px-3 py-2">
+                        <div className="text-muted-foreground">
+                          <div className="font-medium text-foreground flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-orange-600" />
+                            {a.title}
+                          </div>
+                          <div className="text-xs uppercase tracking-wide">{a.assignment_type === 'mcq' ? 'Quiz' : 'Assignment'}</div>
+                        </div>
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to={`/app/admin/courses/${courseId}/assignments/${a.id}`}>View</Link>
                         </Button>
                       </div>
                     ))}
@@ -232,8 +258,10 @@ const AdminCourseView: React.FC = () => {
 export default AdminCourseView;
 
 // Simple ratings list component for admins
+interface RatingItem { id: number; student?: { first_name?: string; username?: string }; rating?: number; review?: string; updated_at?: string }
+
 const RatingsList: React.FC<{ courseId: number }> = ({ courseId }) => {
-  const [ratings, setRatings] = useState<any[]>([]);
+  const [ratings, setRatings] = useState<RatingItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 

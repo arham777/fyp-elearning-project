@@ -136,6 +136,23 @@ const CourseManagement: React.FC = () => {
     return courses.filter(course => course.status === statusFilter);
   }, [courses, statusFilter]);
 
+  // Always show pending courses at the top (then drafts, then published, then rejected)
+  const sortedCourses = React.useMemo(() => {
+    const statusPriority: Record<string, number> = {
+      pending: 0,
+      draft: 1,
+      published: 2,
+      rejected: 3,
+    };
+    return [...filteredCourses].sort((a, b) => {
+      const pa = statusPriority[a.status || ''] ?? 99;
+      const pb = statusPriority[b.status || ''] ?? 99;
+      if (pa !== pb) return pa - pb;
+      // Newest first within the same status
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [filteredCourses]);
+
   const stats = React.useMemo(() => {
     return {
       total: courses.length,
@@ -220,7 +237,7 @@ const CourseManagement: React.FC = () => {
 
       {/* Courses List */}
       <div className="space-y-4">
-        {filteredCourses.map((course) => (
+        {sortedCourses.map((course) => (
           <Card key={course.id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -249,17 +266,17 @@ const CourseManagement: React.FC = () => {
                       <span>{course.enrollment_count || course.enrollments || 0} enrolled</span>
                     </div>
                     
-                    {typeof (course as any).average_rating === 'number' && (
+                    {typeof course.average_rating === 'number' && (
                       <div className="flex items-center gap-1">
                         {Array.from({ length: 5 }).map((_, idx) => {
                           const starVal = idx + 1;
-                          const activeFill = (((course as any).average_rating ?? 0) >= starVal);
+                          const activeFill = ((course.average_rating ?? 0) >= starVal);
                           return (
                             <Star key={idx} className={`h-3.5 w-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
                           );
                         })}
-                        <span className="ml-1">{Number(((course as any).average_rating ?? 0) as number).toFixed(1)}</span>
-                        <span>({(course as any).ratings_count ?? 0})</span>
+                        <span className="ml-1">{Number(course.average_rating ?? 0).toFixed(1)}</span>
+                        <span>({course.ratings_count ?? 0})</span>
                       </div>
                     )}
 

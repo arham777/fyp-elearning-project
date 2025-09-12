@@ -215,6 +215,60 @@ const AssignmentDetail: React.FC = () => {
         </CardContent>
       </Card>
 
+      {isTeacherOrAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{assignment.assignment_type === 'mcq' ? 'Quiz (read-only)' : 'Questions (read-only)'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {assignment.assignment_type === 'mcq' ? (
+              <div className="space-y-6">
+                {(assignment.questions || []).filter((q) => q.question_type === 'mcq').map((q, idx) => (
+                  <div key={q.id} className="space-y-2">
+                    <div className="font-medium">{idx + 1}. {q.text}</div>
+                    <div className="space-y-2">
+                      {(q.options || []).map((opt) => (
+                        <label key={opt.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={`tq-${q.id}`}
+                            checked={Boolean(opt.is_correct)}
+                            readOnly
+                            disabled
+                          />
+                          {opt.text}
+                        </label>
+                      ))}
+                    </div>
+                    {q.explanation ? (
+                      <div className="text-sm text-muted-foreground">
+                        <div className="font-medium">Explanation</div>
+                        <div className="whitespace-pre-wrap">{q.explanation}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {(assignment.questions || []).filter((q) => q.question_type === 'qa').map((q, idx) => (
+                  <div key={q.id} className="space-y-2">
+                    <div className="font-medium">{idx + 1}. {q.text}</div>
+                    <Textarea rows={4} value="" placeholder="Students will answer this question." disabled />
+                    {q.explanation ? (
+                      <div className="text-sm text-muted-foreground">
+                        <div className="font-medium">Explanation</div>
+                        <div className="whitespace-pre-wrap">{q.explanation}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {!isTeacherOrAdmin && (
         <Card>
           <CardHeader>
