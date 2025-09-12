@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
-import { Course, CourseModule, Content, Assignment, Enrollment } from '@/types';
+import { Course, CourseModule, Content, Assignment, Enrollment, Certificate } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, ChevronRight, Check, Play, BookOpen, FileText, Lock, Pause, Volume2, VolumeX, Maximize2, Minimize2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { ChevronDown, ChevronRight, Check, Play, BookOpen, FileText, Lock, Pause, Volume2, VolumeX, Maximize2, Minimize2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import BackButton from '@/components/ui/back-button';
 
@@ -36,6 +39,7 @@ const CourseViewer: React.FC = () => {
   const [course, setCourse] = useState<Course | null>(null);
   const [moduleContents, setModuleContents] = useState<ModuleContent[]>([]);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  const [myCertificates, setMyCertificates] = useState<Certificate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
   const [selectedContent, setSelectedContent] = useState<{
@@ -56,6 +60,13 @@ const CourseViewer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const MIN_WATCH_PERCENT = 95;
   const [showCourseCompleted, setShowCourseCompleted] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const { toast } = useToast();
+  const [verifyingCompletion, setVerifyingCompletion] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState<number>(0);
+  const [hoverFeedbackRating, setHoverFeedbackRating] = useState<number>(0);
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -121,9 +132,10 @@ const CourseViewer: React.FC = () => {
         setIsLoading(true);
         
         // Load basic course info
-        const [courseData, enrollments] = await Promise.all([
+        const [courseData, enrollments, certs] = await Promise.all([
           coursesApi.getCourse(courseId),
-          coursesApi.getMyEnrollments().catch(() => [])
+          coursesApi.getMyEnrollments().catch(() => []),
+          coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
         ]);
         
         setCourse(courseData);
@@ -133,6 +145,9 @@ const CourseViewer: React.FC = () => {
           e => e.course?.id === courseId
         );
         setEnrollment(userEnrollment || null);
+
+        // Certificates (used to gate feedback eligibility)
+        setMyCertificates(Array.isArray(certs) ? (certs as Certificate[]) : []);
 
         // Load modules
         const modules = await coursesApi.getCourseModules(courseId);
@@ -411,6 +426,107 @@ const CourseViewer: React.FC = () => {
             <>
               <h3 className="text-lg font-medium mb-2">Course completed !!</h3>
               <p className="text-muted-foreground">You have finished all modules and items.</p>
+              {user?.role === 'student' && (
+                <div className="mt-4">
+                  <Dialog
+                    open={isFeedbackOpen}
+                    onOpenChange={async (open) => {
+                      setIsFeedbackOpen(open);
+                      if (open) {
+                        // On open, verify completion with the server and refresh certs/enrollment
+                        try {
+                          setVerifyingCompletion(true);
+                          // Attempt server-side auto-finalization via a lightweight rating check (no write),
+                          // so instead call our own mark-complete path indirectly by refreshing enrollment/certs
+                          const [enrollments, certs] = await Promise.all([
+                            coursesApi.getMyEnrollments().catch(() => []),
+                            coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
+                          ]);
+                          const userEnrollment = (enrollments as Enrollment[]).find(e => e.course?.id === courseId) || null;
+                          setEnrollment(userEnrollment);
+                          setMyCertificates(Array.isArray(certs) ? (certs as Certificate[]) : []);
+                        } finally {
+                          setVerifyingCompletion(false);
+                        }
+                      }
+                    }}
+                  >
+                    <DialogTrigger asChild>
+                      <Button variant="outline">Feedback</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Share your feedback</DialogTitle>
+                        <DialogDescription>Your feedback is visible to the course teacher.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          {Array.from({ length: 5 }).map((_, idx) => {
+                            const starVal = idx + 1;
+                            const active = (hoverFeedbackRating || feedbackRating || 0) >= starVal;
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                className="p-0.5"
+                                onMouseEnter={() => setHoverFeedbackRating(starVal)}
+                                onMouseLeave={() => setHoverFeedbackRating(0)}
+                                onClick={() => setFeedbackRating(starVal)}
+                                aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
+                              >
+                                <Star className={`w-5 h-5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                              </button>
+                            );
+                          })}
+                          {feedbackRating > 0 && (
+                            <span className="text-xs text-muted-foreground ml-1">{feedbackRating}/5</span>
+                          )}
+                        </div>
+                        <Textarea
+                          value={feedbackText}
+                          onChange={(e) => setFeedbackText(e.target.value)}
+                          placeholder="Write your feedback here... (one per course)"
+                          rows={5}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            onClick={async () => {
+                              const text = feedbackText.trim();
+                              if (!text) return;
+                              if (!feedbackRating) {
+                                toast({ title: 'Select a rating', description: 'Please choose 1-5 stars.', variant: 'destructive' });
+                                return;
+                              }
+                              setSubmittingFeedback(true);
+                              try {
+                                await coursesApi.rateCourse(courseId, feedbackRating, text);
+                                setIsFeedbackOpen(false);
+                                setFeedbackText('');
+                                setFeedbackRating(0);
+                                toast({ title: 'Feedback sent', description: 'Thank you for your feedback.' });
+                              } catch (err: unknown) {
+                                const asRecord = (v: unknown): Record<string, unknown> | null =>
+                                  typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
+                                const detail = (asRecord(asRecord(err)?.response)?.data as any)?.detail as string | undefined;
+                                toast({
+                                  title: 'Could not send feedback',
+                                  description: detail || 'Please try again after completing the course.',
+                                  variant: 'destructive',
+                                });
+                              } finally {
+                                setSubmittingFeedback(false);
+                              }
+                            }}
+                            disabled={submittingFeedback || verifyingCompletion || !feedbackText.trim() || !feedbackRating || (enrollment?.status !== 'completed' && !myCertificates.some(c => c.course?.id === courseId))}
+                          >
+                            {verifyingCompletion ? 'Checking…' : (submittingFeedback ? 'Sending…' : 'Send')}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
             </>
           ) : (
             <>

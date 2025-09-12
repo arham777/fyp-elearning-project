@@ -79,6 +79,7 @@ const CourseDetail: React.FC = () => {
   const [myRating, setMyRating] = useState<number | null>(null);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [reviewText, setReviewText] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -498,7 +499,7 @@ const CourseDetail: React.FC = () => {
       {user?.role === 'student' && hasCertificate && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Rate this course</CardTitle>
+            <CardTitle className="text-base">Rate and review this course</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -515,7 +516,7 @@ const CourseDetail: React.FC = () => {
                     onClick={async () => {
                       try {
                         setIsSubmittingRating(true);
-                        await coursesApi.rateCourse(courseId, starVal);
+                        await coursesApi.rateCourse(courseId, starVal, reviewText);
                         setMyRating(starVal);
                         // refresh course header numbers
                         const updated = await coursesApi.getCourse(courseId);
@@ -534,6 +535,17 @@ const CourseDetail: React.FC = () => {
               {typeof myRating === 'number' && (
                 <span className="text-sm text-muted-foreground ml-1">Your rating: {myRating}/5</span>
               )}
+            </div>
+            <div className="mt-3">
+              <Label htmlFor="review-text" className="sr-only">Review</Label>
+              <Textarea
+                id="review-text"
+                placeholder="Share your feedback (optional, one review per course)"
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                rows={4}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Your review can be edited later by re-submitting.</p>
             </div>
           </CardContent>
         </Card>

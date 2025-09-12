@@ -12,6 +12,8 @@ const MyCourses: React.FC = () => {
   useEffect(() => {
     const fetchEnrollments = async () => {
       try {
+        // First, ask server to refresh completion/certificates based on latest progress
+        await coursesApi.refreshMyCompletion().catch(() => ({ updated_to_completed: 0 }));
         const [list, certs] = await Promise.all([
           coursesApi.getMyEnrollments(),
           coursesApi.getMyCertificates().catch(() => [] as Certificate[]),

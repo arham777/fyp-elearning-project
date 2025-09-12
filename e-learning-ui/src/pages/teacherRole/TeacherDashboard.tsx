@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight } from 'lucide-react';
+import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { Course, Enrollment } from '@/types';
+
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const TeacherDashboard: React.FC = () => {
 	const { user } = useAuth();
@@ -46,6 +49,33 @@ const TeacherDashboard: React.FC = () => {
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 			.slice(0, 3);
 	}, [myCourses]);
+
+	// Overall average across all teacher courses
+	const overallAverageRating = useMemo(() => {
+		if (!myCourses || myCourses.length === 0) return 0;
+		let weightedSum = 0;
+		let totalCount = 0;
+		for (const c of myCourses) {
+			const avg = typeof c.average_rating === 'number' ? c.average_rating : 0;
+			const count = typeof c.ratings_count === 'number' ? c.ratings_count : 0;
+			if (count > 0) {
+				weightedSum += avg * count;
+				totalCount += count;
+			}
+		}
+		if (totalCount === 0) {
+			const arr = myCourses.map((c) => (typeof c.average_rating === 'number' ? c.average_rating : 0));
+			return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+		}
+		return weightedSum / totalCount;
+	}, [myCourses]);
+
+	const [ratingsOpen, setRatingsOpen] = useState(false);
+	const [pendingOpen, setPendingOpen] = useState(false);
+	const [pendingLoading, setPendingLoading] = useState(false);
+	const [pendingError, setPendingError] = useState<string | null>(null);
+	const [pendingReviews, setPendingReviews] = useState<Array<{ id: number; courseId: number; courseTitle: string; rating: number; review: string; student?: any; updated_at?: string }>>([]);
+	const [replyTextById, setReplyTextById] = useState<Record<number, string>>({});
 
 	return (
 		<div className="space-y-6">
@@ -93,28 +123,140 @@ const TeacherDashboard: React.FC = () => {
 					</CardContent>
 				</Card>
 
-				<Card className="card-elevated">
+				<Card className="card-elevated cursor-pointer" onClick={() => setPendingOpen(true)}>
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
 						<CardTitle className="text-xs font-medium">Pending Reviews</CardTitle>
 						<ClipboardList className="h-4 w-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent className="pt-0">
-						<div className="text-xl font-semibold">0</div>
-						<p className="text-[11px] text-muted-foreground">No assignments to grade</p>
+						<div className="text-xl font-semibold">{pendingLoading ? '—' : pendingReviews.length}</div>
+						<p className="text-[11px] text-muted-foreground">Reviews awaiting your reply</p>
 					</CardContent>
 				</Card>
 
-				<Card className="card-elevated">
+				<Card className="card-elevated cursor-pointer" onClick={() => setRatingsOpen(true)}>
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
 						<CardTitle className="text-xs font-medium">Course Rating</CardTitle>
 						<TrendingUp className="h-4 w-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent className="pt-0">
-						<div className="text-xl font-semibold">0.0</div>
+						<div className="text-xl font-semibold">{isLoading ? '—' : overallAverageRating.toFixed(1)}</div>
 						<p className="text-[11px] text-muted-foreground">Average rating</p>
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Ratings and Feedback modal */}
+			<Dialog open={ratingsOpen} onOpenChange={setRatingsOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Course Ratings & Feedback</DialogTitle>
+						<DialogDescription>Overall average: {isLoading ? '—' : overallAverageRating.toFixed(1)}</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3">
+						{isLoading && <div className="py-6 text-sm text-muted-foreground">Loading…</div>}
+						{!isLoading && myCourses.length === 0 && (
+							<div className="py-6 text-sm text-muted-foreground">No courses yet.</div>
+						)}
+						{!isLoading && myCourses.map((c) => {
+							const avg = typeof c.average_rating === 'number' ? c.average_rating : 0;
+							const count = typeof c.ratings_count === 'number' ? c.ratings_count : 0;
+							return (
+								<div key={c.id} className="rounded-md border p-3">
+									<div className="flex items-center justify-between">
+										<div className="min-w-0 pr-3">
+											<div className="font-medium text-sm truncate">{c.title}</div>
+											<div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+												{Array.from({ length: 5 }).map((_, idx) => {
+													const starVal = idx + 1;
+													const activeFill = (avg ?? 0) >= starVal;
+													return <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
+												})}
+											<span className="ml-1">{avg.toFixed(1)}</span>
+											<span>({count})</span>
+										</div>
+									</div>
+									<Button asChild size="sm" variant="outline">
+										<Link to={`/app/courses/${c.id}`}>View</Link>
+									</Button>
+								</div>
+								{/* If you want per-course feedback list later, we can extend here */}
+							</div>
+						);
+						})}
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Pending Reviews modal */}
+			<Dialog open={pendingOpen} onOpenChange={(open) => { setPendingOpen(open); if (open) void (async () => {
+				setPendingLoading(true); setPendingError(null);
+				try {
+					const results = await Promise.all(myCourses.map(async (c) => {
+						try {
+							// Fallback to full ratings list; filter to only entries with review text
+							const data = await coursesApi.getCourseRatings(c.id);
+							const arr = Array.isArray(data) ? data : (data?.results ?? []);
+							return arr
+								.filter((r: any) => Boolean((r?.review || '').trim()))
+								.map((r: any) => ({ id: r.id, courseId: c.id, courseTitle: c.title, rating: r.rating, review: r.review, student: r.student, updated_at: r.updated_at }));
+						} catch { return []; }
+					}));
+					setPendingReviews(results.flat());
+				} catch { setPendingError('Failed to load pending reviews'); } finally { setPendingLoading(false); }
+			})(); }}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Pending Reviews</DialogTitle>
+						<DialogDescription>Reply to student feedback across your courses.</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3">
+						{pendingLoading && <div className="py-6 text-sm text-muted-foreground">Loading…</div>}
+						{pendingError && <div className="py-6 text-sm text-destructive">{pendingError}</div>}
+						{!pendingLoading && !pendingError && pendingReviews.length === 0 && (
+							<div className="py-6 text-sm text-muted-foreground">No pending reviews.</div>
+						)}
+						{!pendingLoading && !pendingError && pendingReviews.map((r) => (
+							<div key={r.id} className="border rounded-md p-3">
+								<div className="flex items-center justify-between">
+									<div className="min-w-0 pr-3">
+										<div className="text-sm font-medium truncate">{r.courseTitle}</div>
+										<div className="text-xs text-muted-foreground truncate">{r.student?.first_name || r.student?.username}</div>
+									</div>
+									<div className="flex items-center gap-1 text-xs text-muted-foreground">
+										{Array.from({ length: 5 }).map((_, idx) => {
+											const starVal = idx + 1; const active = (r.rating ?? 0) >= starVal;
+											return <Star key={idx} className={`w-3.5 h-3.5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
+										})}
+										<span className="ml-1">{Number(r.rating ?? 0).toFixed(1)}</span>
+									</div>
+								</div>
+								<div className="mt-2 text-sm text-muted-foreground">{r.review}</div>
+								<div className="mt-3 space-y-2">
+									<Textarea
+										placeholder="Write a reply"
+										value={replyTextById[r.id] ?? ''}
+										onChange={(e) => setReplyTextById((s) => ({ ...s, [r.id]: e.target.value }))}
+									/>
+									<div className="flex justify-end">
+										<Button
+											size="sm"
+											onClick={async () => {
+												const text = (replyTextById[r.id] ?? '').trim(); if (!text) return;
+												try { await coursesApi.replyToReview(r.courseId, r.id, text);
+													setPendingReviews((list) => list.filter((x) => x.id !== r.id));
+													setReplyTextById((s) => ({ ...s, [r.id]: '' })); } catch {}
+											}}
+										>
+											Send Reply
+										</Button>
+									</div>
+								</div>
+							</div>
+						))}
+					</div>
+				</DialogContent>
+			</Dialog>
 
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 				{/* Recent Courses */}

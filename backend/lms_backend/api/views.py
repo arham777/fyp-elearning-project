@@ -211,6 +211,21 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = CourseRatingSerializer(qs, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], url_path='pending-reviews', permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def pending_reviews(self, request, pk=None):
+        """List unread/unreplied reviews for this course (teacher/admin only)."""
+        course = self.get_object()
+        user = request.user
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to view reviews for this course"}, status=status.HTTP_403_FORBIDDEN)
+        qs = CourseRating.objects.filter(course=course, review__isnull=False).exclude(review="").filter(teacher_reply__isnull=True).order_by('-updated_at')
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = CourseRatingSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = CourseRatingSerializer(qs, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'], url_path='rate', permission_classes=[permissions.IsAuthenticated, IsStudent])
     def rate(self, request, pk=None):
         """Create or update the authenticated student's rating for this course.
@@ -224,19 +239,46 @@ class CourseViewSet(viewsets.ModelViewSet):
         course = self.get_object()
         user = request.user
 
-        # Ensure enrollment exists and is completed
+        # Ensure enrollment exists and is completed (auto-heal completion if progress just reached 100%)
         enrollment = Enrollment.objects.filter(student=user, course=course).first()
         if not enrollment:
-            return Response({"detail": "You must be enrolled in this course to rate it."}, status=status.HTTP_400_BAD_REQUEST)
+            # If no enrollment but a certificate exists, permit rating (legacy/cleanup compatibility)
+            try:
+                has_certificate_no_enrollment = Certificate.objects.filter(student=user, course=course).exists()
+            except Exception:
+                has_certificate_no_enrollment = False
+            if not has_certificate_no_enrollment:
+                return Response({"detail": "You must be enrolled in this course to rate it."}, status=status.HTTP_400_BAD_REQUEST)
         if enrollment.status != 'completed':
-            return Response({"detail": "You can rate only after completing the course."}, status=status.HTTP_400_BAD_REQUEST)
+            # Attempt to finalize completion now if requirements are met
+            try:
+                enrollment.check_completion_and_issue_certificate()
+                enrollment.refresh_from_db(fields=["status"])  # Reload status
+            except Exception:
+                pass
 
+            # Additional safety: consider certificate presence OR computed progress
+            if enrollment.status != 'completed':
+                try:
+                    has_certificate = Certificate.objects.filter(student=user, course=course).exists()
+                except Exception:
+                    has_certificate = False
+                try:
+                    progress_now = float(enrollment.calculate_progress())
+                except Exception:
+                    progress_now = 0.0
+                if has_certificate or progress_now >= 100.0:
+                    enrollment.status = 'completed'
+                    enrollment.save(update_fields=['status'])
+                else:
+                    return Response({"detail": "You can rate only after completing the course."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Accept optional rating; default to 5 if only feedback is sent
         try:
-            rating_value = int(request.data.get('rating', 0))
+            rating_value = int(request.data.get('rating', 5))
         except (TypeError, ValueError):
-            rating_value = 0
-        if rating_value < 1 or rating_value > 5:
-            return Response({"detail": "rating must be between 1 and 5"}, status=status.HTTP_400_BAD_REQUEST)
+            rating_value = 5
+        rating_value = max(1, min(5, rating_value))
         review_text = request.data.get('review')
 
         cr, created = CourseRating.objects.get_or_create(course=course, student=user, defaults={
@@ -249,6 +291,31 @@ class CourseViewSet(viewsets.ModelViewSet):
             cr.save(update_fields=['rating', 'review', 'updated_at'])
 
         return Response(CourseRatingSerializer(cr).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='reply-review', permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def reply_review(self, request, pk=None):
+        """Teacher/Admin can reply to a student's review for this course.
+
+        Body: { rating_id: number, reply: string }
+        """
+        course = self.get_object()
+        user = request.user
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to reply for this course"}, status=status.HTTP_403_FORBIDDEN)
+
+        rating_id = request.data.get('rating_id')
+        reply_text = (request.data.get('reply') or '').strip()
+        if not rating_id or not reply_text:
+            return Response({"detail": "rating_id and reply are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            cr = CourseRating.objects.get(id=rating_id, course=course)
+        except CourseRating.DoesNotExist:
+            return Response({"detail": "Rating not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        cr.teacher_reply = reply_text
+        cr.save(update_fields=['teacher_reply', 'updated_at'])
+        return Response(CourseRatingSerializer(cr).data)
     
     @action(detail=True, methods=['get'], url_path='students',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
@@ -757,6 +824,28 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             cursor = shift_months(cursor, 1)
 
         return Response(series)
+
+    @action(detail=False, methods=['post'], url_path='refresh-completion', permission_classes=[permissions.IsAuthenticated])
+    def refresh_completion(self, request):
+        """Recalculate progress and issue certificates for the current user's enrollments if completed."""
+        user = request.user
+        if user.role == 'student':
+            enrollments = Enrollment.objects.filter(student=user)
+        else:
+            enrollments = Enrollment.objects.none()
+
+        completed_now = 0
+        for e in enrollments:
+            before = e.status
+            try:
+                e.check_completion_and_issue_certificate()
+                e.refresh_from_db(fields=["status"])  # ensure latest status
+            except Exception:
+                pass
+            if before != 'completed' and e.status == 'completed':
+                completed_now += 1
+
+        return Response({"updated_to_completed": completed_now})
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer

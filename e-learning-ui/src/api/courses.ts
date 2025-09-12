@@ -251,6 +251,11 @@ export const coursesApi = {
     return response.data;
   },
 
+  async refreshMyCompletion(): Promise<{ updated_to_completed: number }> {
+    const response = await apiClient.post('/enrollments/refresh-completion/');
+    return response.data as { updated_to_completed: number };
+  },
+
   async getMyCourses(): Promise<Course[]> {
     const response = await apiClient.get('/courses/my-courses/');
     return response.data;
