@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, GraduationCap, BookOpen, Award, TrendingUp } from 'lucide-react';
 import { adminApi } from '@/api/admin';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { Bar, BarChart, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 interface StatsCardProps {
   title: string;
@@ -125,14 +126,25 @@ const AdminDashboard: React.FC = () => {
           <CardTitle>Monthly Student Enrollments</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <ChartContainer
+            className="h-[300px] w-full"
+            config={{
+              enrollments: {
+                label: 'Enrollments',
+                theme: {
+                  light: 'oklch(var(--foreground) / 0.6)', // softer neutral in light mode
+                  dark: 'oklch(var(--primary))', // keep strong primary in dark mode
+                },
+              },
+            }}
+          >
             <BarChart data={stats.monthlyEnrollments}>
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="enrollments" fill="hsl(var(--primary))" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} />
+              <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+              <Bar dataKey="enrollments" fill="var(--color-enrollments)" radius={[4, 4, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </CardContent>
       </Card>
 

@@ -92,12 +92,12 @@ const DashboardHeader: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-background">
-      <div className="mx-auto max-w-screen-2xl px-3 py-2">
-        <div className="h-12 w-full rounded-full border border-border/60 bg-ink/[0.05] shadow-sm flex items-center justify-between gap-3 px-3">
+    <header className="sticky top-0 z-40">
+      <div className="mx-auto max-w-screen-2xl px-3 py-2 sticky top-0 z-40">
+        <div className="h-12 w-full rounded-full border border-border/60 bg-card shadow-sm flex items-center justify-between gap-3 px-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link to="/app" className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] ring-1 ring-accent-orange/30">
+            <Link to="/app" className="flex items-center gap-2 shrink-0 focus-visible:outline-none">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] border border-accent-orange/30 ring-0">
                 <GraduationCap className="h-4 w-4 text-accent-orange" />
               </span>
               <div className="leading-tight">
@@ -118,8 +118,8 @@ const DashboardHeader: React.FC = () => {
                   className={({ isActive }) =>
                     `px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${
                       (isActive || location.pathname === link.to)
-                        ? 'bg-ink/20 text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-ink/5'
+                        ? 'bg-secondary text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
                     }`
                   }
                 >
@@ -134,7 +134,7 @@ const DashboardHeader: React.FC = () => {
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
               <Input
                 placeholder="Search…"
-                className="h-9 w-64 pl-10 pr-4 text-sm rounded-full border-transparent bg-ink/5 backdrop-blur-sm placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                className="h-9 w-64 pl-10 pr-4 text-sm rounded-full border border-input bg-card placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-ring transition-colors"
               />
             </div>
 
@@ -234,8 +234,8 @@ const DashboardHeader: React.FC = () => {
                       className={({ isActive }) =>
                         `px-4 py-3 rounded-lg text-left transition-all duration-200 ${
                           (isActive || location.pathname === link.to)
-                            ? 'bg-ink/10 text-foreground font-medium'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-ink/5'
+                            ? 'bg-secondary text-foreground font-medium'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
                         }`
                       }
                     >

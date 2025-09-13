@@ -241,19 +241,19 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
       <style>{`
         /* Wrapper keeps radius and clips inner borders for a clean edge */
         .professional-rich-text-editor {
-          background: hsl(var(--background));
+          background: oklch(var(--background));
           border-radius: 0.375rem;
           overflow: hidden;
           position: relative;
-          border: 1px solid hsl(var(--border));
+          border: 1px solid oklch(var(--border));
         }
         
         /* Toolbar: bottom divider only (sides provided by wrapper) */
         .professional-rich-text-editor .ql-toolbar {
           box-sizing: border-box;
           border: 0;
-          border-bottom: 1px solid hsl(var(--border));
-          background: hsl(var(--background));
+          border-bottom: 1px solid oklch(var(--border));
+          background: oklch(var(--background));
           border-radius: 0.375rem 0.375rem 0 0;
         }
         
@@ -272,7 +272,7 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
         }
         
         .professional-rich-text-editor .ql-editor {
-          color: hsl(var(--foreground));
+          color: oklch(var(--foreground));
           font-size: 14px;
           line-height: 1.5;
           /* Give a bit of padding inside the editor */
@@ -280,77 +280,77 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
         }
         
         .professional-rich-text-editor .ql-editor.ql-blank::before {
-          color: hsl(var(--muted-foreground));
+          color: oklch(var(--muted-foreground));
           font-style: normal;
         }
         
         /* Dark mode support */
         .dark .professional-rich-text-editor .ql-toolbar {
-          background: hsl(var(--background));
-          border-color: hsl(var(--border));
+          background: oklch(var(--background));
+          border-color: oklch(var(--border));
         }
         
         .dark .professional-rich-text-editor .ql-toolbar .ql-stroke {
-          stroke: hsl(var(--foreground));
+          stroke: oklch(var(--foreground));
         }
         
         .dark .professional-rich-text-editor .ql-toolbar .ql-fill {
-          fill: hsl(var(--foreground));
+          fill: oklch(var(--foreground));
         }
         
         .dark .professional-rich-text-editor .ql-toolbar button:hover {
-          background: hsl(var(--muted));
+          background: oklch(var(--muted));
         }
         
         .dark .professional-rich-text-editor .ql-toolbar button.ql-active {
-          background: hsl(var(--accent));
+          background: oklch(var(--accent-neutral));
         }
         
         .dark .professional-rich-text-editor .ql-container {
-          border-color: hsl(var(--border));
+          border-color: oklch(var(--border));
         }
         
         .dark .professional-rich-text-editor .ql-editor {
-          background: hsl(var(--background));
-          color: hsl(var(--foreground));
+          background: oklch(var(--background));
+          color: oklch(var(--foreground));
         }
         
         /* Dropdown styling */
         .professional-rich-text-editor .ql-picker-options {
-          background: hsl(var(--background));
-          border: 1px solid hsl(var(--border));
+          background: oklch(var(--background));
+          border: 1px solid oklch(var(--border));
           border-radius: 0.375rem;
           box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
         
         .professional-rich-text-editor .ql-picker-item {
-          color: hsl(var(--foreground));
+          color: oklch(var(--foreground));
         }
         
         .professional-rich-text-editor .ql-picker-item:hover {
-          background: hsl(var(--muted));
+          background: oklch(var(--muted));
         }
         
         /* Link tooltip */
         .professional-rich-text-editor .ql-tooltip {
-          background: hsl(var(--background));
-          border: 1px solid hsl(var(--border));
+          background: oklch(var(--background));
+          border: 1px solid oklch(var(--border));
           border-radius: 0.375rem;
-          color: hsl(var(--foreground));
+          color: oklch(var(--foreground));
           box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
         
         .professional-rich-text-editor .ql-tooltip input {
-          background: hsl(var(--background));
-          border: 1px solid hsl(var(--border));
-          color: hsl(var(--foreground));
+          background: oklch(var(--background));
+          border: 1px solid oklch(var(--border));
+          color: oklch(var(--foreground));
           border-radius: 0.25rem;
           padding: 0.25rem 0.5rem;
         }
         
         .professional-rich-text-editor .ql-tooltip .ql-action,
         .professional-rich-text-editor .ql-tooltip .ql-remove {
-          color: hsl(var(--primary));
+          color: oklch(var(--primary));
         }
         
         /* Content styling */
@@ -403,50 +403,6 @@ const ProfessionalRichTextEditor: React.FC<ProfessionalRichTextEditorProps> = ({
           list-style-position: outside; /* Ensures bullets/numbers are visible */
         }
         
-        .professional-rich-text-editor .ql-editor li {
-          margin: 0.25rem 0;
-        }
-        
-        .professional-rich-text-editor .ql-editor blockquote {
-          border-left: 4px solid hsl(var(--border));
-          padding-left: 1rem;
-          margin: 1rem 0;
-          font-style: italic;
-          color: hsl(var(--muted-foreground));
-        }
-        
-        .professional-rich-text-editor .ql-editor code {
-          background: hsl(var(--muted));
-          padding: 0.125rem 0.25rem;
-          border-radius: 0.25rem;
-          font-family: 'Courier New', monospace;
-          font-size: 0.875em;
-        }
-        
-        .professional-rich-text-editor .ql-editor pre {
-          background: hsl(var(--muted));
-          padding: 1rem;
-          border-radius: 0.375rem;
-          overflow-x: auto;
-          margin: 1rem 0;
-        }
-        
-        .professional-rich-text-editor .ql-editor a {
-          color: hsl(var(--primary));
-          text-decoration: underline;
-        }
-        
-        .professional-rich-text-editor .ql-editor a:hover {
-          color: hsl(var(--primary));
-          opacity: 0.8;
-        }
-        
-        .professional-rich-text-editor .ql-editor img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 0.375rem;
-          margin: 0.5rem 0;
-        }
         
         .professional-rich-text-editor .ql-editor p {
           margin: 0.5rem 0;

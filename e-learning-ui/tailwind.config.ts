@@ -26,61 +26,64 @@ export default {
 				yeseva: ['"Yeseva One"', 'Georgia', 'serif'],
 				norwester: ['Norwester', '"Bebas Neue"', 'Oswald', 'Impact', 'sans-serif'],
 			},
+				ringColor: {
+					DEFAULT: 'oklch(var(--ring))',
+				},
 				colors: {
-				border: 'hsl(var(--border))',
-				input: 'hsl(var(--input))',
-				ring: 'hsl(var(--ring))',
-				background: 'hsl(var(--background))',
-				foreground: 'hsl(var(--foreground))',
-					overlay: 'hsl(var(--overlay))',
-					ink: 'hsl(var(--ink))',
-				primary: {
-					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))',
-					hover: 'hsl(var(--primary-hover))',
-					light: 'hsl(var(--primary-light))'
-				},
-				secondary: {
-					DEFAULT: 'hsl(var(--secondary))',
-					foreground: 'hsl(var(--secondary-foreground))'
-				},
-				destructive: {
-					DEFAULT: 'hsl(var(--destructive))',
-					foreground: 'hsl(var(--destructive-foreground))',
-					light: 'hsl(var(--destructive-light))'
-				},
-				muted: {
-					DEFAULT: 'hsl(var(--muted))',
-					foreground: 'hsl(var(--muted-foreground))'
-				},
-				accent: {
-					DEFAULT: 'hsl(var(--accent-neutral))',
-					foreground: 'hsl(var(--accent-neutral-foreground))',
-					light: 'hsl(var(--accent-neutral-light))'
-				},
+					border: 'oklch(var(--border))',
+					input: 'oklch(var(--input))',
+					ring: 'oklch(var(--ring))',
+					background: 'oklch(var(--background))',
+					foreground: 'oklch(var(--foreground))',
+						overlay: 'oklch(var(--overlay))',
+						ink: 'oklch(var(--ink))',
+					primary: {
+						DEFAULT: 'oklch(var(--primary))',
+						foreground: 'oklch(var(--primary-foreground))',
+						hover: 'oklch(var(--primary-hover))',
+						light: 'oklch(var(--primary-light))'
+					},
+					secondary: {
+						DEFAULT: 'oklch(var(--secondary))',
+						foreground: 'oklch(var(--secondary-foreground))'
+					},
+					destructive: {
+						DEFAULT: 'oklch(var(--destructive))',
+						foreground: 'oklch(var(--destructive-foreground))',
+						light: 'oklch(var(--destructive-light))'
+					},
+					muted: {
+						DEFAULT: 'oklch(var(--muted))',
+						foreground: 'oklch(var(--muted-foreground))'
+					},
+					accent: {
+						DEFAULT: 'oklch(var(--accent-neutral))',
+						foreground: 'oklch(var(--accent-neutral-foreground))',
+						light: 'oklch(var(--accent-neutral-light))'
+					},
 				'accent-orange': {
-					DEFAULT: 'hsl(var(--accent-orange))',
-					foreground: 'hsl(var(--accent-orange-foreground))',
-					light: 'hsl(var(--accent-orange-light))'
+					DEFAULT: 'oklch(var(--accent-orange))',
+					foreground: 'oklch(var(--accent-orange-foreground))',
+					light: 'oklch(var(--accent-orange-light))'
 				},
-				card: {
-					DEFAULT: 'hsl(var(--card))',
-					foreground: 'hsl(var(--card-foreground))'
-				},
-				popover: {
-					DEFAULT: 'hsl(var(--popover))',
-					foreground: 'hsl(var(--popover-foreground))',
-				},
-				sidebar: {
-					DEFAULT: 'hsl(var(--sidebar-background))',
-					foreground: 'hsl(var(--sidebar-foreground))',
-					primary: 'hsl(var(--sidebar-primary))',
-					'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-					accent: 'hsl(var(--sidebar-accent))',
-					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-					border: 'hsl(var(--sidebar-border))',
-					ring: 'hsl(var(--sidebar-ring))'
-				}
+					card: {
+						DEFAULT: 'oklch(var(--card))',
+						foreground: 'oklch(var(--card-foreground))'
+					},
+					popover: {
+						DEFAULT: 'oklch(var(--popover))',
+						foreground: 'oklch(var(--popover-foreground))',
+					},
+					sidebar: {
+						DEFAULT: 'oklch(var(--sidebar-background))',
+						foreground: 'oklch(var(--sidebar-foreground))',
+						primary: 'oklch(var(--sidebar-primary))',
+						'primary-foreground': 'oklch(var(--sidebar-primary-foreground))',
+						accent: 'oklch(var(--sidebar-accent))',
+						'accent-foreground': 'oklch(var(--sidebar-accent-foreground))',
+						border: 'oklch(var(--sidebar-border))',
+						ring: 'oklch(var(--sidebar-ring))'
+					}
 			},
 			borderRadius: {
 				lg: '0.5rem',

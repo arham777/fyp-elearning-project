@@ -789,7 +789,6 @@ const CourseViewer: React.FC = () => {
                 </div>
               )}
               
-              {!isCourseCompleteUI && (
               <div className="mt-6 flex justify-end">
                 {(() => {
                   const isCompleted = moduleData.completedContentIds.includes(content.id);
@@ -848,7 +847,6 @@ const CourseViewer: React.FC = () => {
                   );
                 })()}
               </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -959,7 +957,7 @@ const CourseViewer: React.FC = () => {
                     return 'Start Assignment';
                   })()}
                 </Button>
-                {!isCourseCompleteUI && (() => {
+                {(() => {
                   const isAssignmentCompleted = moduleData.completedAssignmentIds.includes(assignment.id);
                   const isCourseComplete = (courseProgress.totalItems > 0) && (courseProgress.completedItems === courseProgress.totalItems);
                   const finishingCourse = isAssignmentCompleted && isLastItemInModule && isLastModule && isCourseComplete;

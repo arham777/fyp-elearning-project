@@ -8,120 +8,120 @@
 
 @layer base {
   :root {
-    /* Light Mode Neutral Colors (mapped to provided palette) */
-    /* Base neutrals provided: #000000, #0a0a0a, #171717, #8f8f8f, #cfcfcf, #e5e5e5 */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 0%; /* #000000 */
+    /* Light Mode Neutral Colors in OKLCH */
+    /* App background is a very light grey; cards/popovers stay white */
+    --background: 0.96 0 0; /* ~#f5f5f5 */
+    --foreground: 0.145 0 0; /* near #0a0a0a */
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%; /* #000000 */
+    --card: 1 0 0;
+    --card-foreground: 0.145 0 0;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover: 1 0 0;
+    --popover-foreground: 0.145 0 0;
 
     /* Action neutrals */
-    --primary: 0 0% 9%; /* #171717 */
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 0 0% 4%; /* #0a0a0a */
-    --primary-light: 0 0% 81%; /* #cfcfcf */
+    --primary: 0.205 0 0; /* ~#171717 */
+    --primary-foreground: 0.985 0 0;
+    --primary-hover: 0.10 0 0; /* deeper neutral for hover */
+    --primary-light: 0.81 0 0; /* light neutral */
 
-    --secondary: 0 0% 90%; /* #e5e5e5 */
-    --secondary-foreground: 0 0% 9%; /* #171717 */
+    /* Chip/neutral surfaces slightly lighter */
+    --secondary: 0.96 0 0;
+    --secondary-foreground: 0.205 0 0;
 
     /* Muted neutrals */
-    --muted: 0 0% 90%; /* #e5e5e5 */
-    --muted-foreground: 0 0% 56%; /* #8f8f8f */
+    --muted: 0.94 0 0;
+    --muted-foreground: 0.556 0 0; /* readable secondary text */
 
     /* Neutral accent (no hue) */
-    --accent-neutral: 0 0% 90%; /* #e5e5e5 */
-    --accent-neutral-foreground: 0 0% 9%; /* #171717 */
-    --accent-neutral-light: 0 0% 81%; /* #cfcfcf */
+    --accent-neutral: 0.94 0 0;
+    --accent-neutral-foreground: 0.205 0 0;
+    --accent-neutral-light: 0.81 0 0;
 
-    /* Subtle Orange Accent (kept as-is) */
-    --accent-orange: 25 95% 50%;
-    --accent-orange-foreground: 0 0% 100%;
-    --accent-orange-light: 25 95% 95%;
+    /* Subtle Orange Accent (now in OKLCH; tuned to match previous HSL look) */
+    --accent-orange: 0.72 0.21 57; /* approx of hsl(25 95% 50%) */
+    --accent-orange-foreground: 1 0 0;
+    --accent-orange-light: 0.97 0.03 57;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 84% 95%;
+    /* Destructive in OKLCH */
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 1 0 0;
+    --destructive-light: 0.95 0.03 27.325;
 
     /* Structure */
-    --border: 0 0% 81%; /* #cfcfcf */
-    --input: 0 0% 90%; /* #e5e5e5 */
-    --ring: 0 0% 56%; /* #8f8f8f */
+    --border: 0.86 0 0;
+    --input: 0.92 0 0;
+    --ring: 0.708 0 0;
 
     /* Common neutrals */
-    --ink: 0 0% 9%; /* #171717 base for alpha tints */
-    /* Overlays (use provided #171717 at 80%) */
-    --overlay: 0 0% 9% / 0.8; /* #171717, 80% */
+    --ink: 0.205 0 0; /* base for alpha tints */
+    --overlay: 0.205 0 0 / 0.8; /* 80% */
 
     --radius: 0.5rem;
 
     /* Sidebar Specifics */
-    --sidebar-background: 0 0% 95%; /* between #e5e5e5 and white */
-    --sidebar-foreground: 0 0% 9%;
-    --sidebar-primary: 0 0% 9%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 90%;
-    --sidebar-accent-foreground: 0 0% 9%;
-    --sidebar-border: 0 0% 81%;
-    --sidebar-ring: 0 0% 56%;
+    --sidebar-background: 0.965 0 0; /* between white and light grey */
+    --sidebar-foreground: 0.205 0 0;
+    --sidebar-primary: 0.205 0 0;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.96 0 0;
+    --sidebar-accent-foreground: 0.205 0 0;
+    --sidebar-border: 0.86 0 0;
+    --sidebar-ring: 0.708 0 0;
   }
 
   .dark {
-    /* Dark Mode Neutral Colors (mapped to provided palette) */
-    --background: 0 0% 4%; /* #0a0a0a */
-    --foreground: 0 0% 90%; /* #e5e5e5 */
+    /* Dark Mode Neutral Colors in OKLCH */
+    --background: 0.145 0 0;
+    --foreground: 0.985 0 0;
 
-    --card: 0 0% 9%; /* #171717 */
-    --card-foreground: 0 0% 90%;
+    --card: 0.205 0 0;
+    --card-foreground: 0.985 0 0;
 
-    --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 90%;
+    --popover: 0.269 0 0;
+    --popover-foreground: 0.985 0 0;
 
-    --primary: 0 0% 81%; /* #cfcfcf */
-    --primary-foreground: 0 0% 9%; /* #171717 */
-    --primary-hover: 0 0% 90%; /* #e5e5e5 */
-    --primary-light: 0 0% 56%; /* #8f8f8f */
+    --primary: 0.922 0 0;
+    --primary-foreground: 0.205 0 0;
+    --primary-hover: 0.97 0 0;
+    --primary-light: 0.56 0 0;
 
-    --secondary: 0 0% 15%; /* between #0a0a0a and #171717 */
-    --secondary-foreground: 0 0% 81%;
+    --secondary: 0.269 0 0;
+    --secondary-foreground: 0.985 0 0;
 
-    --muted: 0 0% 12%; /* near #0a0a0a/#171717 */
-    --muted-foreground: 0 0% 56%; /* #8f8f8f */
+    --muted: 0.269 0 0;
+    --muted-foreground: 0.708 0 0;
 
-    --accent-neutral: 0 0% 20%; /* #171717 ~20% */
-    --accent-neutral-foreground: 0 0% 90%;
-    --accent-neutral-light: 0 0% 12%;
+    --accent-neutral: 0.20 0 0;
+    --accent-neutral-foreground: 0.985 0 0;
+    --accent-neutral-light: 0.12 0 0;
 
-    /* Orange accent preserved */
-    --accent-orange: 25 95% 50%;
-    --accent-orange-foreground: 0 0% 100%;
-    --accent-orange-light: 25 95% 20%;
+    /* Orange accent preserved in OKLCH */
+    --accent-orange: 0.72 0.21 57;
+    --accent-orange-foreground: 1 0 0;
+    --accent-orange-light: 0.35 0.18 57;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 84% 30%;
+    --destructive: 0.704 0.191 22.216;
+    --destructive-foreground: 0.985 0 0;
+    --destructive-light: 0.35 0.05 22.216;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 15%;
-    --ring: 0 0% 56%; /* #8f8f8f */
+    --border: 0.275 0 0;
+    --input: 0.325 0 0;
+    --ring: 0.556 0 0;
 
     /* Common neutrals */
-    --ink: 0 0% 9%; /* #171717 */
-    /* Overlays */
-    --overlay: 0 0% 9% / 0.8; /* #171717, 80% */
+    --ink: 0.205 0 0;
+    --overlay: 0.205 0 0 / 0.8;
 
     /* Sidebar */
-    --sidebar-background: 0 0% 7%; /* near #0a0a0a */
-    --sidebar-foreground: 0 0% 81%;
-    --sidebar-primary: 0 0% 81%;
-    --sidebar-primary-foreground: 0 0% 9%;
-    --sidebar-accent: 0 0% 12%;
-    --sidebar-accent-foreground: 0 0% 81%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 0 0% 56%;
+    --sidebar-background: 0.205 0 0;
+    --sidebar-foreground: 0.985 0 0;
+    --sidebar-primary: 0.205 0 0;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.12 0 0;
+    --sidebar-accent-foreground: 0.985 0 0;
+    --sidebar-border: 0.275 0 0;
+    --sidebar-ring: 0.439 0 0;
   }
 }
 
