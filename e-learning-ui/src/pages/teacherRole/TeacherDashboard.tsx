@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
-import { Course, Enrollment } from '@/types';
+import { Course, CourseRating, Enrollment } from '@/types';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -71,11 +72,31 @@ const TeacherDashboard: React.FC = () => {
 	}, [myCourses]);
 
 	const [ratingsOpen, setRatingsOpen] = useState(false);
+	// Per-course ratings (all individual ratings)
+	const [openCourseAccordions, setOpenCourseAccordions] = useState<string[]>([]);
+	const [courseRatings, setCourseRatings] = useState<Record<number, CourseRating[]>>({});
+	const [ratingsLoading, setRatingsLoading] = useState<Record<number, boolean>>({});
+	const [ratingsError, setRatingsError] = useState<Record<number, string | null>>({});
 	const [pendingOpen, setPendingOpen] = useState(false);
 	const [pendingLoading, setPendingLoading] = useState(false);
 	const [pendingError, setPendingError] = useState<string | null>(null);
 	const [pendingReviews, setPendingReviews] = useState<Array<{ id: number; courseId: number; courseTitle: string; rating: number; review: string; student?: any; updated_at?: string }>>([]);
 	const [replyTextById, setReplyTextById] = useState<Record<number, string>>({});
+
+	const loadCourseRatings = async (courseId: number) => {
+		if (ratingsLoading[courseId] || courseRatings[courseId]) return;
+		setRatingsLoading((s) => ({ ...s, [courseId]: true }));
+		setRatingsError((s) => ({ ...s, [courseId]: null }));
+		try {
+			const data = await coursesApi.getCourseRatings(courseId);
+			const items: CourseRating[] = Array.isArray(data) ? data : (data?.results ?? []);
+			setCourseRatings((s) => ({ ...s, [courseId]: items }));
+		} catch (e) {
+			setRatingsError((s) => ({ ...s, [courseId]: 'Failed to load ratings' }));
+		} finally {
+			setRatingsLoading((s) => ({ ...s, [courseId]: false }));
+		}
+	};
 
 	return (
 		<div className="space-y-6">
@@ -158,32 +179,76 @@ const TeacherDashboard: React.FC = () => {
 						{!isLoading && myCourses.length === 0 && (
 							<div className="py-6 text-sm text-muted-foreground">No courses yet.</div>
 						)}
-						{!isLoading && myCourses.map((c) => {
-							const avg = typeof c.average_rating === 'number' ? c.average_rating : 0;
-							const count = typeof c.ratings_count === 'number' ? c.ratings_count : 0;
-							return (
-								<div key={c.id} className="rounded-md border p-3">
-									<div className="flex items-center justify-between">
-										<div className="min-w-0 pr-3">
-											<div className="font-medium text-sm truncate">{c.title}</div>
-											<div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-												{Array.from({ length: 5 }).map((_, idx) => {
-													const starVal = idx + 1;
-													const activeFill = (avg ?? 0) >= starVal;
-													return <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
-												})}
-											<span className="ml-1">{avg.toFixed(1)}</span>
-											<span>({count})</span>
-										</div>
-									</div>
-									<Button asChild size="sm" variant="outline">
-										<Link to={`/app/courses/${c.id}`}>View</Link>
-									</Button>
-								</div>
-								{/* If you want per-course feedback list later, we can extend here */}
-							</div>
-						);
-						})}
+						{!isLoading && (
+							<Accordion type="multiple" value={openCourseAccordions} onValueChange={(vals) => {
+								setOpenCourseAccordions(vals as string[]);
+								// Fetch ratings for any newly opened course
+								(vals as string[]).forEach((v) => {
+									const id = parseInt(v, 10);
+									if (!Number.isNaN(id)) void loadCourseRatings(id);
+								});
+							}}>
+								{myCourses.map((c) => {
+									const avg = typeof c.average_rating === 'number' ? c.average_rating : 0;
+									const count = typeof c.ratings_count === 'number' ? c.ratings_count : 0;
+									const cid = String(c.id);
+									const items = courseRatings[c.id] || [];
+									const loading = !!ratingsLoading[c.id];
+									const err = ratingsError[c.id];
+									return (
+										<AccordionItem key={c.id} value={cid} className="rounded-md border px-3">
+											<div className="flex items-start justify-between gap-2">
+												<div className="flex-1 min-w-0">
+													<AccordionTrigger>
+														<div className="min-w-0 pr-3 text-left">
+															<div className="font-medium text-sm truncate">{c.title}</div>
+															<div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+																{Array.from({ length: 5 }).map((_, idx) => {
+																	const starVal = idx + 1;
+																	const activeFill = (avg ?? 0) >= starVal;
+																	return <Star key={idx} className={`w-3.5 h-3.5 ${activeFill ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
+																})}
+																<span className="ml-1">{avg.toFixed(1)}</span>
+																<span>({count})</span>
+															</div>
+														</div>
+													</AccordionTrigger>
+												</div>
+											</div>
+											<Button asChild size="sm" variant="outline" className="mt-3 mb-2">
+												<Link to={`/app/courses/${c.id}`}>View</Link>
+											</Button>
+											<AccordionContent className="pt-2">
+												{loading && <div className="py-2 text-xs text-muted-foreground">Loading ratings…</div>}
+												{err && <div className="py-2 text-xs text-destructive">{err}</div>}
+												{!loading && !err && (
+													<div className="space-y-2">
+														{items.length === 0 && <div className="py-2 text-xs text-muted-foreground">No ratings yet.</div>}
+														{items.map((r) => (
+															<div key={r.id} className="border rounded-md p-2 bg-muted/30">
+																<div className="flex items-center justify-between">
+																	<div className="min-w-0 pr-3">
+																		<div className="text-sm font-medium truncate">{r.student?.first_name || r.student?.username || 'Student'}</div>
+																	</div>
+																	<div className="flex items-center gap-1 text-xs text-muted-foreground">
+																		{Array.from({ length: 5 }).map((_, idx) => {
+																			const starVal = idx + 1; const active = (r.rating ?? 0) >= starVal;
+																			return <Star key={idx} className={`w-3.5 h-3.5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
+																		})}
+																		<span className="ml-1">{Number(r.rating ?? 0).toFixed(1)}</span>
+																	</div>
+																</div>
+																{r.review && <div className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{r.review}</div>}
+															</div>
+														))}
+													</div>
+												)}
+											</AccordionContent>
+										</AccordionItem>
+									);
+								})}
+							</Accordion>
+						)}
 					</div>
 				</DialogContent>
 			</Dialog>

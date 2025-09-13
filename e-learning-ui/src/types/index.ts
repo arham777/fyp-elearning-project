@@ -19,6 +19,16 @@ export interface User {
   deactivated_until?: string | null;
 }
 
+export interface CourseRating {
+  id: number;
+  course: number | Course;
+  student?: User | null;
+  rating: number;
+  review?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Course {
   id: number;
   title: string;

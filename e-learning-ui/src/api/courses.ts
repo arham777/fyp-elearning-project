@@ -25,6 +25,15 @@ export const coursesApi = {
     return response.data;
   },
 
+  async replyToReview(courseId: number, ratingId: number, reply: string) {
+    // Teacher/Admin endpoint to reply to a specific rating's review
+    const response = await apiClient.post(`/courses/${courseId}/reply-review/`, {
+      rating_id: ratingId,
+      reply,
+    });
+    return response.data;
+  },
+
   async rateCourse(id: number, rating: number, review?: string) {
     const response = await apiClient.post(`/courses/${id}/rate/`, { rating, review });
     return response.data;
