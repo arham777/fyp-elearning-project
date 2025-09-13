@@ -1453,6 +1453,76 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
         return Response({'success': True, 'created': count})
 
+    @action(detail=False, methods=['post'], url_path='send')
+    def send(self, request):
+        """Send an announcement to specific users by IDs or emails (admin only).
+
+        Payload options:
+        - {"user_ids": [1,2], "title": "...", "message": "...", "notif_type": "info"}
+        - {"emails": ["a@x.com","b@y.com"], "title": "...", "message": "..."}
+        - Both can be provided; they will be unioned.
+        """
+        user = request.user
+        if getattr(user, 'role', None) != 'admin':
+            return Response({"detail": "Only admin can send notifications."}, status=status.HTTP_403_FORBIDDEN)
+
+        title = (request.data.get('title') or '').strip()
+        message = (request.data.get('message') or '').strip()
+        notif_type = (request.data.get('notif_type') or 'info').strip()
+        if not title or not message:
+            return Response({"detail": "Both title and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ids = request.data.get('user_ids') or []
+        emails = request.data.get('emails') or []
+        try:
+            id_list = [int(i) for i in ids if str(i).strip()]
+        except Exception:
+            id_list = []
+        email_list = []
+        for e in emails:
+            try:
+                em = str(e).strip().lower()
+                if em:
+                    email_list.append(em)
+            except Exception:
+                pass
+
+        # Resolve user queryset
+        qs = User.objects.filter(is_active=True)
+        q = Q()
+        if id_list:
+            q |= Q(id__in=id_list)
+        if email_list:
+            q |= Q(email__in=email_list)
+        recipients = list(qs.filter(q)) if q else []
+        if not recipients:
+            return Response({'success': True, 'created': 0})
+
+        Notification.objects.bulk_create([
+            Notification(user=u, title=title, message=message, notif_type=notif_type)
+            for u in recipients
+        ])
+
+        # Best-effort email via Django if available (non-blocking)
+        try:
+            from django.conf import settings as dj_settings
+            sender = getattr(dj_settings, 'DEFAULT_FROM_EMAIL', 'no-reply@edu.pk')
+            for u in recipients:
+                if u.email:
+                    try:
+                        send_mail(title, message, sender, [u.email], fail_silently=True)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        return Response({'success': True, 'created': len(recipients)})
+
+    @action(detail=False, methods=['post'], url_path='send_to_emails')
+    def send_to_emails(self, request):
+        """Compat wrapper that forwards to send() using only emails field."""
+        return self.send(request)
+
 class SupportRequestViewSet(viewsets.ModelViewSet):
     """Public create endpoint for blocked users to request help.
 

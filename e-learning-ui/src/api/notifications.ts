@@ -51,5 +51,45 @@ export const notificationsApi = {
       success: Boolean(res.data?.success),
       created: Number(res.data?.created ?? 0)
     };
+  },
+
+  async sendToUsers(
+    userIds: number[],
+    title: string,
+    message: string,
+    notif_type: 'info' | 'warning' | 'success' = 'info'
+  ): Promise<{ success: boolean; created: number }> {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return { success: false, created: 0 };
+    }
+    // Try a dedicated endpoint first; gracefully fall back if not available
+    const payload = { user_ids: userIds, title, message, notif_type } as any;
+    try {
+      const res = await apiClient.post('/notifications/send_to_users/', payload);
+      return { success: Boolean(res.data?.success ?? true), created: Number(res.data?.created ?? userIds.length) };
+    } catch {
+      const res2 = await apiClient.post('/notifications/send/', payload);
+      return { success: Boolean(res2.data?.success ?? true), created: Number(res2.data?.created ?? userIds.length) };
+    }
+  }
+  ,
+
+  async sendToEmails(
+    emails: string[],
+    title: string,
+    message: string,
+    notif_type: 'info' | 'warning' | 'success' = 'info'
+  ): Promise<{ success: boolean; created: number }> {
+    if (!Array.isArray(emails) || emails.length === 0) {
+      return { success: false, created: 0 };
+    }
+    const payload = { emails, title, message, notif_type } as any;
+    try {
+      const res = await apiClient.post('/notifications/send_to_emails/', payload);
+      return { success: Boolean(res.data?.success ?? true), created: Number(res.data?.created ?? emails.length) };
+    } catch {
+      const res2 = await apiClient.post('/notifications/send/', payload);
+      return { success: Boolean(res2.data?.success ?? true), created: Number(res2.data?.created ?? emails.length) };
+    }
   }
 };

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { notificationsApi } from '@/api/notifications';
+import { adminApi } from '@/api/admin';
 
 // Mock settings data - replace with real API
 interface PlatformSettings {
@@ -32,9 +33,9 @@ interface PlatformSettings {
     platform_name: string;
     platform_description: string;
     logo_url: string;
-    primary_color: string;
     timezone: string;
     language: string;
+    support_email: string;
   };
   notifications: {
     email_notifications: boolean;
@@ -59,9 +60,9 @@ const mockSettings: PlatformSettings = {
     platform_name: "EduPlatform",
     platform_description: "A comprehensive e-learning platform for students and teachers",
     logo_url: "",
-    primary_color: "#3b82f6",
     timezone: "UTC",
-    language: "en"
+    language: "en",
+    support_email: "support@example.com"
   },
   notifications: {
     email_notifications: true,
@@ -91,7 +92,8 @@ const Settings: React.FC = () => {
   const [announceTitle, setAnnounceTitle] = React.useState('');
   const [announceMessage, setAnnounceMessage] = React.useState('');
   const [announceType, setAnnounceType] = React.useState<'info' | 'warning' | 'success'>('info');
-  const [audience, setAudience] = React.useState<'teachers' | 'students'>('students');
+  const [audience, setAudience] = React.useState<'teachers' | 'students' | 'individuals'>('students');
+  const [recipientEmails, setRecipientEmails] = React.useState<string>('');
 
   // Mock query - replace with real API
   const { data: currentSettings, isLoading } = useQuery<PlatformSettings>({
@@ -147,20 +149,47 @@ const Settings: React.FC = () => {
 
   const broadcastMutation = useMutation({
     mutationFn: async () => {
-      return notificationsApi.broadcast(
-        audience,
-        announceTitle.trim(),
-        announceMessage.trim(),
-        announceType
-      );
+      const title = announceTitle.trim();
+      const message = announceMessage.trim();
+      if (audience === 'individuals') {
+        const emails = recipientEmails
+          .split(',')
+          .map((s) => s.trim())
+          .filter((e) => !!e);
+        if (emails.length === 0) {
+          throw new Error('Please provide at least one email');
+        }
+        try {
+          return await notificationsApi.sendToEmails(emails, title, message, announceType);
+        } catch (e) {
+          // Fallback: resolve emails to user IDs and send via IDs
+          try {
+            const allUsers = await adminApi.getAllUsers();
+            const emailToId: Record<string, number> = {};
+            for (const u of allUsers as any[]) {
+              const em = String(u.email || '').toLowerCase();
+              if (em) emailToId[em] = u.id;
+            }
+            const ids = emails
+              .map((em) => emailToId[em.toLowerCase()])
+              .filter((id) => typeof id === 'number');
+            if (ids.length === 0) throw new Error('No matching users for provided emails');
+            return await notificationsApi.sendToUsers(ids as number[], title, message, announceType);
+          } catch (fallbackError) {
+            throw fallbackError;
+          }
+        }
+      }
+      return notificationsApi.broadcast(audience, title, message, announceType);
     },
     onSuccess: (res) => {
       toast({
         title: 'Announcement sent',
-        description: `Sent to ${res.created} ${audience}.`
+        description: audience === 'individuals' ? `Sent to ${res.created} user(s).` : `Sent to ${res.created} ${audience}.`
       });
       setAnnounceTitle('');
       setAnnounceMessage('');
+      setRecipientEmails('');
     },
     onError: () => {
       toast({
@@ -195,9 +224,9 @@ const Settings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Platform Settings</h1>
-          <p className="text-muted-foreground">Configure your e-learning platform</p>
+        <div className="flex items-center gap-2">
+          <Bell className="h-6 w-6" />
+          <h1 className="text-3xl font-bold">Announcements</h1>
         </div>
         
         {hasChanges && (
@@ -212,151 +241,10 @@ const Settings: React.FC = () => {
         )}
       </div>
 
-      {/* General Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            General Settings
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="platform-name">Platform Name</Label>
-              <Input
-                id="platform-name"
-                value={settings.general.platform_name}
-                onChange={(e) => handleSettingChange('general', 'platform_name', e.target.value)}
-                placeholder="Enter platform name"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="primary-color">Primary Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="primary-color"
-                  type="color"
-                  value={settings.general.primary_color}
-                  onChange={(e) => handleSettingChange('general', 'primary_color', e.target.value)}
-                  className="w-16 h-10 p-1 border rounded"
-                />
-                <Input
-                  value={settings.general.primary_color}
-                  onChange={(e) => handleSettingChange('general', 'primary_color', e.target.value)}
-                  placeholder="#3b82f6"
-                  className="flex-1"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="platform-description">Platform Description</Label>
-            <Textarea
-              id="platform-description"
-              value={settings.general.platform_description}
-              onChange={(e) => handleSettingChange('general', 'platform_description', e.target.value)}
-              placeholder="Describe your platform"
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Platform Logo</Label>
-            <div className="flex items-center gap-4">
-              {settings.general.logo_url ? (
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={settings.general.logo_url} 
-                    alt="Platform logo" 
-                    className="h-12 w-12 object-cover rounded border"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSettingChange('general', 'logo_url', '')}
-                  >
-                    Remove Logo
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 border-2 border-dashed border-muted-foreground/25 rounded flex items-center justify-center">
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      id="logo-upload"
-                    />
-                    <Button variant="outline" asChild>
-                      <label htmlFor="logo-upload" className="cursor-pointer flex items-center gap-2">
-                        <Upload className="h-4 w-4" />
-                        Upload Logo
-                      </label>
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Select 
-                value={settings.general.timezone} 
-                onValueChange={(value) => handleSettingChange('general', 'timezone', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select timezone" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="UTC">UTC</SelectItem>
-                  <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                  <SelectItem value="America/Chicago">Central Time</SelectItem>
-                  <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                  <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                  <SelectItem value="Europe/London">London</SelectItem>
-                  <SelectItem value="Asia/Tokyo">Tokyo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="language">Default Language</Label>
-              <Select 
-                value={settings.general.language} 
-                onValueChange={(value) => handleSettingChange('general', 'language', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="zh">Chinese</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      
 
       {/* Announcements */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Announcements
-          </CardTitle>
-        </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
@@ -373,22 +261,35 @@ const Settings: React.FC = () => {
 
           <div className="space-y-2">
             <Label className="text-base">Send Announcement</Label>
-            <p className="text-sm text-muted-foreground">Send a notification to all Teachers or all Students</p>
+            <p className="text-sm text-muted-foreground">Send to all Teachers, all Students, or specific users by ID</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="audience">Audience</Label>
-              <Select value={audience} onValueChange={(v: 'teachers' | 'students') => setAudience(v)}>
+              <Select value={audience} onValueChange={(v: 'teachers' | 'students' | 'individuals') => setAudience(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select audience" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="teachers">Teachers</SelectItem>
                   <SelectItem value="students">Students</SelectItem>
+                  <SelectItem value="individuals">Individuals</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          {audience === 'individuals' && (
+            <div className="space-y-2">
+              <Label htmlFor="recipient-emails">Recipient Emails (comma-separated)</Label>
+              <Input
+                id="recipient-emails"
+                value={recipientEmails}
+                onChange={(e) => setRecipientEmails(e.target.value)}
+                placeholder="e.g. alice@example.com, bob@site.com"
+              />
+              <p className="text-[11px] text-muted-foreground">We'll send to these emails. If direct email send isn't available, we'll map emails to users automatically.</p>
+            </div>
+          )}
 
             <div className="space-y-2">
               <Label htmlFor="send-type">Type</Label>

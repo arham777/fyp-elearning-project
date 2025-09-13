@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { coursesApi } from '@/api/courses';
 import { Course, Enrollment, Certificate } from '@/types';
-import { Search } from 'lucide-react';
+import { Search, ChevronsRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CourseCard from '@/components/courses/CourseCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +15,8 @@ const CoursesCatalog: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<number>>(new Set());
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<number>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // actual query used for requests/filtering
+  const [pendingQuery, setPendingQuery] = useState(''); // text in the input
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -55,12 +56,45 @@ const CoursesCatalog: React.FC = () => {
   // Modal opens only via the button on this page
 
   const visibleCourses = useMemo(() => {
+    // Client-side fuzzy filter for better matching on title/description/instructor
+    const tokens = (searchQuery || '')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const scoreCourse = (c: Course): number => {
+      if (tokens.length === 0) return 1; // no filter → keep
+      const title = (c.title || '').toLowerCase();
+      const desc = (c.description || '').toLowerCase();
+      const teacherFirst = (typeof c.teacher === 'object' ? (c.teacher?.first_name || '') : '').toLowerCase();
+      const teacherLast = (typeof c.teacher === 'object' ? (c.teacher?.last_name || '') : '').toLowerCase();
+      const teacherUser = (typeof c.teacher === 'object' ? (c.teacher?.username || '') : '').toLowerCase();
+      const haystack = `${title} ${desc} ${teacherFirst} ${teacherLast} ${teacherUser}`;
+      // All tokens must appear somewhere (broad contains)
+      const allPresent = tokens.every((t) => haystack.includes(t));
+      if (!allPresent) return 0;
+      // Relevance score: title matches weigh more than description
+      let score = 0;
+      for (const t of tokens) {
+        if (title.includes(t)) score += 3;
+        if (teacherFirst.includes(t) || teacherLast.includes(t) || teacherUser.includes(t)) score += 2;
+        if (desc.includes(t)) score += 1;
+      }
+      return score;
+    };
+
+    const withScores = courses
+      .map((c) => ({ c, s: scoreCourse(c) }))
+      .filter((x) => x.s > 0) // keep only matches (or all when tokens empty via score=1)
+      .sort((a, b) => b.s - a.s)
+      .map((x) => x.c);
+
     // Students should only see courses they are NOT enrolled in
     if (user?.role === 'student') {
-      return courses.filter((c) => !enrolledCourseIds.has(c.id));
+      return withScores.filter((c) => !enrolledCourseIds.has(c.id));
     }
-    return courses;
-  }, [user?.role, courses, enrolledCourseIds]);
+    return withScores;
+  }, [user?.role, courses, enrolledCourseIds, searchQuery]);
 
   if (isLoading) {
     return (
@@ -89,14 +123,24 @@ const CoursesCatalog: React.FC = () => {
         )}
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-xl w-full">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search courses..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
+          value={pendingQuery}
+          onChange={(e) => setPendingQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery); }}
+          className="pl-10 pr-24 h-10 rounded-full"
+          aria-label="Search courses"
         />
+        <Button
+          variant="link"
+          className="h-10 absolute right-3 top-1/2 -translate-y-1/2 p-0 rounded-none"
+          onClick={() => setSearchQuery(pendingQuery)}
+          aria-label="Search"
+        >
+          <ChevronsRight className="h-8 w-8" strokeWidth={3} />
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

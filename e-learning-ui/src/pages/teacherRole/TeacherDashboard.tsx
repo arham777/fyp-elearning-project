@@ -2,14 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight, Star } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Plus, ArrowRight, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { Course, CourseRating, Enrollment } from '@/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 
 const TeacherDashboard: React.FC = () => {
 	const { user } = useAuth();
@@ -77,11 +76,7 @@ const TeacherDashboard: React.FC = () => {
 	const [courseRatings, setCourseRatings] = useState<Record<number, CourseRating[]>>({});
 	const [ratingsLoading, setRatingsLoading] = useState<Record<number, boolean>>({});
 	const [ratingsError, setRatingsError] = useState<Record<number, string | null>>({});
-	const [pendingOpen, setPendingOpen] = useState(false);
-	const [pendingLoading, setPendingLoading] = useState(false);
-	const [pendingError, setPendingError] = useState<string | null>(null);
-	const [pendingReviews, setPendingReviews] = useState<Array<{ id: number; courseId: number; courseTitle: string; rating: number; review: string; student?: any; updated_at?: string }>>([]);
-	const [replyTextById, setReplyTextById] = useState<Record<number, string>>({});
+
 
 	const loadCourseRatings = async (courseId: number) => {
 		if (ratingsLoading[courseId] || courseRatings[courseId]) return;
@@ -119,7 +114,7 @@ const TeacherDashboard: React.FC = () => {
 			</div>
 
 			{/* Stats Cards */}
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				<Card className="card-elevated">
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
 						<CardTitle className="text-xs font-medium">My Courses</CardTitle>
@@ -144,16 +139,7 @@ const TeacherDashboard: React.FC = () => {
 					</CardContent>
 				</Card>
 
-				<Card className="card-elevated cursor-pointer" onClick={() => setPendingOpen(true)}>
-					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-						<CardTitle className="text-xs font-medium">Pending Reviews</CardTitle>
-						<ClipboardList className="h-4 w-4 text-muted-foreground" />
-					</CardHeader>
-					<CardContent className="pt-0">
-						<div className="text-xl font-semibold">{pendingLoading ? '—' : pendingReviews.length}</div>
-						<p className="text-[11px] text-muted-foreground">Reviews awaiting your reply</p>
-					</CardContent>
-				</Card>
+
 
 				<Card className="card-elevated cursor-pointer" onClick={() => setRatingsOpen(true)}>
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
@@ -228,7 +214,7 @@ const TeacherDashboard: React.FC = () => {
 															<div key={r.id} className="border rounded-md p-2 bg-muted/30">
 																<div className="flex items-center justify-between">
 																	<div className="min-w-0 pr-3">
-																		<div className="text-sm font-medium truncate">{r.student?.first_name || r.student?.username || 'Student'}</div>
+																		<div className="text-sm font-medium truncate">{[r.student?.first_name, r.student?.last_name].filter(Boolean).join(' ') || r.student?.username || 'Student'}</div>
 																	</div>
 																	<div className="flex items-center gap-1 text-xs text-muted-foreground">
 																		{Array.from({ length: 5 }).map((_, idx) => {
@@ -253,77 +239,9 @@ const TeacherDashboard: React.FC = () => {
 				</DialogContent>
 			</Dialog>
 
-			{/* Pending Reviews modal */}
-			<Dialog open={pendingOpen} onOpenChange={(open) => { setPendingOpen(open); if (open) void (async () => {
-				setPendingLoading(true); setPendingError(null);
-				try {
-					const results = await Promise.all(myCourses.map(async (c) => {
-						try {
-							// Fallback to full ratings list; filter to only entries with review text
-							const data = await coursesApi.getCourseRatings(c.id);
-							const arr = Array.isArray(data) ? data : (data?.results ?? []);
-							return arr
-								.filter((r: any) => Boolean((r?.review || '').trim()))
-								.map((r: any) => ({ id: r.id, courseId: c.id, courseTitle: c.title, rating: r.rating, review: r.review, student: r.student, updated_at: r.updated_at }));
-						} catch { return []; }
-					}));
-					setPendingReviews(results.flat());
-				} catch { setPendingError('Failed to load pending reviews'); } finally { setPendingLoading(false); }
-			})(); }}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Pending Reviews</DialogTitle>
-						<DialogDescription>Reply to student feedback across your courses.</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-3">
-						{pendingLoading && <div className="py-6 text-sm text-muted-foreground">Loading…</div>}
-						{pendingError && <div className="py-6 text-sm text-destructive">{pendingError}</div>}
-						{!pendingLoading && !pendingError && pendingReviews.length === 0 && (
-							<div className="py-6 text-sm text-muted-foreground">No pending reviews.</div>
-						)}
-						{!pendingLoading && !pendingError && pendingReviews.map((r) => (
-							<div key={r.id} className="border rounded-md p-3">
-								<div className="flex items-center justify-between">
-									<div className="min-w-0 pr-3">
-										<div className="text-sm font-medium truncate">{r.courseTitle}</div>
-										<div className="text-xs text-muted-foreground truncate">{r.student?.first_name || r.student?.username}</div>
-									</div>
-									<div className="flex items-center gap-1 text-xs text-muted-foreground">
-										{Array.from({ length: 5 }).map((_, idx) => {
-											const starVal = idx + 1; const active = (r.rating ?? 0) >= starVal;
-											return <Star key={idx} className={`w-3.5 h-3.5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />;
-										})}
-										<span className="ml-1">{Number(r.rating ?? 0).toFixed(1)}</span>
-									</div>
-								</div>
-								<div className="mt-2 text-sm text-muted-foreground">{r.review}</div>
-								<div className="mt-3 space-y-2">
-									<Textarea
-										placeholder="Write a reply"
-										value={replyTextById[r.id] ?? ''}
-										onChange={(e) => setReplyTextById((s) => ({ ...s, [r.id]: e.target.value }))}
-									/>
-									<div className="flex justify-end">
-										<Button
-											size="sm"
-											onClick={async () => {
-												const text = (replyTextById[r.id] ?? '').trim(); if (!text) return;
-												try { await coursesApi.replyToReview(r.courseId, r.id, text);
-													setPendingReviews((list) => list.filter((x) => x.id !== r.id));
-													setReplyTextById((s) => ({ ...s, [r.id]: '' })); } catch {}
-											}}
-										>
-											Send Reply
-										</Button>
-									</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</DialogContent>
-			</Dialog>
 
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+			<div className="grid grid-cols-1 gap-4">
 				{/* Recent Courses */}
 				<Card className="card-elevated">
 					<CardHeader>
@@ -374,21 +292,7 @@ const TeacherDashboard: React.FC = () => {
 					</CardContent>
 				</Card>
 
-				{/* Pending Assignments */}
-				<Card className="card-elevated">
-					<CardHeader>
-						<CardTitle>Assignments to Grade</CardTitle>
-						<CardDescription>
-							Recent student submissions
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-3">
-						<div className="p-3 rounded-md bg-muted/50">
-							<h4 className="font-medium text-sm">No submissions yet</h4>
-							<p className="text-[11px] text-muted-foreground">You'll see recent student work here.</p>
-						</div>
-					</CardContent>
-				</Card>
+				
 			</div>
 
 			{/* Quick Actions */}
@@ -397,14 +301,14 @@ const TeacherDashboard: React.FC = () => {
 					<CardTitle>Quick Actions</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-						<Button variant="outline" className="h-16 flex flex-col space-y-1" asChild>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<Button variant="outline" className="h-16 w-full flex flex-col space-y-1" asChild>
 							<Link to="/app/courses">
 								<Plus className="h-6 w-6" />
 								<span>Create New Course</span>
 							</Link>
 						</Button>
-						<Button variant="outline" className="h-16 flex flex-col space-y-1" asChild>
+						<Button variant="outline" className="h-16 w-full flex flex-col space-y-1" asChild>
 							<Link to="/app/students">
 								<Users className="h-6 w-6" />
 								<span>Manage Students</span>

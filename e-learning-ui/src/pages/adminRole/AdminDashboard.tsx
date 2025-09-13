@@ -170,10 +170,10 @@ const AdminDashboard: React.FC = () => {
         
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/app/settings')}>
           <CardHeader>
-            <CardTitle className="text-lg">Platform Settings</CardTitle>
+            <CardTitle className="text-lg">Admin Announcements</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Configure platform settings</p>
+            <p className="text-sm text-muted-foreground">Send announcements to teachers or students</p>
           </CardContent>
         </Card>
       </div>

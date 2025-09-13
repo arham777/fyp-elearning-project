@@ -204,7 +204,9 @@ const RoleUsersCard: React.FC<{
   users: User[]; 
   role: RoleCategory;
   onUserAction: (user: User | null, action: 'add' | 'remove' | 'block' | 'unblock') => void;
-}> = ({ title, users, role, onUserAction }) => {
+  enrollmentsByStudentId?: Record<number, number>;
+  coursesByTeacherId?: Record<number, number>;
+}> = ({ title, users, role, onUserAction, enrollmentsByStudentId, coursesByTeacherId }) => {
 	return (
 		<Card className="border-border/60">
 			<CardHeader>
@@ -218,8 +220,8 @@ const RoleUsersCard: React.FC<{
 			<CardContent className="space-y-3">
 				{users.map((u) => {
 					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || ((u.username?.slice(0, 2) ?? 'U'));
-					const enrolledCourses = role === 'student' ? Math.floor(Math.random() * 5) + 1 : 0;
-					const createdCourses = role === 'teacher' ? Math.floor(Math.random() * 3) + 1 : 0;
+					const enrolledCourses = role === 'student' ? (enrollmentsByStudentId?.[u.id] ?? 0) : 0;
+					const createdCourses = role === 'teacher' ? (coursesByTeacherId?.[u.id] ?? 0) : 0;
 					const isBlocked = u.is_active === false || !!u.deactivated_until;
 					
 					return (
@@ -317,6 +319,17 @@ const Users: React.FC = () => {
 		queryFn: adminApi.getAllUsers,
 	});
 
+	// Fetch courses and enrollments to compute real insights
+	const { data: allCourses = [] } = useQuery({
+		queryKey: ['admin', 'courses'],
+		queryFn: adminApi.getAllCourses,
+	});
+
+	const { data: allEnrollments = [] } = useQuery({
+		queryKey: ['admin', 'enrollments'],
+		queryFn: adminApi.getAllEnrollments,
+	});
+
 
 	const userActionMutation = useMutation({
 		mutationFn: async ({ user, action, userData }: { 
@@ -375,6 +388,25 @@ const Users: React.FC = () => {
 		return grouped;
 	}, [allUsers]);
 
+	// Precompute insights maps
+	const enrollmentsByStudentId = React.useMemo(() => {
+		const map: Record<number, number> = {};
+		for (const enr of allEnrollments as any[]) {
+			const studentId = typeof enr.student === 'object' ? enr.student?.id : enr.student;
+			if (typeof studentId === 'number') map[studentId] = (map[studentId] || 0) + 1;
+		}
+		return map;
+	}, [allEnrollments]);
+
+	const coursesByTeacherId = React.useMemo(() => {
+		const map: Record<number, number> = {};
+		for (const c of allCourses as any[]) {
+			const teacherId = typeof c.teacher === 'object' ? c.teacher?.id : c.teacher;
+			if (typeof teacherId === 'number') map[teacherId] = (map[teacherId] || 0) + 1;
+		}
+		return map;
+	}, [allCourses]);
+
 	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block' | 'unblock') => {
 		setDialogState({ user, action, isOpen: true });
 	};
@@ -413,12 +445,14 @@ const Users: React.FC = () => {
 							users={byRole.student} 
 							role="student"
 							onUserAction={handleUserAction}
+							enrollmentsByStudentId={enrollmentsByStudentId}
 						/>
 						<RoleUsersCard 
 							title="Teachers" 
 							users={byRole.teacher} 
 							role="teacher"
 							onUserAction={handleUserAction}
+							coursesByTeacherId={coursesByTeacherId}
 						/>
 					</div>
 				</TabsContent>

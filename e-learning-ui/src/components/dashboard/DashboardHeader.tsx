@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Search, GraduationCap, Menu } from 'lucide-react';
+import { Bell, GraduationCap, Menu, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from "next-themes";
@@ -42,7 +42,7 @@ const DashboardHeader: React.FC = () => {
     { to: '/app/course-management', label: 'Courses', roles: ['admin'] },
     { to: '/app/users', label: 'Users', roles: ['admin'] },
     { to: '/app/support', label: 'Support', roles: ['admin'] },
-    { to: '/app/settings', label: 'Settings', roles: ['admin'] },
+    { to: '/app/settings', label: 'Announcements', roles: ['admin'] },
   ];
 
   const links = user ? baseLinks.filter(l => l.roles.includes(user.role)) : [];
@@ -130,13 +130,6 @@ const DashboardHeader: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 min-w-0">
-            <div className="relative hidden sm:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-              <Input
-                placeholder="Search…"
-                className="h-9 w-64 pl-10 pr-4 text-sm rounded-full border border-input bg-card placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-ring transition-colors"
-              />
-            </div>
 
             <DropdownMenu open={notifOpen} onOpenChange={(o) => { setNotifOpen(o); if (o) openNotifications(); }}>
               <DropdownMenuTrigger asChild>
@@ -310,10 +303,15 @@ const DashboardHeader: React.FC = () => {
                 <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl shadow-lg">
                   <div className="p-4 pb-3">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.avatar} alt={user.username} />
-                        <AvatarFallback>{initials}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={user.avatar} alt={user.username} />
+                          <AvatarFallback>{initials}</AvatarFallback>
+                        </Avatar>
+                        {user.role === 'admin' && (
+                          <Crown className="absolute -top-1 -right-1 h-3 w-3" />
+                        )}
+                      </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{user.first_name || user.username}</p>
                         {user.email && (

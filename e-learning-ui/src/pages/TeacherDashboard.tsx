@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, BookOpen, ClipboardList, TrendingUp, Plus, ArrowRight } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Plus, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { coursesApi } from '@/api/courses';
 import { Course } from '@/types';
@@ -55,7 +55,7 @@ const TeacherDashboard: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="card-elevated">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
             <CardTitle className="text-xs font-medium">My Courses</CardTitle>
@@ -80,16 +80,7 @@ const TeacherDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="card-elevated">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-xs font-medium">Pending Reviews</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-xl font-semibold">0</div>
-            <p className="text-[11px] text-muted-foreground">No assignments to grade</p>
-          </CardContent>
-        </Card>
+        
 
         <Card className="card-elevated">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
@@ -103,7 +94,7 @@ const TeacherDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Recent Courses */}
         <Card className="card-elevated">
           <CardHeader>
@@ -154,21 +145,7 @@ const TeacherDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Pending Assignments */}
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle>Assignments to Grade</CardTitle>
-            <CardDescription>
-              Recent student submissions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="p-3 rounded-md bg-muted/50">
-              <h4 className="font-medium text-sm">No submissions yet</h4>
-              <p className="text-[11px] text-muted-foreground">You'll see recent student work here.</p>
-            </div>
-          </CardContent>
-        </Card>
+        
       </div>
 
       {/* Quick Actions */}
