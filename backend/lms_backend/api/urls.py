@@ -27,6 +27,7 @@ assignments_router.register(r'questions', views.AssignmentQuestionViewSet, basen
 router.register(r'certificates', views.CertificateViewSet, basename='certificate')
 # Notifications router
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
+router.register(r'support', views.SupportRequestViewSet, basename='support')
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),

@@ -70,7 +70,7 @@ const ModuleDetail: React.FC = () => {
     description: '',
     total_points: 100,
     passing_grade: 60,
-    max_attempts: 1,
+    max_attempts: 3,
   });
 
   // Question builder state
@@ -238,7 +238,7 @@ const ModuleDetail: React.FC = () => {
       const refreshed = await coursesApi.getCourseAssignments(courseId, { module: modId });
       setAssignments(refreshed);
       setIsAssignOpen(false);
-      setAssignForm({ title: '', assignment_type: 'qa', description: '', total_points: 100, passing_grade: 60, max_attempts: 1 });
+      setAssignForm({ title: '', assignment_type: 'qa', description: '', total_points: 100, passing_grade: 60, max_attempts: 3 });
       setNewQuestions([]);
       toast({ title: 'Assignment created' });
     } catch (err: unknown) {
@@ -686,7 +686,7 @@ const ModuleDetail: React.FC = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="attempts">Max attempts</Label>
-                        <Input id="attempts" type="number" min={1} value={assignForm.max_attempts ?? 1} onChange={(e) => setAssignForm((f) => ({ ...f, max_attempts: Math.max(1, Number(e.target.value)) }))} />
+                        <Input id="attempts" type="number" min={3} value={assignForm.max_attempts ?? 3} onChange={(e) => setAssignForm((f) => ({ ...f, max_attempts: Math.max(3, Number(e.target.value)) }))} />
                       </div>
                     </div>
 

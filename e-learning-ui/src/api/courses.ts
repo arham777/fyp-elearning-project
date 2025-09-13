@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate, Assignment, AssignmentQuestion, SubmissionAnswer, Submission } from '@/types';
+import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate, Assignment, AssignmentQuestion, SubmissionAnswer, Submission, StudentCourseProgress, StudentSubmissionsResponse } from '@/types';
 
 export const coursesApi = {
   async getCourses(params?: {
@@ -366,5 +366,15 @@ export const coursesApi = {
       completedAssignmentIds,
       assignmentResults
     };
+  },
+
+  async getStudentProgress(courseId: number, studentId: number): Promise<StudentCourseProgress> {
+    const res = await apiClient.get(`/courses/${courseId}/student-progress/${studentId}/`);
+    return res.data as StudentCourseProgress;
+  },
+
+  async getStudentSubmissions(courseId: number, studentId: number): Promise<StudentSubmissionsResponse> {
+    const res = await apiClient.get(`/courses/${courseId}/student-submissions/${studentId}/`);
+    return res.data as StudentSubmissionsResponse;
   },
 };

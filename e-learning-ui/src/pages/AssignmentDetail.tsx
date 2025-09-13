@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { coursesApi } from '@/api/courses';
+import { Check, X } from 'lucide-react';
 import { Assignment, AssignmentQuestion, SubmissionAnswer, Submission, User } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -32,6 +33,7 @@ const AssignmentDetail: React.FC = () => {
   const [mySubmissions, setMySubmissions] = useState<Submission[] | null>(null);
   const [grading, setGrading] = useState<{ id: number; grade: string; feedback: string } | null>(null);
   const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'admin';
+  const [lastOutcome, setLastOutcome] = useState<null | 'passed' | 'failed'>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -41,12 +43,57 @@ const AssignmentDetail: React.FC = () => {
         // Load my submissions (for Q&A answers visibility and history)
         const subs = await coursesApi.getAssignmentSubmissions(courseId, aId);
         setMySubmissions(subs);
+
+        // If previously attempted an MCQ, prefill selections and show review
+        if (data?.assignment_type === 'mcq' && Array.isArray(subs) && subs.length > 0) {
+          // pick the latest by attempt_number or submitted_at
+          const latest = [...subs].sort((a, b) => {
+            const an = (a.attempt_number ?? 0) - (b.attempt_number ?? 0);
+            if (an !== 0) return an;
+            const ad = a.submitted_at ? new Date(a.submitted_at).getTime() : 0;
+            const bd = b.submitted_at ? new Date(b.submitted_at).getTime() : 0;
+            return ad - bd;
+          }).slice(-1)[0];
+          // Normalize answers (API may return JSON string)
+          let latestAnswers: SubmissionAnswer[] = [];
+          const raw = (latest as any)?.answers;
+          if (Array.isArray(raw)) {
+            latestAnswers = raw as SubmissionAnswer[];
+          } else if (typeof raw === 'string') {
+            try { latestAnswers = JSON.parse(raw) as SubmissionAnswer[]; } catch { latestAnswers = []; }
+          }
+
+          const sel: Record<number, Set<number>> = {};
+          for (const ans of latestAnswers) {
+            if (ans.question_id && Array.isArray(ans.selected_option_ids)) {
+              sel[ans.question_id] = new Set(ans.selected_option_ids);
+            }
+          }
+          if (Object.keys(sel).length > 0) {
+            setMcqSelections(sel);
+            // compute review from these selections
+            const qs = (data.questions || []).filter((q) => q.question_type === 'mcq');
+            let correct = 0;
+            for (const q of qs) {
+              const selected = sel[q.id!] || new Set<number>();
+              const correctIds = new Set((q.options || []).filter((o) => o.is_correct).map((o) => o.id!));
+              if (selected.size === correctIds.size && Array.from(selected).every((id) => correctIds.has(id))) {
+                correct += 1;
+              }
+            }
+            const total = qs.length;
+            const wrong = Math.max(0, total - correct);
+            const percent = total ? Math.round((correct / total) * 100) : 0;
+            setReview({ correct, wrong, total, percent });
+            setCompleted(true); // mark as reviewed to keep UI consistent
+          }
+        }
       } finally {
         setIsLoading(false);
       }
     };
     if (!Number.isNaN(courseId) && !Number.isNaN(aId)) load();
-  }, [courseId, aId]);
+  }, [courseId, aId, user?.id]);
 
   const toggleOption = (qid: number, oid: number) => {
     setMcqSelections((prev) => ({ ...prev, [qid]: new Set([oid]) }));
@@ -108,9 +155,33 @@ const AssignmentDetail: React.FC = () => {
       setMySubmissions(subs);
       setInAttempt(false);
       setCompleted(false);
-      setReview(null);
+      // keep review for MCQ failures so student can see mistakes
+      // we'll clear it only when passed or for non-MCQ
       setFile(null);
-      toast({ title: 'Submitted successfully' });
+      // Decide outcome for MCQ based on local review vs passing grade; fallback to server flags
+      if (assignment.assignment_type === 'mcq') {
+        const passedNow = (() => {
+          if (review && typeof assignment.passing_grade === 'number') {
+            return review.percent >= (assignment.passing_grade || 0);
+          }
+          return Boolean(updated.passed);
+        })();
+        if (passedNow) {
+          setLastOutcome('passed');
+          toast({ title: 'Passed', description: 'Great job! You passed this assignment.' });
+          setReview(null);
+          navigate(-1);
+        } else {
+          setLastOutcome('failed');
+          const attemptsLeft = updated.can_attempt;
+          toast({ title: attemptsLeft ? 'Failed' : 'No attempts left', description: attemptsLeft ? 'You can try again.' : 'You have no attempts available.' });
+        }
+      } else {
+        // Non-MCQ: just confirm submission
+        setLastOutcome(null);
+        toast({ title: 'Submitted successfully' });
+        setReview(null);
+      }
     } catch (e: unknown) {
       const respData = (e as { response?: { data?: unknown } })?.response?.data;
       toast({ title: 'Error', description: typeof respData === 'string' ? respData : 'Failed to submit' });
@@ -189,6 +260,35 @@ const AssignmentDetail: React.FC = () => {
         </div>
         <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
       </div>
+
+      {/* Sticky top action bar for students to start attempt (hidden after a failed submission to keep a single action spot) */}
+      {!isTeacherOrAdmin && !inAttempt && !lastOutcome && (
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-md p-3 flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Attempts: {assignment.attempts_used ?? 0}/{assignment.max_attempts}
+            {' '}• Passing: {assignment.passing_grade}%
+            {typeof assignment.my_best_grade === 'number' && (
+              <>
+                {' '}• Best: {assignment.my_best_grade}% ({assignment.passed ? 'Passed' : 'Failed'})
+              </>
+            )}
+          </div>
+          <Button
+            onClick={() => {
+              setInAttempt(true);
+              setCompleted(false);
+              setReview(null);
+              setQaAnswers({});
+              setMcqSelections({});
+              setFile(null);
+              setLastOutcome(null);
+            }}
+            disabled={!assignment.can_attempt}
+          >
+            {assignment.can_attempt ? `Start attempt (${assignment.attempts_used ?? 0}/${assignment.max_attempts})` : 'No attempts available'}
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -277,25 +377,47 @@ const AssignmentDetail: React.FC = () => {
           <CardContent>
             {assignment.assignment_type === 'mcq' ? (
               <div className="space-y-6">
-                {(assignment.questions || []).filter((q) => q.question_type === 'mcq').map((q, idx) => (
-                  <div key={q.id} className="space-y-2">
-                    <div className="font-medium">{idx + 1}. {q.text}</div>
-                    <div className="space-y-2">
-                      {(q.options || []).map((opt) => (
-                        <label key={opt.id} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name={`q-${q.id}`}
-                            checked={Boolean(mcqSelections[q.id!]?.has(opt.id!))}
-                            onChange={() => toggleOption(q.id!, opt.id!)}
-                            disabled={!inAttempt}
-                          />
-                          {opt.text}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                {(assignment.questions || [])
+                  .filter((q) => q.question_type === 'mcq')
+                  .map((q, idx) => {
+                    const selected = mcqSelections[q.id!] || new Set<number>();
+                    const showReview = Boolean((inAttempt && completed) || (!inAttempt && review));
+                    return (
+                      <div key={q.id} className="space-y-2">
+                        <div className="font-medium">{idx + 1}. {q.text}</div>
+                        <div className="space-y-2">
+                          {(q.options || []).map((opt) => {
+                            const isSelected = selected.has(opt.id!);
+                            const isCorrect = Boolean(opt.is_correct);
+                            // Status only shown when reviewing
+                            const status: 'correct' | 'wrong' | 'neutral' = showReview
+                              ? (isCorrect ? 'correct' : (isSelected ? 'wrong' : 'neutral'))
+                              : 'neutral';
+                            const wrapperCls =
+                              status === 'correct'
+                                ? 'border-green-600/40 bg-green-500/10 text-green-600'
+                                : status === 'wrong'
+                                  ? 'border-red-600/40 bg-red-500/10 text-red-600'
+                                  : 'border-border';
+                            return (
+                              <label key={opt.id} className={`flex items-center gap-2 text-sm rounded-md border p-2 ${wrapperCls}`}>
+                                <input
+                                  type="radio"
+                                  name={`q-${q.id}`}
+                                  checked={isSelected}
+                                  onChange={() => toggleOption(q.id!, opt.id!)}
+                                  disabled={!inAttempt || (showReview && completed)}
+                                />
+                                <span className="flex-1">{opt.text}</span>
+                                {showReview && status === 'correct' && <Check className="h-4 w-4" />}
+                                {showReview && status === 'wrong' && <X className="h-4 w-4" />}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             ) : (
               <div className="space-y-6">
@@ -374,37 +496,54 @@ const AssignmentDetail: React.FC = () => {
       )}
 
       {!isTeacherOrAdmin && (
-      <div className="flex items-center justify-between">
-        {assignment.assignment_type === 'mcq' && review && (
-          <div className="text-sm text-muted-foreground">
-            Correct {review.correct}/{review.total} — Wrong {review.wrong} ({review.percent}%)
-          </div>
-        )}
-        <div className="flex gap-2">
-          {!inAttempt ? (
-            <Button
-              onClick={() => {
-                setInAttempt(true);
-                setCompleted(false);
-                setReview(null);
-                setQaAnswers({});
-                setMcqSelections({});
-                setFile(null);
-              }}
-              disabled={!assignment.can_attempt}
-            >
-              {assignment.can_attempt ? `Start attempt (${assignment.attempts_used ?? 0}/${assignment.max_attempts})` : 'No attempts available'}
-            </Button>
-          ) : (
-            <>
-              {assignment.assignment_type === 'mcq' && !completed && (
-                <Button onClick={complete} variant="secondary">Check answers</Button>
-              )}
-              <Button onClick={submit} disabled={submitting}>{submitting ? 'Submitting…' : 'Submit attempt'}</Button>
-            </>
+        <div className="flex items-center justify-between">
+          {assignment.assignment_type === 'mcq' && review && (
+            <div className="text-sm text-muted-foreground">
+              Correct {review.correct}/{review.total} — Wrong {review.wrong} ({review.percent}%)
+            </div>
           )}
+          <div className="flex gap-2">
+            {/* Single right-aligned action area */}
+            {inAttempt ? (
+              <Button
+                onClick={() => {
+                  if (assignment.assignment_type === 'mcq' && !completed) {
+                    // First click: show review
+                    setReview(computeMcqReview());
+                    setCompleted(true);
+                  } else {
+                    // Second click: submit
+                    submit();
+                  }
+                }}
+                disabled={submitting}
+              >
+                {submitting ? 'Submitting…' : (assignment.assignment_type === 'mcq' && !completed ? 'Submit' : 'Submit attempt')}
+              </Button>
+            ) : (
+              // After a failed submission, keep one action here to retake or show no-attempts
+              lastOutcome === 'failed' ? (
+                <Button
+                  onClick={() => {
+                    if (!assignment.can_attempt) return;
+                    setInAttempt(true);
+                    setCompleted(false);
+                    setReview(null);
+                    setQaAnswers({});
+                    setMcqSelections({});
+                    setFile(null);
+                    setLastOutcome(null);
+                  }}
+                  disabled={!assignment.can_attempt}
+                  variant={assignment.can_attempt ? 'default' : 'secondary'}
+                  title={!assignment.can_attempt ? 'No attempts available' : undefined}
+                >
+                  {assignment.can_attempt ? 'Retake attempt' : 'No attempts available'}
+                </Button>
+              ) : null
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Teacher submissions panel removed per product decision */}

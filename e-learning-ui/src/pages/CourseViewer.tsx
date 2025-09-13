@@ -68,6 +68,9 @@ const CourseViewer: React.FC = () => {
   const [verifyingCompletion, setVerifyingCompletion] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState<number>(0);
   const [hoverFeedbackRating, setHoverFeedbackRating] = useState<number>(0);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [myRating, setMyRating] = useState<number | null>(null);
+  const [myReview, setMyReview] = useState<string | null>(null);
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -140,6 +143,10 @@ const CourseViewer: React.FC = () => {
         ]);
         
         setCourse(courseData);
+        if ((courseData as any)?.my_rating) {
+          setFeedbackSubmitted(true);
+          setMyRating((courseData as any).my_rating ?? null);
+        }
         
         // Find user's enrollment for this course
         const userEnrollment = (enrollments as Enrollment[]).find(
@@ -159,7 +166,7 @@ const CourseViewer: React.FC = () => {
             const [contents, assignments, progress] = await Promise.all([
               coursesApi.getModuleContents(courseId, module.id).catch(() => []),
               coursesApi.getCourseAssignments(courseId, { module: module.id }).catch(() => []),
-              coursesApi.getModuleProgress(courseId, module.id).catch(() => ({ completedContentIds: [], completedAssignmentIds: [] }))
+              coursesApi.getModuleProgress(courseId, module.id).catch(() => ({ completedContentIds: [], completedAssignmentIds: [], assignmentResults: {} }))
             ]);
 
             return {
@@ -174,6 +181,18 @@ const CourseViewer: React.FC = () => {
         );
 
         setModuleContents(moduleData);
+
+        // Try to load my feedback to display inline (best-effort)
+        try {
+          const ratings = await coursesApi.getCourseRatings(courseId).catch(() => []) as any;
+          const list = Array.isArray(ratings) ? ratings : (ratings?.results ?? []);
+          const mine = list.find((r: any) => (r.user?.id ?? r.user_id ?? r.student?.id) === user?.id);
+          if (mine) {
+            if (typeof mine.rating === 'number') setMyRating(mine.rating);
+            if (typeof mine.review === 'string') setMyReview(mine.review);
+            setFeedbackSubmitted(true);
+          }
+        } catch {}
 
         // Smart auto-selection logic
         const { moduleToExpand, contentToSelect } = determineAutoSelection(moduleData);
@@ -333,7 +352,7 @@ const CourseViewer: React.FC = () => {
       // Combine and sort all items in this module
       const allItems = [
         ...md.contents.map(c => ({ ...c, type: 'content' as const, order: c.order })),
-        ...md.assignments.map(a => ({ ...a, type: 'assignment' as const, order: a.order || 999 }))
+        ...md.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a as any).order || 999 }))
       ].sort((a, b) => a.order - b.order);
 
       // Find first incomplete item in this module
@@ -360,7 +379,7 @@ const CourseViewer: React.FC = () => {
       const md = sortedModules[i];
       const allItems = [
         ...md.contents.map(c => ({ ...c, type: 'content' as const, order: c.order })),
-        ...md.assignments.map(a => ({ ...a, type: 'assignment' as const, order: a.order || 999 }))
+        ...md.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a as any).order || 999 }))
       ].sort((a, b) => b.order - a.order); // Reverse order to get last item first
 
       for (const item of allItems) {
@@ -386,7 +405,7 @@ const CourseViewer: React.FC = () => {
     if (firstModule) {
       const allItems = [
         ...firstModule.contents.map(c => ({ ...c, type: 'content' as const, order: c.order })),
-        ...firstModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: a.order || 999 }))
+        ...firstModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a as any).order || 999 }))
       ].sort((a, b) => a.order - b.order);
 
       const firstItem = allItems[0];
@@ -427,34 +446,44 @@ const CourseViewer: React.FC = () => {
             <>
               <h3 className="text-lg font-medium mb-2">Course completed !!</h3>
               <p className="text-muted-foreground">You have finished all modules and items.</p>
+              {(myRating || myReview) && (
+                <div className="mt-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`w-4 h-4 ${((myRating ?? 0) >= i + 1) ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    ))}
+                    {typeof myRating === 'number' && <span className="text-xs">{myRating}/5</span>}
+                  </div>
+                  {myReview && <div className="mt-1">“{myReview}”</div>}
+                </div>
+              )}
               {user?.role === 'student' && (
                 <div className="mt-4">
-                  <Dialog
-                    open={isFeedbackOpen}
-                    onOpenChange={async (open) => {
-                      setIsFeedbackOpen(open);
-                      if (open) {
-                        // On open, verify completion with the server and refresh certs/enrollment
-                        try {
-                          setVerifyingCompletion(true);
-                          // Attempt server-side auto-finalization via a lightweight rating check (no write),
-                          // so instead call our own mark-complete path indirectly by refreshing enrollment/certs
-                          const [enrollments, certs] = await Promise.all([
-                            coursesApi.getMyEnrollments().catch(() => []),
-                            coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
-                          ]);
-                          const userEnrollment = (enrollments as Enrollment[]).find(e => e.course?.id === courseId) || null;
-                          setEnrollment(userEnrollment);
-                          setMyCertificates(Array.isArray(certs) ? (certs as Certificate[]) : []);
-                        } finally {
-                          setVerifyingCompletion(false);
+                  {!course?.my_rating && !feedbackSubmitted ? (
+                    <Dialog
+                      open={isFeedbackOpen}
+                      onOpenChange={async (open) => {
+                        setIsFeedbackOpen(open);
+                        if (open) {
+                          // On open, verify completion with the server and refresh certs/enrollment
+                          try {
+                            setVerifyingCompletion(true);
+                            const [enrollments, certs] = await Promise.all([
+                              coursesApi.getMyEnrollments().catch(() => []),
+                              coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
+                            ]);
+                            const userEnrollment = (enrollments as Enrollment[]).find(e => e.course?.id === courseId) || null;
+                            setEnrollment(userEnrollment);
+                            setMyCertificates(Array.isArray(certs) ? (certs as Certificate[]) : []);
+                          } finally {
+                            setVerifyingCompletion(false);
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <DialogTrigger asChild>
-                      <Button variant="outline">Feedback</Button>
-                    </DialogTrigger>
+                      }}
+                    >
+                      <DialogTrigger asChild>
+                        <Button variant="outline">Feedback</Button>
+                      </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Share your feedback</DialogTitle>
@@ -504,6 +533,11 @@ const CourseViewer: React.FC = () => {
                                 setIsFeedbackOpen(false);
                                 setFeedbackText('');
                                 setFeedbackRating(0);
+                                // Immediately mark as rated locally to prevent multiple reviews
+                                setCourse((prev) => prev ? { ...prev, my_rating: feedbackRating } as Course : prev);
+                                setFeedbackSubmitted(true);
+                                setMyRating(feedbackRating);
+                                setMyReview(text);
                                 toast({ title: 'Feedback sent', description: 'Thank you for your feedback.' });
                               } catch (err: unknown) {
                                 const asRecord = (v: unknown): Record<string, unknown> | null =>
@@ -518,7 +552,18 @@ const CourseViewer: React.FC = () => {
                                 setSubmittingFeedback(false);
                               }
                             }}
-                            disabled={submittingFeedback || verifyingCompletion || !feedbackText.trim() || !feedbackRating || (enrollment?.status !== 'completed' && !myCertificates.some(c => c.course?.id === courseId))}
+                            disabled={
+                              submittingFeedback ||
+                              !feedbackText.trim() ||
+                              !feedbackRating ||
+                              !(
+                                // Allow send if any of these indicate completion
+                                showCourseCompleted ||
+                                (courseProgress.totalItems > 0 && courseProgress.completedItems === courseProgress.totalItems) ||
+                                enrollment?.status === 'completed' ||
+                                myCertificates.some(c => c.course?.id === courseId)
+                              )
+                            }
                           >
                             {verifyingCompletion ? 'Checking…' : (submittingFeedback ? 'Sending…' : 'Send')}
                           </Button>
@@ -526,6 +571,11 @@ const CourseViewer: React.FC = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  ) : (
+                    <Button variant="secondary" disabled title="You already submitted feedback for this course">
+                      Feedback sent
+                    </Button>
+                  )}
                 </div>
               )}
             </>
@@ -546,6 +596,7 @@ const CourseViewer: React.FC = () => {
     if (selectedContent.type === 'content') {
       const content = moduleData.contents.find(c => c.id === selectedContent.id);
       if (!content) return null;
+      const isCourseCompleteUI = courseProgress.totalItems > 0 && courseProgress.completedItems === courseProgress.totalItems;
 
       // Determine if this is the very last item (content or assignment) in the module
       const isLastItemInModule = (() => {
@@ -625,6 +676,17 @@ const CourseViewer: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 {content.content_type === 'video' ? 'Video Content' : 'Reading Material'}
               </p>
+              {isCourseCompleteUI && (myRating || myReview) && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`w-3 h-3 ${((myRating ?? 0) >= i + 1) ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    ))}
+                    {typeof myRating === 'number' && <span>{myRating}/5</span>}
+                  </div>
+                  {myReview && <div className="mt-1">“{myReview}”</div>}
+                </div>
+              )}
             </div>
             <Badge variant={moduleData.completedContentIds.includes(content.id) ? 'default' : 'secondary'}>
               {moduleData.completedContentIds.includes(content.id) ? 'Completed' : 'In Progress'}
@@ -727,114 +789,66 @@ const CourseViewer: React.FC = () => {
                 </div>
               )}
               
-              <div className="mt-6 flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    if (isLastItemInModule) {
-                      try {
-                        if (!moduleData.completedContentIds.includes(content.id)) {
-                          await coursesApi.markContentComplete(
-                            courseId,
-                            selectedContent.moduleId,
-                            content.id
-                          );
-                          // Refresh module data after marking complete
-                          const updatedProgress = await coursesApi.getModuleProgress(
-                            courseId,
-                            selectedContent.moduleId
-                          );
-                          setModuleContents(prev => prev.map(md =>
-                            md.module.id === selectedContent.moduleId
-                              ? {
-                                  ...md,
-                                  completedContentIds: updatedProgress.completedContentIds,
-                                  completedAssignmentIds: updatedProgress.completedAssignmentIds,
-                                  assignmentResults: updatedProgress.assignmentResults
-                                }
-                              : md
-                          ));
-                        }
-                      } catch (error) {
-                        console.error('Failed to mark content as complete before finishing:', error);
-                      } finally {
-                        // If it is the last module's last item, show course completed message
-                        if (isLastModule) {
-                          setShowCourseCompleted(true);
-                        }
-                        // Close the currently open content
-                        setSelectedContent(null);
-                      }
-                    } else {
-                      if (nextItem) {
-                        setSelectedContent({ type: nextItem.type, id: nextItem.id, moduleId: selectedContent.moduleId });
-                      } else {
-                        goToNextIncomplete();
-                      }
-                    }
-                  }}
-                >
-                  {isLastItemInModule ? 'Finish' : (nextItemIsAssignment ? 'Next Assignment' : 'Next Lesson')}
-                </Button>
-                {isLastItemInModule && !isLastModule && (
-                  <Button
-                    onClick={() => {
-                      const nextModule = sortedModules[currentModuleIndex + 1];
-                      if (!nextModule) return;
-                      // Expand next module
-                      setExpandedModules(new Set([nextModule.module.id]));
-                      // Choose first incomplete item in next module, else first item
-                      const allNextItems = [
-                        ...nextModule.contents.map(c => ({ ...c, type: 'content' as const, order: c.order ?? 0 })),
-                        ...nextModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a.order ?? 999) }))
-                      ].sort((a, b) => a.order - b.order);
+              {!isCourseCompleteUI && (
+              <div className="mt-6 flex justify-end">
+                {(() => {
+                  const isCompleted = moduleData.completedContentIds.includes(content.id);
+                  const isCourseComplete = (courseProgress.totalItems > 0) && (courseProgress.completedItems === courseProgress.totalItems);
+                  const finishingCourse = isCompleted && isLastItemInModule && isLastModule && isCourseComplete;
 
-                      let target: { type: 'content' | 'assignment'; id: number } | null = null;
-                      for (const it of allNextItems) {
-                        const isCompleted = it.type === 'content'
-                          ? nextModule.completedContentIds.includes(it.id)
-                          : nextModule.completedAssignmentIds.includes(it.id);
-                        if (!isCompleted) { target = { type: it.type, id: it.id }; break; }
-                      }
-                      if (!target && allNextItems[0]) {
-                        target = { type: allNextItems[0].type, id: allNextItems[0].id };
-                      }
-                      if (target) {
-                        setSelectedContent({ type: target.type, id: target.id, moduleId: nextModule.module.id });
-                      }
-                    }}
-                  >
-                    Next Module
-                  </Button>
-                )}
-                {!moduleData.completedContentIds.includes(content.id) && (
-                  <Button 
-                    onClick={async () => {
-                      try {
-                        await coursesApi.markContentComplete(courseId, selectedContent.moduleId, content.id);
-                        // Refresh module data
-                        const updatedProgress = await coursesApi.getModuleProgress(courseId, selectedContent.moduleId);
-                        setModuleContents(prev => prev.map(md => 
-                          md.module.id === selectedContent.moduleId 
-                            ? { 
-                                ...md, 
-                                completedContentIds: updatedProgress.completedContentIds,
-                                completedAssignmentIds: updatedProgress.completedAssignmentIds,
-                                assignmentResults: updatedProgress.assignmentResults
-                              }
-                            : md
-                        ));
-                      } catch (error) {
-                        console.error('Failed to mark content as complete:', error);
-                      }
-                    }}
-                    disabled={content.content_type === 'video' && duration > 0 && (maxTimeSeen / duration) * 100 < MIN_WATCH_PERCENT}
-                    title={content.content_type === 'video' && duration > 0 && (maxTimeSeen / duration) * 100 < MIN_WATCH_PERCENT ? `Watch at least ${MIN_WATCH_PERCENT}% to enable` : undefined}
-                  >
-                    Mark as Complete
-                  </Button>
-                )}
+                  if (!isCompleted) {
+                    return (
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await coursesApi.markContentComplete(courseId, selectedContent.moduleId, content.id);
+                            // Refresh module data
+                            const updatedProgress = await coursesApi.getModuleProgress(courseId, selectedContent.moduleId);
+                            setModuleContents(prev => prev.map(md => 
+                              md.module.id === selectedContent.moduleId 
+                                ? { 
+                                    ...md, 
+                                    completedContentIds: updatedProgress.completedContentIds,
+                                    completedAssignmentIds: updatedProgress.completedAssignmentIds,
+                                    assignmentResults: updatedProgress.assignmentResults
+                                  }
+                                : md
+                            ));
+                          } catch (error) {
+                            console.error('Failed to mark content as complete:', error);
+                          }
+                        }}
+                        disabled={content.content_type === 'video' && duration > 0 && (maxTimeSeen / duration) * 100 < MIN_WATCH_PERCENT}
+                        title={content.content_type === 'video' && duration > 0 && (maxTimeSeen / duration) * 100 < MIN_WATCH_PERCENT ? `Watch at least ${MIN_WATCH_PERCENT}% to enable` : undefined}
+                      >
+                        Mark as Complete
+                      </Button>
+                    );
+                  }
+
+                  // When completed, show a single Next/Finish button in the same place
+                  return (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (finishingCourse) {
+                          setShowCourseCompleted(true);
+                          setSelectedContent(null);
+                          return;
+                        }
+                        if (nextItem) {
+                          setSelectedContent({ type: nextItem.type, id: nextItem.id, moduleId: selectedContent.moduleId });
+                        } else {
+                          goToNextIncomplete();
+                        }
+                      }}
+                    >
+                      {finishingCourse ? 'Finish Course' : (nextItemIsAssignment ? 'Next Assignment' : 'Next Lesson')}
+                    </Button>
+                  );
+                })()}
               </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -855,6 +869,7 @@ const CourseViewer: React.FC = () => {
 
       const currentModuleIndex = sortedModules.findIndex(md => md.module.id === selectedContent.moduleId);
       const isLastModule = currentModuleIndex === sortedModules.length - 1;
+      const isCourseCompleteUI = courseProgress.totalItems > 0 && courseProgress.completedItems === courseProgress.totalItems;
 
       return (
         <div className="space-y-4">
@@ -864,6 +879,17 @@ const CourseViewer: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 {assignment.assignment_type === 'mcq' ? 'Multiple Choice Quiz' : 'Q&A Assignment'}
               </p>
+              {isCourseCompleteUI && (myRating || myReview) && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`w-3 h-3 ${((myRating ?? 0) >= i + 1) ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                    ))}
+                    {typeof myRating === 'number' && <span>{myRating}/5</span>}
+                  </div>
+                  {myReview && <div className="mt-1">“{myReview}”</div>}
+                </div>
+              )}
             </div>
             <Badge variant={moduleData.completedAssignmentIds.includes(assignment.id) ? 'default' : 'secondary'}>
               {moduleData.completedAssignmentIds.includes(assignment.id) ? 'Completed' : 'Not Started'}
@@ -933,73 +959,42 @@ const CourseViewer: React.FC = () => {
                     return 'Start Assignment';
                   })()}
                 </Button>
-                <div className="mt-6 flex justify-between">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (isLastItemInModule) {
-                        // On last item of last module, close and show completed
-                        if (isLastModule) {
-                          setShowCourseCompleted(true);
-                        }
-                        setSelectedContent(null);
-                      } else {
-                        // When viewing an assignment, advance to the immediate next item, if any
-                        const allItems = [
-                          ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
-                          ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
-                        ].sort((a, b) => a.order - b.order);
-                        const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
-                        const next = idx >= 0 ? allItems[idx + 1] : undefined;
-                        if (next) {
-                          setSelectedContent({ type: next.type, id: next.id, moduleId: selectedContent.moduleId });
-                        } else {
-                          goToNextIncomplete();
-                        }
-                      }
-                    }}
-                  >
-                    {(() => {
-                      if (isLastItemInModule) return 'Finish';
-                      const allItems = [
-                        ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
-                        ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
-                      ].sort((a, b) => a.order - b.order);
-                      const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
-                      const next = idx >= 0 ? allItems[idx + 1] : undefined;
-                      if (next?.type === 'assignment') return 'Next Assignment';
-                      return 'Next Lesson';
-                    })()}
-                  </Button>
-                  {isLastItemInModule && !isLastModule && (
-                    <Button
-                      onClick={() => {
-                        const nextModule = sortedModules[currentModuleIndex + 1];
-                        if (!nextModule) return;
-                        setExpandedModules(new Set([nextModule.module.id]));
-                        const allNextItems = [
-                          ...nextModule.contents.map(c => ({ ...c, type: 'content' as const, order: c.order ?? 0 })),
-                          ...nextModule.assignments.map(a => ({ ...a, type: 'assignment' as const, order: (a.order ?? 999) }))
-                        ].sort((a, b) => a.order - b.order);
-                        let target: { type: 'content' | 'assignment'; id: number } | null = null;
-                        for (const it of allNextItems) {
-                          const isCompleted = it.type === 'content'
-                            ? nextModule.completedContentIds.includes(it.id)
-                            : nextModule.completedAssignmentIds.includes(it.id);
-                          if (!isCompleted) { target = { type: it.type, id: it.id }; break; }
-                        }
-                        if (!target && allNextItems[0]) {
-                          target = { type: allNextItems[0].type, id: allNextItems[0].id };
-                        }
-                        if (target) {
-                          setSelectedContent({ type: target.type, id: target.id, moduleId: nextModule.module.id });
-                        }
-                      }}
-                    >
-                      Next Module
-                    </Button>
-                  )}
-                </div>
+                {!isCourseCompleteUI && (() => {
+                  const isAssignmentCompleted = moduleData.completedAssignmentIds.includes(assignment.id);
+                  const isCourseComplete = (courseProgress.totalItems > 0) && (courseProgress.completedItems === courseProgress.totalItems);
+                  const finishingCourse = isAssignmentCompleted && isLastItemInModule && isLastModule && isCourseComplete;
+
+                  if (!isAssignmentCompleted && !finishingCourse) return null; // Hide next/finish until completed
+
+                  const allItems = [
+                    ...moduleData.contents.map(c => ({ type: 'content' as const, id: c.id, order: c.order ?? 0 })),
+                    ...moduleData.assignments.map(a => ({ type: 'assignment' as const, id: a.id, order: (a.order ?? 999) }))
+                  ].sort((a, b) => a.order - b.order);
+                  const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
+                  const next = idx >= 0 ? allItems[idx + 1] : undefined;
+
+                  return (
+                    <div className="mt-6 flex justify-end">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (finishingCourse) {
+                            setShowCourseCompleted(true);
+                            setSelectedContent(null);
+                            return;
+                          }
+                          if (next) {
+                            setSelectedContent({ type: next.type, id: next.id, moduleId: selectedContent.moduleId });
+                          } else {
+                            goToNextIncomplete();
+                          }
+                        }}
+                      >
+                        {finishingCourse ? 'Finish Course' : (next?.type === 'assignment' ? 'Next Assignment' : 'Next Lesson')}
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>

@@ -44,6 +44,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
+    # Blocking fields
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivation_reason = models.TextField(null=True, blank=True)
+    # If set in the future, user remains blocked until this timestamp
+    deactivated_until = models.DateTimeField(null=True, blank=True)
+
     objects = UserManager()
 
     USERNAME_FIELD = 'username'
@@ -51,6 +57,38 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.username
+
+    @property
+    def is_blocked(self) -> bool:
+        """Return True if the user is currently blocked.
+
+        We consider a user blocked if:
+        - is_active is False; or
+        - deactivated_until exists and is in the future
+        """
+        if self.is_active is False:
+            return True
+        if self.deactivated_until and self.deactivated_until > timezone.now():
+            return True
+        return False
+
+    def refresh_block_status(self) -> bool:
+        """Auto-unblock if the deactivation period has expired.
+
+        Returns True if any change was made/saved.
+        """
+        changed = False
+        if self.deactivated_until and self.deactivated_until <= timezone.now():
+            # Period expired -> reactivate
+            self.is_active = True
+            self.deactivated_until = None
+            self.deactivated_at = None
+            self.deactivation_reason = None
+            changed = True
+        # If is_active is False but no until date -> leave as-is (manual block)
+        if changed:
+            self.save(update_fields=['is_active', 'deactivated_until', 'deactivated_at', 'deactivation_reason'])
+        return changed
 
 # Courses Model
 class Course(models.Model):
@@ -266,7 +304,7 @@ class Assignment(models.Model):
     )
     assignment_type = models.CharField(max_length=5, choices=ASSIGNMENT_TYPES, default='qa')
     # Maximum number of attempts a student can make for this assignment
-    max_attempts = models.PositiveIntegerField(default=1)
+    max_attempts = models.PositiveIntegerField(default=3, validators=[MinValueValidator(3)])
 
     def __str__(self):
         return f"{self.title} - {self.course.title}"
@@ -404,3 +442,31 @@ class CourseRating(models.Model):
 
     def __str__(self):
         return f"{self.course.title} - {self.student.username}: {self.rating}"
+
+# Lightweight Support Request for blocked users and general help
+class SupportRequest(models.Model):
+    STATUS_CHOICES = (
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+    )
+    id = models.AutoField(primary_key=True)
+    # If we can identify the user (by email/username), link it; else leave null
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='support_requests')
+    email = models.EmailField()
+    username = models.CharField(max_length=150, null=True, blank=True)
+    # Reason shown on blocked page
+    reason_seen = models.TextField(null=True, blank=True)
+    # Auto-unblock time reported by client (for convenience)
+    until_reported = models.DateTimeField(null=True, blank=True)
+    # Extra message from user
+    message = models.TextField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(default=timezone.now)
+    handled_at = models.DateTimeField(null=True, blank=True)
+    handled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='handled_support_requests')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"SupportRequest #{self.id} - {self.email} - {self.status}"

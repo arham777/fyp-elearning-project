@@ -62,6 +62,35 @@ apiClient.interceptors.response.use(
     const AUTH_EXCLUDED_PATHS = ['/token/', '/token/refresh/', '/register/'];
     const isAuthEndpoint = AUTH_EXCLUDED_PATHS.some((path) => requestUrl?.includes(path));
 
+    // If the backend says the account is blocked, route to a dedicated page
+    if (error.response?.status === 403) {
+      const detail: unknown = error.response?.data?.detail;
+      if (typeof detail === 'string' && detail.startsWith('ACCOUNT_BLOCKED:')) {
+        const reason = detail.replace('ACCOUNT_BLOCKED:', '').trim();
+        // Try to parse "unblocked on <date> UTC" from message
+        let until: string | undefined;
+        const m = detail.match(/unblocked on\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\s+UTC/i);
+        if (m?.[1]) {
+          until = m[1].replace(' ', 'T') + ':00Z';
+        }
+        // Try to extract the email or username from the original request body (e.g., login form)
+        let emailQP: string | undefined;
+        let usernameQP: string | undefined;
+        try {
+          const data = originalRequest?.data;
+          const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.email) emailQP = String(parsed.email);
+            if (parsed.username) usernameQP = String(parsed.username);
+          }
+        } catch {}
+        const qs = new URLSearchParams({ reason, ...(until ? { until } : {}), ...(emailQP ? { email: emailQP } : {}), ...(usernameQP ? { username: usernameQP } : {}) }).toString();
+        if (!window.location.pathname.startsWith('/blocked')) {
+          window.location.href = `/blocked?${qs}`;
+        }
+      }
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 

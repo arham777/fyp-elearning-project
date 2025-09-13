@@ -41,6 +41,7 @@ const DashboardHeader: React.FC = () => {
     { to: '/app/students', label: 'Students', roles: ['teacher'] },
     { to: '/app/course-management', label: 'Courses', roles: ['admin'] },
     { to: '/app/users', label: 'Users', roles: ['admin'] },
+    { to: '/app/support', label: 'Support', roles: ['admin'] },
     { to: '/app/settings', label: 'Settings', roles: ['admin'] },
   ];
 
@@ -162,6 +163,20 @@ const DashboardHeader: React.FC = () => {
                       onClick={async () => {
                         try { await notificationsApi.markRead(n.id); } catch (err) { console.warn('Failed to mark notification as read', err); }
                         setNotifOpen(false);
+                        if (n.notif_type === 'support') {
+                          // Try to extract the support request id or email from message
+                          let q = '';
+                          try {
+                            const idMatch = n.message.match(/Support request #(\d+)/i);
+                            if (idMatch?.[1]) q = idMatch[1];
+                            if (!q) {
+                              const emailMatch = n.message.match(/from\s+([^\s]+@[^\s]+)\b/i);
+                              if (emailMatch?.[1]) q = emailMatch[1];
+                            }
+                          } catch {}
+                          navigate(q ? `/app/support?q=${encodeURIComponent(q)}` : '/app/support');
+                          return;
+                        }
                         if (n.course) {
                           if (user?.role === 'admin') {
                             navigate(`/app/admin/courses/${n.course}`);

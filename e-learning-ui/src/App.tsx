@@ -18,6 +18,7 @@ import ContentViewer from "@/pages/ContentViewer";
 import AssignmentDetail from "./pages/AssignmentDetail";
 import CourseViewer from "@/pages/CourseViewer";
 import NotFound from "@/pages/NotFound";
+import Blocked from "@/pages/Blocked";
 import UsersPage from "@/pages/adminRole/Users";
 import CourseManagement from "@/pages/adminRole/CourseManagement";
 import CertificateManagement from "@/pages/adminRole/CertificateManagement";
@@ -30,6 +31,7 @@ import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
 import CertificateView from "@/pages/CertificateView";
 import AdminCourseView from "@/pages/adminRole/AdminCourseView";
+import Support from "@/pages/adminRole/Support";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -79,6 +81,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
+              <Route path="/blocked" element={<Blocked />} />
 
               {/* Backward-compat redirects for old non-/app URLs */}
               <Route path="/courses/:id" element={<Navigate to="/app/courses/:id" replace />} />
@@ -121,6 +124,7 @@ const App = () => (
                 <Route path="course-management" element={<CourseManagement />} />
                 <Route path="certificate-management" element={<CertificateManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="support" element={<Support />} />
                 <Route path="profile" element={<Profile />} />
                 {/* Redirect old /app/assignments URL to dashboard */}
                 <Route path="assignments" element={<Navigate to="/app" replace />} />

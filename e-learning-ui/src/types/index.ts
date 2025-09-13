@@ -13,6 +13,10 @@ export interface User {
   date_joined?: string;
   avatar?: string;
   is_active?: boolean;
+  // Blocking metadata (optional, admin-only)
+  deactivated_at?: string | null;
+  deactivation_reason?: string | null;
+  deactivated_until?: string | null;
 }
 
 export interface Course {
@@ -118,6 +122,56 @@ export interface Enrollment {
   progress: number; // computed via serializer
 }
 
+// Detailed progress for a particular student within a course (teacher view)
+export interface StudentCourseProgressModule {
+  id: number;
+  title: string;
+  order: number;
+  total_content: number;
+  completed_content: number;
+  percent: number; // 0..100
+  assignments_total: number;
+  assignments_passed: number;
+}
+
+export interface StudentCourseProgressAssignment {
+  id: number;
+  title: string;
+  assignment_type: 'mcq' | 'qa';
+  passing_grade: number;
+  max_attempts: number;
+  attempts_used: number;
+  best_grade: number | null;
+  passed: boolean;
+  last_submission_date?: string | null;
+}
+
+export interface StudentCourseProgress {
+  student: User;
+  enrollment: { id: number; status: 'active' | 'completed'; enrollment_date: string };
+  overall_progress: number; // 0..100
+  modules: StudentCourseProgressModule[];
+  assignments: StudentCourseProgressAssignment[];
+}
+
+// Submissions history per assignment for a given student in a course (teacher view)
+export interface StudentSubmissionsResponseAssignment {
+  id: number;
+  title: string;
+  assignment_type: 'mcq' | 'qa';
+  passing_grade: number;
+  max_attempts: number;
+  best_grade: number | null;
+  passed: boolean;
+  submissions: Submission[];
+}
+
+export interface StudentSubmissionsResponse {
+  student: User;
+  enrollment_id: number;
+  assignments: StudentSubmissionsResponseAssignment[];
+}
+
 export interface ContentProgress {
   id: number;
   user: number;
@@ -186,6 +240,20 @@ export interface Certificate {
   issue_date: string;
   verification_code: string;
   is_revoked?: boolean;
+}
+
+// Support requests (blocked account or general help)
+export interface SupportRequest {
+  id: number;
+  email: string;
+  username?: string | null;
+  reason_seen?: string | null;
+  until_reported?: string | null;
+  message?: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  handled_at?: string | null;
+  handled_by?: User | null;
 }
 
 export interface TeacherRequest {

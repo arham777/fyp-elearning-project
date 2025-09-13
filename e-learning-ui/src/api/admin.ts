@@ -106,14 +106,14 @@ export const adminApi = {
     await apiClient.delete(`/users/${userId}/`);
   },
 
-  async blockUser(userId: number): Promise<User> {
-    const response = await apiClient.patch(`/users/${userId}/`, { is_active: false });
-    return response.data;
+  async blockUser(userId: number, payload?: { reason?: string; duration_days?: number; until?: string }): Promise<User> {
+    const response = await apiClient.post(`/users/${userId}/block/`, payload ?? {});
+    return response.data as User;
   },
 
   async unblockUser(userId: number): Promise<User> {
-    const response = await apiClient.patch(`/users/${userId}/`, { is_active: true });
-    return response.data;
+    const response = await apiClient.post(`/users/${userId}/unblock/`, {});
+    return response.data as User;
   },
 
   // Course Management

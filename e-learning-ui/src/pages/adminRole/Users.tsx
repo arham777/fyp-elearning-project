@@ -22,7 +22,7 @@ type RoleCategory = 'teacher' | 'student';
 
 interface UserActionDialogProps {
   user: User | null;
-  action: 'add' | 'remove' | 'block' | null;
+  action: 'add' | 'remove' | 'block' | 'unblock' | null;
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (userData?: any) => void;
@@ -41,6 +41,9 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
     email: '',
     role: 'teacher' as 'student' | 'teacher'
   });
+  const [blockData, setBlockData] = React.useState<{ reason: string; duration_days?: number; until?: string }>({
+    reason: '',
+  });
 
   const getDialogContent = () => {
     switch (action) {
@@ -57,7 +60,12 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
       case 'block':
         return {
           title: 'Block Student',
-          description: `Are you sure you want to block "${user?.first_name} ${user?.last_name}"? They will not be able to access the platform.`
+          description: `Block "${user?.first_name} ${user?.last_name}" and set reason and duration. They will immediately lose access.`
+        };
+      case 'unblock':
+        return {
+          title: 'Unblock Student',
+          description: `Unblock "${user?.first_name} ${user?.last_name}" so they can access the platform again.`
         };
       default:
         return { title: '', description: '' };
@@ -69,6 +77,8 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
   const handleSubmit = () => {
     if (action === 'add') {
       onConfirm(formData);
+    } else if (action === 'block') {
+      onConfirm(blockData);
     } else {
       onConfirm();
     }
@@ -128,13 +138,56 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
             </div>
           </div>
         )}
+
+        {action === 'block' && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="reason">Reason</Label>
+              <Input
+                id="reason"
+                value={blockData.reason}
+                onChange={(e) => setBlockData(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Enter reason for blocking"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="duration_days">Duration (days)</Label>
+                <Input
+                  id="duration_days"
+                  type="number"
+                  min={1}
+                  value={blockData.duration_days ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setBlockData(prev => ({ ...prev, duration_days: v ? Number(v) : undefined }));
+                  }}
+                  placeholder="e.g. 7"
+                />
+              </div>
+              <div>
+                <Label htmlFor="until">Or block until date</Label>
+                <Input
+                  id="until"
+                  type="datetime-local"
+                  value={blockData.until ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setBlockData(prev => ({ ...prev, until: v || undefined }));
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">If both provided, specific date takes precedence.</p>
+              </div>
+            </div>
+          </div>
+        )}
         
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button 
             variant={action === 'remove' || action === 'block' ? 'destructive' : 'default'}
             onClick={handleSubmit}
-            disabled={action === 'add' && (!formData.first_name || !formData.email)}
+            disabled={(action === 'add' && (!formData.first_name || !formData.email)) || (action === 'block' && !blockData.reason)}
           >
             {action === 'add' ? 'Add User' : 
              action === 'remove' ? 'Remove' : 
@@ -150,7 +203,7 @@ const RoleUsersCard: React.FC<{
   title: string; 
   users: User[]; 
   role: RoleCategory;
-  onUserAction: (user: User | null, action: 'add' | 'remove' | 'block') => void;
+  onUserAction: (user: User | null, action: 'add' | 'remove' | 'block' | 'unblock') => void;
 }> = ({ title, users, role, onUserAction }) => {
 	return (
 		<Card className="border-border/60">
@@ -167,9 +220,10 @@ const RoleUsersCard: React.FC<{
 					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || ((u.username?.slice(0, 2) ?? 'U'));
 					const enrolledCourses = role === 'student' ? Math.floor(Math.random() * 5) + 1 : 0;
 					const createdCourses = role === 'teacher' ? Math.floor(Math.random() * 3) + 1 : 0;
+					const isBlocked = u.is_active === false || !!u.deactivated_until;
 					
 					return (
-						<div key={u.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/40">
+						<div key={u.id} className={`flex items-center justify-between gap-3 p-3 rounded-lg border border-border/40 ${isBlocked ? 'bg-destructive/5' : ''}`}>
 							<div className="flex items-center gap-3 min-w-0 flex-1">
 								<Avatar className="h-10 w-10">
 									<AvatarFallback>{initials.toUpperCase()}</AvatarFallback>
@@ -179,6 +233,9 @@ const RoleUsersCard: React.FC<{
 										<div className="text-sm font-medium truncate">
 											{u.first_name || u.last_name ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : u.username}
 										</div>
+										{isBlocked && (
+										  <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive">Blocked</span>
+										)}
 									</div>
 									<div className="text-xs text-muted-foreground truncate">{u.email}</div>
 									<div className="text-xs text-muted-foreground flex items-center gap-4">
@@ -207,10 +264,17 @@ const RoleUsersCard: React.FC<{
 								<DropdownMenuContent align="end">
 									{role === 'student' && (
 										<>
-											<DropdownMenuItem onClick={() => onUserAction(u, 'block')}>
-												<UserX className="mr-2 h-4 w-4" />
-												Block Student
-											</DropdownMenuItem>
+											{isBlocked ? (
+                                              <DropdownMenuItem onClick={() => onUserAction(u, 'unblock')}>
+                                                <UserX className="mr-2 h-4 w-4 rotate-180" />
+                                                Unblock Student
+                                              </DropdownMenuItem>
+                                            ) : (
+                                              <DropdownMenuItem onClick={() => onUserAction(u, 'block')}>
+                                                <UserX className="mr-2 h-4 w-4" />
+                                                Block Student
+                                              </DropdownMenuItem>
+                                            )}
 										</>
 									)}
 									<DropdownMenuItem 
@@ -240,7 +304,7 @@ const Users: React.FC = () => {
 	const [activeTab, setActiveTab] = React.useState('users');
 	const [dialogState, setDialogState] = React.useState<{
 		user: User | null;
-		action: 'add' | 'remove' | 'block' | null;
+		action: 'add' | 'remove' | 'block' | 'unblock' | null;
 		isOpen: boolean;
 	}>({
 		user: null,
@@ -257,7 +321,7 @@ const Users: React.FC = () => {
 	const userActionMutation = useMutation({
 		mutationFn: async ({ user, action, userData }: { 
 			user?: User; 
-			action: 'add' | 'remove' | 'block'; 
+			action: 'add' | 'remove' | 'block' | 'unblock'; 
 			userData?: any 
 		}) => {
 			switch (action) {
@@ -271,7 +335,12 @@ const Users: React.FC = () => {
 					break;
 				case 'block':
 					if (user?.id) {
-						return await adminApi.blockUser(user.id);
+						return await adminApi.blockUser(user.id, userData);
+					}
+					break;
+				case 'unblock':
+					if (user?.id) {
+						return await adminApi.unblockUser(user.id);
 					}
 					break;
 			}
@@ -280,7 +349,8 @@ const Users: React.FC = () => {
 		onSuccess: (data) => {
 			queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
 			const actionText = dialogState.action === 'add' ? 'added' : 
-									 dialogState.action === 'remove' ? 'removed' : 'blocked';
+										 dialogState.action === 'remove' ? 'removed' : 
+										 dialogState.action === 'unblock' ? 'unblocked' : 'blocked';
 			toast({
 				title: "Success",
 				description: `User ${actionText} successfully.`,
@@ -305,7 +375,7 @@ const Users: React.FC = () => {
 		return grouped;
 	}, [allUsers]);
 
-	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block') => {
+	const handleUserAction = (user: User | null, action: 'add' | 'remove' | 'block' | 'unblock') => {
 		setDialogState({ user, action, isOpen: true });
 	};
 

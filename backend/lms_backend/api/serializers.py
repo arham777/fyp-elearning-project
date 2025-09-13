@@ -2,14 +2,18 @@ from rest_framework import serializers
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion, AssignmentOption, CourseRating
+    AssignmentQuestion, AssignmentOption, CourseRating, SupportRequest
 )
 from django.db.models import Avg, Count
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'created_at']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'role', 'created_at',
+            # Blocking-related fields
+            'is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until'
+        ]
         read_only_fields = ['created_at']
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -67,6 +71,16 @@ class AssignmentSerializer(serializers.ModelSerializer):
             'attempts_used', 'can_attempt', 'my_best_grade', 'passed'
         ]
         read_only_fields = ['course']
+
+    def validate_max_attempts(self, value):
+        # Enforce a minimum of 3 attempts
+        try:
+            v = int(value) if value is not None else 3
+        except (TypeError, ValueError):
+            v = 3
+        if v < 3:
+            raise serializers.ValidationError('Minimum 3 attempts are required.')
+        return v
 
     def get_questions(self, obj):
         qs = obj.questions.all()
@@ -297,3 +311,10 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ['id', 'student', 'course', 'amount', 'payment_method', 'status', 'payment_date']
         read_only_fields = ['payment_date'] 
+
+class SupportRequestSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    class Meta:
+        model = SupportRequest
+        fields = ['id', 'user', 'email', 'username', 'reason_seen', 'until_reported', 'message', 'status', 'created_at', 'handled_at', 'handled_by']
+        read_only_fields = ['user', 'status', 'created_at', 'handled_at', 'handled_by']

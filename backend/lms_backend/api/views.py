@@ -10,11 +10,14 @@ from django.db.models.functions import TruncMonth
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from datetime import datetime, timedelta, timezone as dt_timezone
+from django.core.mail import send_mail
 
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion, Notification, CourseRating
+    AssignmentQuestion, Notification, CourseRating, SupportRequest
 )
 
 from .serializers import (
@@ -22,10 +25,10 @@ from .serializers import (
     CourseModuleSerializer, ContentSerializer, EnrollmentSerializer,
     ContentProgressSerializer, PaymentSerializer, AssignmentSerializer,
     AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer,
-    CourseRatingSerializer
+    CourseRatingSerializer, SupportRequestSerializer
 )
 
-from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher
+from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher, IsActiveUser
 
 # Custom JWT Token View to allow login with either username or email
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -46,10 +49,41 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             except User.DoesNotExist:
                 return Response({"detail": "No user found with this email"}, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Pre-check blocked status if user exists (so we can return a clear message)
+        try:
+            user_lookup = User.objects.filter(username=username).first()
+            if user_lookup:
+                # Auto-refresh expiry if duration elapsed
+                try:
+                    user_lookup.refresh_block_status()
+                except Exception:
+                    pass
+                if getattr(user_lookup, 'is_blocked', False):
+                    # Construct message similar to IsActiveUser
+                    until = getattr(user_lookup, 'deactivated_until', None)
+                    reason = getattr(user_lookup, 'deactivation_reason', None) or 'Your account has been deactivated by admin.'
+                    if until and until > timezone.now():
+                        until_str = until.strftime('%Y-%m-%d %H:%M UTC')
+                        return Response({"detail": f"ACCOUNT_BLOCKED: {reason} You will be automatically unblocked on {until_str}."}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({"detail": f"ACCOUNT_BLOCKED: {reason}"}, status=status.HTTP_403_FORBIDDEN)
+        except Exception:
+            pass
+
         # Authenticate with username
         user = authenticate(username=username, password=password)
-        
+
         if user is not None:
+            # Final guard if blocked (e.g., backend auth permitted)
+            try:
+                if getattr(user, 'is_blocked', False):
+                    until = getattr(user, 'deactivated_until', None)
+                    reason = getattr(user, 'deactivation_reason', None) or 'Your account has been deactivated by admin.'
+                    if until and until > timezone.now():
+                        until_str = until.strftime('%Y-%m-%d %H:%M UTC')
+                        return Response({"detail": f"ACCOUNT_BLOCKED: {reason} You will be automatically unblocked on {until_str}."}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({"detail": f"ACCOUNT_BLOCKED: {reason}"}, status=status.HTTP_403_FORBIDDEN)
+            except Exception:
+                pass
             refresh = RefreshToken.for_user(user)
             return Response({
                 'refresh': str(refresh),
@@ -61,7 +95,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         # Admin can see all users, others can only see themselves
@@ -76,6 +110,70 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='block', permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsTeacherOrAdmin])
+    def block_user(self, request, pk=None):
+        """Admin-only: block a user with optional reason and duration.
+
+        Body accepts either:
+        - reason: string
+        - duration_days: int (optional)
+        - until: ISO datetime string (optional; overrides duration_days)
+        """
+        if request.user.role != 'admin':
+            return Response({"detail": "Only admin can block users."}, status=status.HTTP_403_FORBIDDEN)
+
+        user = self.get_object()
+
+        reason = (request.data.get('reason') or '').strip() or None
+        duration_days = request.data.get('duration_days')
+        until_raw = request.data.get('until')
+        until = None
+        if until_raw:
+            try:
+                # Expect ISO format; support 'Z' suffix
+                parsed = datetime.fromisoformat(str(until_raw).replace('Z', '+00:00'))
+                if parsed.tzinfo is None:
+                    until = timezone.make_aware(parsed)
+                else:
+                    # Normalize to UTC for consistency
+                    until = parsed.astimezone(dt_timezone.utc)
+            except Exception:
+                until = None
+        elif duration_days is not None:
+            try:
+                days = int(duration_days)
+                if days > 0:
+                    until = timezone.now() + timedelta(days=days)
+            except Exception:
+                until = None
+
+        user.is_active = False
+        user.deactivated_at = timezone.now()
+        user.deactivation_reason = reason
+        user.deactivated_until = until
+        user.save(update_fields=['is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until'])
+
+        # Blacklist all outstanding refresh tokens for this user
+        try:
+            for outstanding in OutstandingToken.objects.filter(user=user):
+                BlacklistedToken.objects.get_or_create(token=outstanding)
+        except Exception:
+            pass
+
+        return Response(UserSerializer(user).data)
+
+    @action(detail=True, methods=['post'], url_path='unblock', permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsTeacherOrAdmin])
+    def unblock_user(self, request, pk=None):
+        if request.user.role != 'admin':
+            return Response({"detail": "Only admin can unblock users."}, status=status.HTTP_403_FORBIDDEN)
+        user = self.get_object()
+        user.is_active = True
+        user.deactivated_at = None
+        user.deactivation_reason = None
+        user.deactivated_until = None
+        user.save(update_fields=['is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until'])
+        return Response(UserSerializer(user).data)
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -116,7 +214,7 @@ class RegisterView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class CourseViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -362,6 +460,186 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(students_qs, many=True)
         return Response(serializer.data)
     
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='student-progress/(?P<student_id>[^/.]+)',
+        permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin]
+    )
+    def student_progress(self, request, pk=None, student_id=None):
+        """Return detailed course progress for a specific student in this course.
+
+        Response structure:
+        {
+          student: { id, username, first_name, last_name, email },
+          enrollment: { id, status, enrollment_date },
+          overall_progress: number, // percent 0..100
+          modules: [
+            { id, title, order, total_content, completed_content, percent, assignments_total, assignments_passed }
+          ],
+          assignments: [
+            { id, title, assignment_type, passing_grade, max_attempts, attempts_used, best_grade, passed, last_submission_date }
+          ]
+        }
+        """
+        course = self.get_object()
+        user = request.user
+        # Only the course's teacher (or admin) may access
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to view data for this course"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Validate student
+        student = get_object_or_404(User, pk=student_id, role='student')
+
+        # Ensure student is enrolled in this course
+        enrollment = Enrollment.objects.filter(student=student, course=course).first()
+        if not enrollment:
+            return Response({"detail": "Student is not enrolled in this course"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Overall progress via model helper
+        try:
+            overall = float(enrollment.calculate_progress())
+        except Exception:
+            overall = 0.0
+
+        # Module-wise progress
+        modules_data = []
+        modules_qs = course.modules.all().order_by('order')
+        for m in modules_qs:
+            content_ids = list(Content.objects.filter(module=m).values_list('id', flat=True))
+            total_content = len(content_ids)
+            completed_content = 0
+            if content_ids:
+                completed_content = ContentProgress.objects.filter(
+                    enrollment=enrollment,
+                    content_id__in=content_ids,
+                    completed=True
+                ).count()
+
+            # Assignments in this module
+            mod_assignments = Assignment.objects.filter(course=course, module=m)
+            assignments_total = mod_assignments.count()
+            assignments_passed = 0
+            for a in mod_assignments:
+                best = AssignmentSubmission.objects.filter(
+                    enrollment=enrollment,
+                    assignment=a,
+                    status='graded',
+                ).order_by('-grade').first()
+                if best and best.grade is not None and best.grade >= a.passing_grade:
+                    assignments_passed += 1
+
+            percent = 0.0
+            denom = (total_content + assignments_total) or 1
+            percent = round(((completed_content + assignments_passed) / denom) * 100, 1)
+
+            modules_data.append({
+                'id': m.id,
+                'title': m.title,
+                'order': m.order,
+                'total_content': total_content,
+                'completed_content': completed_content,
+                'percent': percent,
+                'assignments_total': assignments_total,
+                'assignments_passed': assignments_passed,
+            })
+
+        # Assignment details
+        assignments_data = []
+        for a in Assignment.objects.filter(course=course).order_by('id'):
+            subs = AssignmentSubmission.objects.filter(enrollment=enrollment, assignment=a)
+            attempts_used = subs.count()
+            best = subs.filter(status='graded').order_by('-grade').first()
+            best_grade = float(best.grade) if best and best.grade is not None else None
+            passed = bool(best_grade is not None and best_grade >= float(a.passing_grade))
+            last_sub = subs.order_by('-submission_date').first()
+            last_dt = last_sub.submission_date if last_sub else None
+
+            assignments_data.append({
+                'id': a.id,
+                'title': a.title,
+                'assignment_type': a.assignment_type,
+                'passing_grade': a.passing_grade,
+                'max_attempts': a.max_attempts,
+                'attempts_used': attempts_used,
+                'best_grade': best_grade,
+                'passed': passed,
+                'last_submission_date': last_dt,
+            })
+
+        data = {
+            'student': UserSerializer(student).data,
+            'enrollment': {
+                'id': enrollment.id,
+                'status': enrollment.status,
+                'enrollment_date': enrollment.enrollment_date,
+            },
+            'overall_progress': overall,
+            'modules': modules_data,
+            'assignments': assignments_data,
+        }
+        return Response(data)
+    
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='student-submissions/(?P<student_id>[^/.]+)',
+        permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin]
+    )
+    def student_submissions(self, request, pk=None, student_id=None):
+        """Return full submission history for a specific student across all assignments in this course.
+
+        Response example:
+        {
+          student: { ... },
+          enrollment_id: number,
+          assignments: [
+            {
+              id, title, assignment_type, passing_grade, max_attempts,
+              best_grade, passed,
+              submissions: [ { id, attempt_number, submission_date, grade, status, feedback } ]
+            }
+          ]
+        }
+        """
+        course = self.get_object()
+        user = request.user
+        # Only the course's teacher (or admin) may access
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "You don't have permission to view data for this course"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Validate student and enrollment
+        student = get_object_or_404(User, pk=student_id, role='student')
+        enrollment = Enrollment.objects.filter(student=student, course=course).first()
+        if not enrollment:
+            return Response({"detail": "Student is not enrolled in this course"}, status=status.HTTP_404_NOT_FOUND)
+
+        data = {
+            'student': UserSerializer(student).data,
+            'enrollment_id': enrollment.id,
+            'assignments': []
+        }
+
+        assignments = Assignment.objects.filter(course=course).order_by('id')
+        for a in assignments:
+            subs_qs = AssignmentSubmission.objects.filter(enrollment=enrollment, assignment=a).order_by('attempt_number')
+            subs_ser = AssignmentSubmissionSerializer(subs_qs, many=True)
+            best = subs_qs.filter(status='graded').order_by('-grade').first()
+            best_grade = float(best.grade) if best and best.grade is not None else None
+            passed = bool(best_grade is not None and best_grade >= float(a.passing_grade))
+            data['assignments'].append({
+                'id': a.id,
+                'title': a.title,
+                'assignment_type': a.assignment_type,
+                'passing_grade': a.passing_grade,
+                'max_attempts': a.max_attempts,
+                'best_grade': best_grade,
+                'passed': passed,
+                'submissions': subs_ser.data,
+            })
+
+        return Response(data)
+    
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsStudent])
     def enroll(self, request, pk=None):
         course = self.get_object()
@@ -524,7 +802,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
     serializer_class = CourseModuleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         course_id = self.kwargs.get('course_pk')
@@ -609,7 +887,7 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
 
 class ContentViewSet(viewsets.ModelViewSet):
     serializer_class = ContentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
@@ -754,7 +1032,7 @@ class ContentViewSet(viewsets.ModelViewSet):
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
     serializer_class = EnrollmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         user = self.request.user
@@ -849,7 +1127,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         course_id = self.kwargs.get('course_pk')
@@ -882,7 +1160,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
 
 class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSubmissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         assignment_id = self.kwargs.get('assignment_pk')
@@ -1053,7 +1331,7 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
 
 class AssignmentQuestionViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentQuestionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
 
     def get_queryset(self):
         assignment_id = self.kwargs.get('assignment_pk')
@@ -1067,7 +1345,7 @@ class AssignmentQuestionViewSet(viewsets.ModelViewSet):
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CertificateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
         user = self.request.user
@@ -1091,7 +1369,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.Serializer  # will override methods
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user).order_by('-created_at')
@@ -1174,3 +1452,117 @@ class NotificationViewSet(viewsets.ModelViewSet):
         ])
 
         return Response({'success': True, 'created': count})
+
+class SupportRequestViewSet(viewsets.ModelViewSet):
+    """Public create endpoint for blocked users to request help.
+
+    Admins can list and close requests.
+    """
+    serializer_class = SupportRequestSerializer
+    queryset = SupportRequest.objects.all()
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [permissions.AllowAny()]
+        # list/retrieve/update only for admins
+        return [permissions.IsAuthenticated(), IsTeacherOrAdmin()]
+
+    def get_queryset(self):
+        # Admins see all; teachers can also view (per IsTeacherOrAdmin), but in practice it's admin use.
+        return SupportRequest.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        email = (request.data.get('email') or '').strip()
+        username = (request.data.get('username') or '').strip() or None
+        reason_seen = (request.data.get('reason_seen') or '').strip() or None
+        until_raw = request.data.get('until_reported')
+        message = (request.data.get('message') or '').strip() or None
+
+        if not email:
+            return Response({"detail": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        until_reported = None
+        if until_raw:
+            try:
+                parsed = datetime.fromisoformat(str(until_raw).replace('Z', '+00:00'))
+                if parsed.tzinfo is None:
+                    until_reported = timezone.make_aware(parsed)
+                else:
+                    until_reported = parsed.astimezone(dt_timezone.utc)
+            except Exception:
+                until_reported = None
+
+        # Try to link to a user
+        user = None
+        try:
+            if username:
+                user = User.objects.filter(username=username).first()
+            if not user:
+                user = User.objects.filter(email=email).first()
+        except Exception:
+            user = None
+
+        # Clean reason to remove trailing auto-unblock sentence if present
+        clean_reason = reason_seen
+        try:
+            if reason_seen:
+                marker_idx = reason_seen.lower().find('you will be automatically unblocked')
+                if marker_idx != -1:
+                    clean_reason = reason_seen[:marker_idx].strip()
+        except Exception:
+            pass
+
+        sr = SupportRequest.objects.create(
+            user=user,
+            email=email,
+            username=username,
+            reason_seen=clean_reason,
+            until_reported=until_reported,
+            message=message,
+        )
+
+        # Notify admins in-app
+        admins = User.objects.filter(role='admin', is_active=True)
+        if admins.exists():
+            Notification.objects.bulk_create([
+                Notification(
+                    user=a,
+                    title="Unblock request",
+                    message=f"Support request #{sr.id} from {email}. Reason: {clean_reason or 'N/A'}",
+                    notif_type='support'
+                ) for a in admins
+            ])
+
+        # Attempt to email the admin address if configured
+        try:
+            from django.conf import settings
+            admin_email = getattr(settings, 'SUPPORT_ADMIN_EMAIL', None) or 'admin@edu.pk'
+            subject = f"[LMS] Unblock request #{sr.id}"
+            body_lines = [
+                f"Email: {email}",
+                f"Username: {username or 'N/A'}",
+                f"Reason shown: {clean_reason or 'N/A'}",
+                f"Auto-unblock (reported): {until_reported or 'N/A'}",
+                f"Message: {message or 'N/A'}",
+                f"Created at: {sr.created_at}",
+            ]
+            # Send to admin and cc the user
+            recipients = [admin_email]
+            if email and email not in recipients:
+                recipients.append(email)
+            send_mail(subject, "\n".join(body_lines), admin_email, recipients, fail_silently=True)
+        except Exception:
+            pass
+
+        return Response(SupportRequestSerializer(sr).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        if request.user.role != 'admin':
+            return Response({"detail": "Only admin can close support requests."}, status=status.HTTP_403_FORBIDDEN)
+        sr = self.get_object()
+        sr.status = 'closed'
+        sr.handled_at = timezone.now()
+        sr.handled_by = request.user
+        sr.save(update_fields=['status', 'handled_at', 'handled_by'])
+        return Response(SupportRequestSerializer(sr).data)
