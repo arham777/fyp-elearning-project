@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { User, Course, Certificate } from '../types';
+import { User, Course, Certificate, ApiResponse } from '../types';
 
 export interface Enrollment {
   id: number;
@@ -90,6 +90,45 @@ export const adminApi = {
   async getAllUsers(): Promise<User[]> {
     const response = await apiClient.get('/users/');
     return Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
+  },
+
+  async listUsersPaged(params?: {
+    page?: number;
+    page_size?: number;
+    role?: 'student' | 'teacher';
+    search?: string;
+    ordering?: string;
+  }): Promise<ApiResponse<User>> {
+    const response = await apiClient.get('/users/', {
+      params: {
+        page: params?.page ?? 1,
+        page_size: params?.page_size ?? 20,
+        role: params?.role, // backend may ignore; harmless
+        search: params?.search, // backend may ignore; harmless
+        ordering: params?.ordering,
+      }
+    });
+
+    const data = response.data;
+    // Normalize to ApiResponse shape
+    const results: User[] = Array.isArray(data) ? data : (data?.results ?? []);
+
+    // Client-side filtering fallback if backend doesn't support it
+    const filtered = results.filter((u: User) => {
+      const byRole = params?.role ? u.role === params.role : true;
+      const q = (params?.search || '').trim().toLowerCase();
+      const bySearch = !q || [u.first_name, u.last_name, u.username, u.email]
+        .map((v) => String(v || '').toLowerCase())
+        .some((s) => s.includes(q));
+      return byRole && bySearch;
+    });
+
+    return {
+      count: Number(data?.count ?? filtered.length),
+      next: data?.next ?? null,
+      previous: data?.previous ?? null,
+      results: filtered,
+    } as any;
   },
 
   async createUser(userData: Partial<User>): Promise<User> {

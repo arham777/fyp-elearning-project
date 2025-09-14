@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { 
   Settings as SettingsIcon, 
   Upload, 
@@ -26,6 +25,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { notificationsApi } from '@/api/notifications';
 import { adminApi } from '@/api/admin';
+import UserMultiSelect from '@/components/admin/UserMultiSelect';
 
 // Mock settings data - replace with real API
 interface PlatformSettings {
@@ -94,6 +94,8 @@ const Settings: React.FC = () => {
   const [announceType, setAnnounceType] = React.useState<'info' | 'warning' | 'success'>('info');
   const [audience, setAudience] = React.useState<'teachers' | 'students' | 'individuals'>('students');
   const [recipientEmails, setRecipientEmails] = React.useState<string>('');
+  const [individualsRole, setIndividualsRole] = React.useState<'student' | 'teacher'>('student');
+  const [selectedUserIds, setSelectedUserIds] = React.useState<number[]>([]);
 
   // Mock query - replace with real API
   const { data: currentSettings, isLoading } = useQuery<PlatformSettings>({
@@ -152,33 +154,8 @@ const Settings: React.FC = () => {
       const title = announceTitle.trim();
       const message = announceMessage.trim();
       if (audience === 'individuals') {
-        const emails = recipientEmails
-          .split(',')
-          .map((s) => s.trim())
-          .filter((e) => !!e);
-        if (emails.length === 0) {
-          throw new Error('Please provide at least one email');
-        }
-        try {
-          return await notificationsApi.sendToEmails(emails, title, message, announceType);
-        } catch (e) {
-          // Fallback: resolve emails to user IDs and send via IDs
-          try {
-            const allUsers = await adminApi.getAllUsers();
-            const emailToId: Record<string, number> = {};
-            for (const u of allUsers as any[]) {
-              const em = String(u.email || '').toLowerCase();
-              if (em) emailToId[em] = u.id;
-            }
-            const ids = emails
-              .map((em) => emailToId[em.toLowerCase()])
-              .filter((id) => typeof id === 'number');
-            if (ids.length === 0) throw new Error('No matching users for provided emails');
-            return await notificationsApi.sendToUsers(ids as number[], title, message, announceType);
-          } catch (fallbackError) {
-            throw fallbackError;
-          }
-        }
+        if (!selectedUserIds.length) throw new Error('Please select at least one user');
+        return notificationsApi.sendToUsers(selectedUserIds, title, message, announceType);
       }
       return notificationsApi.broadcast(audience, title, message, announceType);
     },
@@ -190,6 +167,7 @@ const Settings: React.FC = () => {
       setAnnounceTitle('');
       setAnnounceMessage('');
       setRecipientEmails('');
+      setSelectedUserIds([]);
     },
     onError: () => {
       toast({
@@ -246,20 +224,7 @@ const Settings: React.FC = () => {
       {/* Announcements */}
       <Card>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Enable Announcements</Label>
-              <p className="text-sm text-muted-foreground">Show announcements to all users</p>
-            </div>
-            <Switch
-              checked={settings.announcements.announcement_active}
-              onCheckedChange={(checked) => handleSettingChange('announcements', 'announcement_active', checked)}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="space-y-2">
+          <div className="space-y-2 pt-4">
             <Label className="text-base">Send Announcement</Label>
             <p className="text-sm text-muted-foreground">Send to all Teachers, all Students, or specific users by ID</p>
           </div>
@@ -279,15 +244,36 @@ const Settings: React.FC = () => {
               </Select>
             </div>
           {audience === 'individuals' && (
-            <div className="space-y-2">
-              <Label htmlFor="recipient-emails">Recipient Emails (comma-separated)</Label>
-              <Input
-                id="recipient-emails"
-                value={recipientEmails}
-                onChange={(e) => setRecipientEmails(e.target.value)}
-                placeholder="e.g. alice@example.com, bob@site.com"
-              />
-              <p className="text-[11px] text-muted-foreground">We'll send to these emails. If direct email send isn't available, we'll map emails to users automatically.</p>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Target Role</Label>
+                <ToggleGroup
+                  type="single"
+                  value={individualsRole}
+                  onValueChange={(v) => v && setIndividualsRole(v as any)}
+                  variant="outline"
+                  size="sm"
+                  className="justify-start"
+                >
+                  <ToggleGroupItem
+                    value="student"
+                    className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary"
+                  >
+                    Students
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="teacher"
+                    className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary"
+                  >
+                    Teachers
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <div className="space-y-2">
+                <Label>Select Users</Label>
+                <UserMultiSelect role={individualsRole} selectedIds={selectedUserIds} onChange={setSelectedUserIds} />
+                <p className="text-[11px] text-muted-foreground">Search by name, username, or email. Supports multi-select and very large lists.</p>
+              </div>
             </div>
           )}
 
@@ -330,7 +316,12 @@ const Settings: React.FC = () => {
           <div className="flex justify-end">
             <Button
               onClick={() => broadcastMutation.mutate()}
-              disabled={broadcastMutation.isPending || !announceTitle.trim() || !announceMessage.trim()}
+              disabled={
+                broadcastMutation.isPending ||
+                !announceTitle.trim() ||
+                !announceMessage.trim() ||
+                (audience === 'individuals' && selectedUserIds.length === 0)
+              }
               className="min-w-36"
             >
               {broadcastMutation.isPending ? 'Sending...' : 'Send Announcement'}

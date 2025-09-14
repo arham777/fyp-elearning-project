@@ -98,9 +98,28 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsActiveUser]
     
     def get_queryset(self):
-        # Admin can see all users, others can only see themselves
+        # Admin can see all users (with optional filtering), others can only see themselves
         if self.request.user.role == 'admin':
-            return User.objects.all()
+            qs = User.objects.all()
+            role = (self.request.query_params.get('role') or '').strip().lower()
+            if role in ('student', 'teacher', 'admin'):
+                qs = qs.filter(role=role)
+            search_term = (self.request.query_params.get('search') or '').strip()
+            if search_term:
+                qs = qs.filter(
+                    Q(first_name__icontains=search_term) |
+                    Q(last_name__icontains=search_term) |
+                    Q(username__icontains=search_term) |
+                    Q(email__icontains=search_term)
+                )
+            ordering = (self.request.query_params.get('ordering') or '').strip()
+            allowed = {
+                'first_name','last_name','username','email','date_joined','created_at',
+                '-first_name','-last_name','-username','-email','-date_joined','-created_at'
+            }
+            if ordering in allowed:
+                qs = qs.order_by(ordering)
+            return qs
         return User.objects.filter(id=self.request.user.id)
         
     @action(detail=False, methods=['get'])
