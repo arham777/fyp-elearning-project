@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { coursesApi } from '@/api/courses';
 import { Course, Enrollment, Certificate } from '@/types';
-import { Search, ChevronsRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, ChevronsRight, Loader2, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CourseCard from '@/components/courses/CourseCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -17,15 +17,46 @@ const CoursesCatalog: React.FC = () => {
   const [completedCourseIds, setCompletedCourseIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState(''); // actual query used for requests/filtering
   const [pendingQuery, setPendingQuery] = useState(''); // text in the input
+  const [isSearching, setIsSearching] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Initialize query from URL (?q=)
+  useEffect(() => {
+    const q = (searchParams.get('q') || '').trim();
+    if (q) {
+      setPendingQuery(q);
+      setSearchQuery(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounce typing -> apply to searchQuery
+  useEffect(() => {
+    const handle = setTimeout(() => setSearchQuery(pendingQuery.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [pendingQuery]);
+
+  // Keep URL in sync with the active search query
+  useEffect(() => {
+    setSearchParams(prev => {
+      const sp = new URLSearchParams(prev);
+      if (searchQuery) sp.set('q', searchQuery);
+      else sp.delete('q');
+      return sp;
+    }, { replace: true });
+  }, [searchQuery, setSearchParams]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchCourses = async () => {
       try {
+        setIsSearching(true);
         const [list, enrollments, certs] = await Promise.all([
-          coursesApi.getCourses({ search: searchQuery }),
+          coursesApi.getCourses({ search: searchQuery }, { signal: controller.signal }),
           coursesApi.getMyEnrollments().catch(() => [] as Enrollment[]),
           coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
         ]);
@@ -42,15 +73,18 @@ const CoursesCatalog: React.FC = () => {
             .filter((id): id is number => typeof id === 'number')
         );
         setCompletedCourseIds(completed);
-      } catch (error) {
-        console.error('Failed to fetch courses:', error);
+      } catch (error: any) {
+        if (error?.name !== 'CanceledError' && error?.code !== 'ERR_CANCELED') {
+          console.error('Failed to fetch courses:', error);
+        }
       } finally {
         setIsLoading(false);
+        setIsSearching(false);
       }
     };
 
-    const debounceTimer = setTimeout(fetchCourses, 300);
-    return () => clearTimeout(debounceTimer);
+    fetchCourses();
+    return () => controller.abort();
   }, [searchQuery]);
 
   // Modal opens only via the button on this page
@@ -123,23 +157,42 @@ const CoursesCatalog: React.FC = () => {
         )}
       </div>
 
-      <div className="relative max-w-xl w-full">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative max-w-xl w-full" role="search">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <Input
+          ref={inputRef}
           placeholder="Search courses..."
           value={pendingQuery}
           onChange={(e) => setPendingQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery.trim()); }}
           className="pl-10 pr-24 h-10 rounded-full"
           aria-label="Search courses"
+          aria-busy={isSearching}
         />
+        {pendingQuery && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 absolute right-12 top-1/2 -translate-y-1/2 rounded-full"
+            onClick={() => { setPendingQuery(''); setSearchQuery(''); inputRef.current?.focus(); }}
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="link"
           className="h-10 absolute right-3 top-1/2 -translate-y-1/2 p-0 rounded-none"
-          onClick={() => setSearchQuery(pendingQuery)}
+          onClick={() => setSearchQuery(pendingQuery.trim())}
           aria-label="Search"
+          disabled={isSearching}
         >
-          <ChevronsRight className="h-8 w-8" strokeWidth={3} />
+          {isSearching ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+          ) : (
+            <ChevronsRight className="h-8 w-8" strokeWidth={3} />
+          )}
         </Button>
       </div>
 
@@ -159,8 +212,10 @@ const CoursesCatalog: React.FC = () => {
       {visibleCourses.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No courses available</h3>
-          <p className="text-muted-foreground">You may already be enrolled in all visible courses.</p>
+          <h3 className="text-lg font-medium text-foreground mb-2">{searchQuery ? `No results for “${searchQuery}”` : 'No courses available'}</h3>
+          <p className="text-muted-foreground">
+            {searchQuery ? 'Try a different keyword or check your spelling.' : 'You may already be enrolled in all visible courses.'}
+          </p>
         </div>
       )}
 

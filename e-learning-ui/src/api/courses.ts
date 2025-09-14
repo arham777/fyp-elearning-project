@@ -2,14 +2,17 @@ import apiClient from './apiClient';
 import { ApiResponse, Course, Enrollment, CourseModule, User, Certificate, Assignment, AssignmentQuestion, SubmissionAnswer, Submission, StudentCourseProgress, StudentSubmissionsResponse } from '@/types';
 
 export const coursesApi = {
-  async getCourses(params?: {
-    search?: string;
-    category?: string;
-    price_min?: number;
-    price_max?: number;
-    page?: number;
-  }): Promise<Course[]> {
-    const response = await apiClient.get('/courses/', { params });
+  async getCourses(
+    params?: {
+      search?: string;
+      category?: string;
+      price_min?: number;
+      price_max?: number;
+      page?: number;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<Course[]> {
+    const response = await apiClient.get('/courses/', { params, signal: options?.signal });
     const data = response.data;
     // Normalize both paginated ({ results: [...] }) and non-paginated ([...]) responses
     return Array.isArray(data) ? data : (data?.results ?? []);
