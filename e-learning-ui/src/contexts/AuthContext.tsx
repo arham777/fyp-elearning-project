@@ -84,9 +84,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         description: "Welcome to the Learning Management System.",
       });
     } catch (error: any) {
+      // Extract human-friendly message from DRF errors
+      const data = error?.response?.data;
+      let message = data?.detail as string | undefined;
+      if (!message && data && typeof data === 'object') {
+        try {
+          message = Object.values(data).flat().join(' ') as string;
+        } catch {
+          message = JSON.stringify(data);
+        }
+      }
       toast({
         title: "Registration failed",
-        description: error.response?.data?.detail || "Registration failed",
+        description: message || "Registration failed",
         variant: "destructive",
       });
       throw error;

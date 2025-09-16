@@ -3,6 +3,8 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.conf import settings as dj_settings
+from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q, Max, F, Count
@@ -198,39 +200,58 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        username = request.data.get('username', '').strip()
-        email = request.data.get('email', '').strip()
-        password = request.data.get('password', '')
-        confirm_password = request.data.get('confirm_password')
-        role = request.data.get('role', 'student')
-        first_name = request.data.get('first_name', '').strip()
-        last_name = request.data.get('last_name', '').strip()
+        try:
+            username = request.data.get('username', '').strip()
+            email = request.data.get('email', '').strip().lower()
+            password = request.data.get('password', '')
+            confirm_password = request.data.get('confirm_password')
+            role = request.data.get('role', 'student')
+            first_name = request.data.get('first_name', '').strip()
+            last_name = request.data.get('last_name', '').strip()
 
-        if not username or not email or not password:
-            return Response({"detail": "Username, email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+            if not username or not email or not password:
+                return Response({"detail": "Username, email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if confirm_password is not None and confirm_password != password:
-            return Response({"detail": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+            if confirm_password is not None and confirm_password != password:
+                return Response({"detail": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if role not in ['student', 'teacher']:
-            role = 'student'
+            if role not in ['student', 'teacher']:
+                role = 'student'
 
-        if User.objects.filter(username=username).exists():
-            return Response({"detail": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            # Validate password using Django's validators for clearer feedback
+            try:
+                validate_password(password)
+            except Exception as pw_err:
+                # Flatten errors into a single string
+                try:
+                    messages = []
+                    for e in pw_err.error_list if hasattr(pw_err, 'error_list') else [pw_err]:
+                        messages.append(str(e))
+                    return Response({"detail": "; ".join(messages) or "Invalid password."}, status=status.HTTP_400_BAD_REQUEST)
+                except Exception:
+                    return Response({"detail": "Invalid password."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if User.objects.filter(email=email).exists():
-            return Response({"detail": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            if User.objects.filter(username=username).exists():
+                return Response({"detail": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            role=role,
-            first_name=first_name,
-            last_name=last_name,
-        )
-        serializer = UserSerializer(user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if User.objects.filter(email=email).exists():
+                return Response({"detail": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                role=role,
+                first_name=first_name,
+                last_name=last_name,
+            )
+            serializer = UserSerializer(user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            # Helpful error in dev; generic in production
+            if getattr(dj_settings, 'DEBUG', False):
+                return Response({"detail": f"Registration error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Registration failed. Please try again later."}, status=status.HTTP_400_BAD_REQUEST)
 
 class CourseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsActiveUser]

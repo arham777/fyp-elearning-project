@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { AuthTokens } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+// Prefer explicit env, otherwise in dev use Vite proxy at "/api", else default to localhost backend
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim?.() as string | undefined)
+  || (import.meta.env.DEV ? '/api' : 'http://localhost:8000/api');
 
 // Create axios instance
 export const apiClient = axios.create({
