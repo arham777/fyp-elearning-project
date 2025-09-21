@@ -78,3 +78,11 @@ htmlcov/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Backend environment and DB dumps
+backend/.env
+backend/.env.*
+backend/lms_backend/sqlite_dump.json
+backend/lms_backend/team_fixture.json
+*.dump
+*.sql

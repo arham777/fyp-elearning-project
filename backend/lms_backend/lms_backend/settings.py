@@ -100,6 +100,18 @@ WSGI_APPLICATION = 'lms_backend.wsgi.application'
 #     }
 # }
 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'elearningdb'),
+        'USER': os.getenv('DB_USER', 'adminuser'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+        'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '60')),
+    },
+}
+
 AUTH_USER_MODEL = 'myapp.User'
 
 
@@ -177,15 +189,4 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-}
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'elearningdb',
-        'USER': 'adminuser',
-        'PASSWORD': 'Uol01001010',   # jo password tumne set kiya hai
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
 }
