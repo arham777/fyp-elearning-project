@@ -1,0 +1,20 @@
+
+- Exporter (who has the latest data):
+
+  ```powershell
+  # CWD: backend/lms_backend (venv activated)
+  # Generates backend/lms_backend/team_fixture.json (UTF-8)
+  python scripts/dump_postgres_utf8.py
+  ```
+
+  This uses `django-admin dumpdata` with safe exclusions and writes UTF-8 to avoid Windows encoding issues.
+
+- Share the generated `team_fixture.json` file to teammates (send via chat/Drive; do not commit to git).
+
+- Importer (who wants the data):
+
+  ```powershell
+  # Place team_fixture.json into backend/lms_backend
+  python -X utf8 manage.py loaddata team_fixture.json
+  python scripts/reset_pg_identities.py
+  ```
