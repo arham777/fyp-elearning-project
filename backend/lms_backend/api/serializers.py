@@ -36,20 +36,37 @@ class CourseModuleSerializer(serializers.ModelSerializer):
 class ContentSerializer(serializers.ModelSerializer):
     # Virtual field to support "insert after" behavior (write-only)
     after_content_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    video_thumbnail = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Content
-        fields = ['id', 'module', 'title', 'content_type', 'url', 'text', 'video', 'order', 'duration_minutes', 'after_content_id']
+        fields = ['id', 'module', 'title', 'content_type', 'url', 'text', 'video', 'video_thumbnail', 'order', 'duration_minutes', 'after_content_id']
 
     def create(self, validated_data):
         # Remove non-model field before saving
         validated_data.pop('after_content_id', None)
         return super().create(validated_data)
 
+    def get_video_thumbnail(self, obj):
+        """Return video thumbnail URL from Cloudinary"""
+        return obj.get_video_thumbnail_url()
+    
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         request = self.context.get('request') if hasattr(self, 'context') else None
         video_value = rep.get('video')
-        # If DRF returned a relative media path, convert to absolute using request
+        # Prefer a resolvable URL from the field (handles CloudinaryField)
+        try:
+            field = getattr(instance, 'video', None)
+            url = getattr(field, 'url', None)
+            if callable(url):
+                url = url()
+            if isinstance(url, str) and url:
+                rep['video'] = url
+                return rep
+        except Exception:
+            pass
+        # If DRF returned a relative media path, convert to absolute using request (legacy local files)
         if video_value and request and isinstance(video_value, str) and video_value.startswith('/'):
             rep['video'] = request.build_absolute_uri(video_value)
         return rep

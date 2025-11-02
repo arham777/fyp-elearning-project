@@ -31,6 +31,7 @@ const ContentViewer: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(true);
   const MIN_WATCH_PERCENT = 95;
 
   const backTo = useMemo(() => {
@@ -124,6 +125,10 @@ const ContentViewer: React.FC = () => {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+    
+    // Set loading state when video starts loading
+    setVideoLoading(true);
+    
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onTime = () => {
@@ -143,15 +148,28 @@ const ContentViewer: React.FC = () => {
       setMaxTimeSeen(t);
     };
     const onVol = () => { setIsMuted(v.muted); setVolume(v.volume); };
+    
+    // Loading state handlers
+    const onLoadStart = () => setVideoLoading(true);
+    const onWaiting = () => setVideoLoading(true);
+    const onCanPlay = () => setVideoLoading(false);
+    const onPlaying = () => setVideoLoading(false);
+    
     v.addEventListener('play', onPlay);
     v.addEventListener('pause', onPause);
     v.addEventListener('timeupdate', onTime);
     v.addEventListener('seeked', onSeeked);
     v.addEventListener('loadedmetadata', onLoaded);
     v.addEventListener('volumechange', onVol);
+    v.addEventListener('loadstart', onLoadStart);
+    v.addEventListener('waiting', onWaiting);
+    v.addEventListener('canplay', onCanPlay);
+    v.addEventListener('playing', onPlaying);
+    
     onLoaded();
     onTime();
     onVol();
+    
     return () => {
       v.removeEventListener('play', onPlay);
       v.removeEventListener('pause', onPause);
@@ -159,6 +177,10 @@ const ContentViewer: React.FC = () => {
       v.removeEventListener('seeked', onSeeked);
       v.removeEventListener('loadedmetadata', onLoaded);
       v.removeEventListener('volumechange', onVol);
+      v.removeEventListener('loadstart', onLoadStart);
+      v.removeEventListener('waiting', onWaiting);
+      v.removeEventListener('canplay', onCanPlay);
+      v.removeEventListener('playing', onPlaying);
     };
   }, [content?.video]);
 
@@ -302,16 +324,27 @@ const ContentViewer: React.FC = () => {
                   }}
                 >
                   {content.video ? (
-                    <video
-                      ref={videoRef}
-                      src={content.video}
-                      controls={false}
-                      playsInline
-                      controlsList="nodownload noplaybackrate noremoteplayback"
-                      disablePictureInPicture
-                      onContextMenu={(e) => e.preventDefault()}
-                      className="absolute inset-0 h-full w-full object-contain"
-                    />
+                    <>
+                      <video
+                        ref={videoRef}
+                        src={content.video}
+                        controls={false}
+                        playsInline
+                        controlsList="nodownload noplaybackrate noremoteplayback"
+                        disablePictureInPicture
+                        onContextMenu={(e) => e.preventDefault()}
+                        className="absolute inset-0 h-full w-full object-contain"
+                      />
+                      {/* Loading indicator */}
+                      {videoLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                            <p className="text-sm text-white">Loading video...</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <iframe
                       title={content.title}

@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
+from cloudinary.models import CloudinaryField
 
 # Custom User Manager
 class UserManager(BaseUserManager):
@@ -144,7 +145,8 @@ class Content(models.Model):
     title = models.CharField(max_length=200)
     content_type = models.CharField(max_length=10, choices=CONTENT_TYPES)
     url = models.URLField(null=True, blank=True)  # For videos (legacy URL)
-    video = models.FileField(upload_to='videos/', null=True, blank=True)  # Local uploaded video
+    # Store videos in Cloudinary explicitly as video resources
+    video = CloudinaryField('video', resource_type='video', folder='videos', null=True, blank=True)
     text = models.TextField(null=True, blank=True)  # For readings
     order = models.IntegerField(default=0)
     duration_minutes = models.IntegerField(default=0)  # Estimated time to complete
@@ -155,6 +157,34 @@ class Content(models.Model):
         
     def __str__(self):
         return f"{self.title} ({self.get_content_type_display()})"
+    
+    def get_video_thumbnail_url(self):
+        """Generate thumbnail URL for Cloudinary videos
+        
+        DISABLED: To save transformation credits on Cloudinary free plan.
+        Can be re-enabled later by uncommenting the code below.
+        """
+        # Thumbnails disabled to conserve Cloudinary transformation credits
+        return None
+        
+        # Uncomment below to re-enable thumbnails:
+        # if self.video and self.content_type == 'video':
+        #     try:
+        #         import cloudinary
+        #         # Extract public_id from the CloudinaryField
+        #         public_id = str(self.video)
+        #         if public_id:
+        #             # Generate thumbnail: 640x360, auto quality, JPG format
+        #             return cloudinary.CloudinaryVideo(public_id).build_url(
+        #                 transformation=[
+        #                     {'width': 640, 'height': 360, 'crop': 'fill', 'quality': 'auto'}
+        #                 ],
+        #                 format='jpg',
+        #                 resource_type='video'
+        #             )
+        #     except Exception:
+        #         pass
+        # return None
 
 # Enrollments Model
 class Enrollment(models.Model):

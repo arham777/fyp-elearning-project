@@ -55,6 +55,7 @@ const ModuleDetail: React.FC = () => {
   });
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   // Assignment form state
   const [assignForm, setAssignForm] = useState<{
@@ -138,6 +139,9 @@ const ModuleDetail: React.FC = () => {
   });
   const [editInsertAfter, setEditInsertAfter] = useState<string>('__unchanged__');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editVideoFile, setEditVideoFile] = useState<File | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [editUploadProgress, setEditUploadProgress] = useState<number>(0);
 
   useEffect(() => {
     const load = async () => {
@@ -263,10 +267,24 @@ const ModuleDetail: React.FC = () => {
   const saveContent = async () => {
     if (!module) return;
     setIsSaving(true);
+    setUploadProgress(0);
     try {
       if (form.content_type === 'video') {
         if (!videoFile) {
           toast({ title: 'Select a video file', description: 'Please choose a video to upload.' });
+          setIsSaving(false);
+          return;
+        }
+        // Validate file size (100MB limit for Cloudinary free plan)
+        const maxSize = 100 * 1024 * 1024; // 100MB
+        if (videoFile.size > maxSize) {
+          const sizeMB = (videoFile.size / (1024 * 1024)).toFixed(2);
+          toast({ 
+            title: 'File too large', 
+            description: `Video size is ${sizeMB}MB. Maximum allowed is 100MB for Cloudinary free plan.`,
+            variant: 'destructive'
+          });
+          setIsSaving(false);
           return;
         }
         const fd = new FormData();
@@ -275,7 +293,9 @@ const ModuleDetail: React.FC = () => {
         fd.append('content_type', 'video');
         if (insertAfter !== 'end') fd.append('after_content_id', String(insertAfter));
         fd.append('video', videoFile);
-        await coursesApi.createModuleContentUpload(courseId, modId, fd);
+        await coursesApi.createModuleContentUpload(courseId, modId, fd, (progressEvent) => {
+          setUploadProgress(progressEvent.progress || 0);
+        });
       } else {
         const payload: {
           module: number;
@@ -302,6 +322,7 @@ const ModuleDetail: React.FC = () => {
       setForm({ title: '', content_type: 'reading', url: '', text: '', order: 1, duration_minutes: 0 });
       setVideoFile(null);
       setInsertAfter('end');
+      setUploadProgress(0);
       toast({ title: 'Content added' });
     } catch (err: unknown) {
       const respData = (err as { response?: { data?: unknown } })?.response?.data;
@@ -383,6 +404,8 @@ const ModuleDetail: React.FC = () => {
       duration_minutes: content.duration_minutes ?? 0,
     });
     setEditInsertAfter('__unchanged__');
+    setEditVideoFile(null);
+    setEditUploadProgress(0);
     setIsEditOpen(true);
   };
 
@@ -409,37 +432,74 @@ const ModuleDetail: React.FC = () => {
   const saveEdit = async () => {
     if (!editing) return;
     setIsUpdating(true);
+    setEditUploadProgress(0);
     try {
-      const payload: {
-        title?: string;
-        content_type?: 'video' | 'reading';
-        url?: string;
-        text?: string;
-        order?: number;
-        duration_minutes?: number;
-      } = {
-        title: editForm.title?.trim(),
-        content_type: editForm.content_type,
-        url: editForm.content_type === 'video' ? editForm.url : undefined,
-        text: editForm.content_type === 'reading' ? editForm.text : undefined,
-        duration_minutes: editForm.duration_minutes,
-      };
+      // If editing video and a new file is selected, use FormData upload
+      if (editForm.content_type === 'video' && editVideoFile) {
+        // Validate file size
+        const maxSize = 100 * 1024 * 1024; // 100MB
+        if (editVideoFile.size > maxSize) {
+          const sizeMB = (editVideoFile.size / (1024 * 1024)).toFixed(2);
+          toast({ 
+            title: 'File too large', 
+            description: `Video size is ${sizeMB}MB. Maximum allowed is 100MB for Cloudinary free plan.`,
+            variant: 'destructive'
+          });
+          setIsUpdating(false);
+          return;
+        }
+        
+        const fd = new FormData();
+        fd.append('title', editForm.title.trim());
+        fd.append('content_type', 'video');
+        fd.append('video', editVideoFile);
+        if (editForm.duration_minutes) fd.append('duration_minutes', String(editForm.duration_minutes));
+        
+        if (editInsertAfter !== '__unchanged__') {
+          const afterVal = editInsertAfter === 'end' ? 'end' : Number(editInsertAfter);
+          const order = computeOrderAfter(afterVal, editing.id);
+          fd.append('order', String(order));
+        }
+        
+        await coursesApi.updateModuleContentWithFile(courseId, modId, editing.id, fd, (progressEvent) => {
+          setEditUploadProgress(progressEvent.progress || 0);
+        });
+      } else {
+        // Regular update without file upload
+        const payload: {
+          title?: string;
+          content_type?: 'video' | 'reading';
+          url?: string;
+          text?: string;
+          order?: number;
+          duration_minutes?: number;
+        } = {
+          title: editForm.title?.trim(),
+          content_type: editForm.content_type,
+          url: editForm.content_type === 'video' ? editForm.url : undefined,
+          text: editForm.content_type === 'reading' ? editForm.text : undefined,
+          duration_minutes: editForm.duration_minutes,
+        };
 
-      if (editInsertAfter !== '__unchanged__') {
-        const afterVal = editInsertAfter === 'end' ? 'end' : Number(editInsertAfter);
-        payload.order = computeOrderAfter(afterVal, editing.id);
+        if (editInsertAfter !== '__unchanged__') {
+          const afterVal = editInsertAfter === 'end' ? 'end' : Number(editInsertAfter);
+          payload.order = computeOrderAfter(afterVal, editing.id);
+        }
+
+        await coursesApi.updateModuleContent(
+          courseId,
+          modId,
+          editing.id,
+          payload
+        );
       }
-
-      await coursesApi.updateModuleContent(
-        courseId,
-        modId,
-        editing.id,
-        payload
-      );
+      
       const refreshed = await coursesApi.getModuleContents(courseId, modId);
       setContents(refreshed);
       setIsEditOpen(false);
       setEditing(null);
+      setEditVideoFile(null);
+      setEditUploadProgress(0);
       toast({ title: 'Content updated' });
     } catch (err: unknown) {
       const respData = (err as { response?: { data?: unknown } })?.response?.data;
@@ -524,7 +584,7 @@ const ModuleDetail: React.FC = () => {
                     </div>
                     {form.content_type === 'video' ? (
                       <div className="space-y-2">
-                        <Label htmlFor="video">Upload video</Label>
+                        <Label htmlFor="video">Upload video (Max 100MB)</Label>
                         <div className="flex items-center gap-3">
                           <input
                             id="video"
@@ -539,13 +599,28 @@ const ModuleDetail: React.FC = () => {
                             variant="secondary"
                             className="bg-muted hover:bg-muted/80 text-foreground"
                             onClick={() => fileInputRef.current?.click()}
+                            disabled={isSaving}
                           >
                             Choose file
                           </Button>
                           <span className="text-xs text-muted-foreground">
-                            {videoFile ? videoFile.name : 'No file chosen'}
+                            {videoFile ? `${videoFile.name} (${(videoFile.size / (1024 * 1024)).toFixed(2)}MB)` : 'No file chosen'}
                           </span>
                         </div>
+                        {isSaving && uploadProgress > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Uploading to Cloudinary...</span>
+                              <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-2 relative z-50">
@@ -905,15 +980,60 @@ const ModuleDetail: React.FC = () => {
                 </select>
               </div>
               {editForm.content_type === 'video' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="eurl">Video URL</Label>
-                  <Input
-                    id="eurl"
-                    value={editForm.url}
-                    onChange={(e) => setEditForm((f) => ({ ...f, url: e.target.value }))}
-                    placeholder="https://..."
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="evideo">Replace Video File (Max 100MB)</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="evideo"
+                        ref={editFileInputRef}
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => setEditVideoFile(e.target.files?.[0] ?? null)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="bg-muted hover:bg-muted/80 text-foreground"
+                        onClick={() => editFileInputRef.current?.click()}
+                        disabled={isUpdating}
+                      >
+                        Choose new file
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {editVideoFile ? `${editVideoFile.name} (${(editVideoFile.size / (1024 * 1024)).toFixed(2)}MB)` : 'No new file chosen'}
+                      </span>
+                    </div>
+                    {isUpdating && editUploadProgress > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Uploading to Cloudinary...</span>
+                          <span>{editUploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${editUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {editing?.video ? 'Current video will be replaced if you upload a new file' : 'Upload a video file or use URL below'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="eurl">Or Video URL</Label>
+                    <Input
+                      id="eurl"
+                      value={editForm.url}
+                      onChange={(e) => setEditForm((f) => ({ ...f, url: e.target.value }))}
+                      placeholder="https://..."
+                      disabled={!!editVideoFile}
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="space-y-2 relative z-50">
                   <Label htmlFor="edit-reading-editor">Reading text</Label>

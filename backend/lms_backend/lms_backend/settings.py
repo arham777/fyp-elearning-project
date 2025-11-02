@@ -12,13 +12,13 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (search up the tree)
+load_dotenv(find_dotenv())
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'myapp',
     'api',
+    'cloudinary',
+    'cloudinary_storage',
 ]
 
 MIDDLEWARE = [
@@ -154,6 +156,29 @@ STATIC_URL = 'static/'
 # Media files (uploaded content)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Cloudinary storage
+# Django 5 uses STORAGES; set default to Cloudinary. If you keep DEFAULT_FILE_STORAGE
+# for backward compatibility, STORAGES takes precedence.
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+        # 'OPTIONS': {},  # optional
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
+
+# Optional: also keep legacy setting for 3rd-party code that still reads it
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Optional: force https delivery and set an optional folder prefix for organization
+# CLOUDINARY_STORAGE is optional; CLOUDINARY_URL is sufficient for basic usage.
+CLOUDINARY_STORAGE = {
+    'SECURE': True,
+    # 'PREFIX': 'videos',  # uncomment to place uploads under a folder in Cloudinary
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

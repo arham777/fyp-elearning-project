@@ -68,6 +68,7 @@ export interface Content {
   content_type: 'video' | 'reading';
   url?: string;
   video?: string;
+  video_thumbnail?: string;
   text?: string;
   order: number;
   duration_minutes: number;

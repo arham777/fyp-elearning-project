@@ -953,6 +953,16 @@ class ContentViewSet(viewsets.ModelViewSet):
                     raise serializers.ValidationError({
                         'video': 'Provide a video file or a video URL for video content.'
                     })
+                
+                # Validate video file size (Cloudinary free plan limit: 100MB)
+                if file_provided:
+                    video_file = self.request.FILES.get('video')
+                    max_size = 100 * 1024 * 1024  # 100MB for Cloudinary free plan
+                    if video_file.size > max_size:
+                        size_mb = round(video_file.size / (1024 * 1024), 2)
+                        raise serializers.ValidationError({
+                            'video': f'Video file is too large ({size_mb}MB). Maximum allowed size is 100MB for Cloudinary free plan.'
+                        })
             elif content_type == 'reading':
                 if not self.request.data.get('text'):
                     raise serializers.ValidationError({
@@ -1004,6 +1014,19 @@ class ContentViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({
                 'detail': "You don't have permission to edit content for this module"
             })
+        
+        # Handle video file replacement if a new video file is uploaded
+        if instance.content_type == 'video' and 'video' in self.request.FILES:
+            video_file = self.request.FILES.get('video')
+            if video_file:
+                # Validate file size (100MB limit for Cloudinary free plan)
+                max_size = 100 * 1024 * 1024  # 100MB
+                if video_file.size > max_size:
+                    size_mb = round(video_file.size / (1024 * 1024), 2)
+                    raise serializers.ValidationError({
+                        'video': f'Video file is too large ({size_mb}MB). Maximum allowed size is 100MB for Cloudinary free plan.'
+                    })
+        
         desired_order = serializer.validated_data.get('order', instance.order)
         if Content.objects.filter(module_id=module_id, order=desired_order).exclude(id=instance.id).exists():
             raise serializers.ValidationError({

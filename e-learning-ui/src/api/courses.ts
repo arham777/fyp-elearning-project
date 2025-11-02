@@ -126,12 +126,27 @@ export const coursesApi = {
   async createModuleContentUpload(
     courseId: number,
     moduleId: number,
-    formData: FormData
+    formData: FormData,
+    onUploadProgress?: (progressEvent: { loaded: number; total?: number; progress?: number }) => void
   ) {
     const response = await apiClient.post(
       `/courses/${courseId}/modules/${moduleId}/content/`,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      { 
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onUploadProgress) {
+            const progress = progressEvent.total 
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              : 0;
+            onUploadProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              progress
+            });
+          }
+        }
+      }
     );
     return response.data;
   },
@@ -240,6 +255,35 @@ export const coursesApi = {
     const response = await apiClient.patch(
       `/courses/${courseId}/modules/${moduleId}/content/${contentId}/`,
       data
+    );
+    return response.data;
+  },
+
+  async updateModuleContentWithFile(
+    courseId: number,
+    moduleId: number,
+    contentId: number,
+    formData: FormData,
+    onUploadProgress?: (progressEvent: { loaded: number; total?: number; progress?: number }) => void
+  ) {
+    const response = await apiClient.patch(
+      `/courses/${courseId}/modules/${moduleId}/content/${contentId}/`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onUploadProgress) {
+            const progress = progressEvent.total 
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              : 0;
+            onUploadProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              progress
+            });
+          }
+        }
+      }
     );
     return response.data;
   },
