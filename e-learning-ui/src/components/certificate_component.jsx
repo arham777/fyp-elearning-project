@@ -78,134 +78,90 @@ const Certificate = forwardRef(({
     return Math.max(scaledSize, minSize);
   };
 
-  // Helper function to convert OKLCH colors to RGB for html2canvas compatibility
-  const convertOklchToRgb = (element) => {
-    const computedStyle = window.getComputedStyle(element);
-    
-    // Store original inline styles
-    const originalStyles = {
-      backgroundColor: element.style.backgroundColor,
-      color: element.style.color,
-      borderColor: element.style.borderColor,
-      borderTopColor: element.style.borderTopColor,
-      borderRightColor: element.style.borderRightColor,
-      borderBottomColor: element.style.borderBottomColor,
-      borderLeftColor: element.style.borderLeftColor,
-      outlineColor: element.style.outlineColor,
-      boxShadow: element.style.boxShadow,
-      textShadow: element.style.textShadow,
-    };
-    
-    // Apply computed RGB values for all color properties
-    const bgColor = computedStyle.backgroundColor;
-    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
-      element.style.backgroundColor = bgColor;
-    }
-    
-    const textColor = computedStyle.color;
-    if (textColor) {
-      element.style.color = textColor;
-    }
-    
-    // Handle all border colors
-    const borderColor = computedStyle.borderColor;
-    if (borderColor) {
-      element.style.borderColor = borderColor;
-    }
-    
-    const borderTopColor = computedStyle.borderTopColor;
-    if (borderTopColor) {
-      element.style.borderTopColor = borderTopColor;
-    }
-    
-    const borderRightColor = computedStyle.borderRightColor;
-    if (borderRightColor) {
-      element.style.borderRightColor = borderRightColor;
-    }
-    
-    const borderBottomColor = computedStyle.borderBottomColor;
-    if (borderBottomColor) {
-      element.style.borderBottomColor = borderBottomColor;
-    }
-    
-    const borderLeftColor = computedStyle.borderLeftColor;
-    if (borderLeftColor) {
-      element.style.borderLeftColor = borderLeftColor;
-    }
-    
-    const outlineColor = computedStyle.outlineColor;
-    if (outlineColor) {
-      element.style.outlineColor = outlineColor;
-    }
-    
-    // Handle shadows (they can contain colors)
-    const boxShadow = computedStyle.boxShadow;
-    if (boxShadow && boxShadow !== 'none') {
-      element.style.boxShadow = boxShadow;
-    }
-    
-    const textShadow = computedStyle.textShadow;
-    if (textShadow && textShadow !== 'none') {
-      element.style.textShadow = textShadow;
-    }
-    
-    return originalStyles;
-  };
-
   // PDF Download Function
   const downloadAsPDF = async () => {
     if (!ref?.current || isDownloading) return;
     
     setIsDownloading(true);
     
-    // Create a temporary style element to override OKLCH colors with RGB
-    const tempStyle = document.createElement('style');
-    tempStyle.id = 'pdf-color-override';
-    tempStyle.textContent = `
-      [data-certificate="true"] * {
-        /* Override all Tailwind OKLCH colors with RGB equivalents */
-        --background: 37 37 37 !important;
-        --foreground: 251 251 251 !important;
-        --card: 52 52 52 !important;
-        --card-foreground: 251 251 251 !important;
-        --muted: 68 68 68 !important;
-        --muted-foreground: 180 180 180 !important;
-        --border: 70 70 70 !important;
-        --input: 82 82 82 !important;
-        --ring: 142 142 142 !important;
-      }
+    // Create a global CSS override to force RGB colors everywhere
+    // This bypasses Tailwind's oklch() wrapper by directly setting RGB values
+    const globalStyleOverride = document.createElement('style');
+    globalStyleOverride.id = 'pdf-global-override';
+    globalStyleOverride.textContent = `
+      /* CRITICAL: Override ALL Tailwind color utilities with direct RGB values */
+      /* This bypasses the oklch() wrapper in tailwind.config.ts */
+      
+      /* Certificate root colors */
       [data-certificate="true"] {
-        background-color: #191919 !important;
-        color: #fafafa !important;
-        border-color: #333333 !important;
+        background-color: rgb(25, 25, 25) !important;
+        color: rgb(250, 250, 250) !important;
+        border-color: rgb(70, 70, 70) !important;
       }
-      [data-certificate="true"] .text-neutral-100 {
-        color: #fafafa !important;
-      }
-      [data-certificate="true"] .text-neutral-300 {
-        color: #d4d4d4 !important;
-      }
-      [data-certificate="true"] .text-neutral-400 {
-        color: #a3a3a3 !important;
-      }
-      [data-certificate="true"] .text-neutral-900 {
-        color: #171717 !important;
-      }
-      [data-certificate="true"] .bg-neutral-300 {
-        background-color: #d4d4d4 !important;
-      }
-      [data-certificate="true"] .bg-neutral-700 {
-        background-color: #404040 !important;
-      }
-      [data-certificate="true"] .border-neutral-700 {
-        border-color: #404040 !important;
-      }
-      [data-certificate="true"] .border-neutral-800 {
-        border-color: #262626 !important;
-      }
+      
+      /* Text colors */
+      [data-certificate="true"] .text-neutral-50 { color: rgb(250, 250, 250) !important; }
+      [data-certificate="true"] .text-neutral-100 { color: rgb(250, 250, 250) !important; }
+      [data-certificate="true"] .text-neutral-200 { color: rgb(229, 229, 229) !important; }
+      [data-certificate="true"] .text-neutral-300 { color: rgb(212, 212, 212) !important; }
+      [data-certificate="true"] .text-neutral-400 { color: rgb(163, 163, 163) !important; }
+      [data-certificate="true"] .text-neutral-500 { color: rgb(115, 115, 115) !important; }
+      [data-certificate="true"] .text-neutral-600 { color: rgb(82, 82, 82) !important; }
+      [data-certificate="true"] .text-neutral-700 { color: rgb(64, 64, 64) !important; }
+      [data-certificate="true"] .text-neutral-800 { color: rgb(38, 38, 38) !important; }
+      [data-certificate="true"] .text-neutral-900 { color: rgb(23, 23, 23) !important; }
+      [data-certificate="true"] .text-neutral-950 { color: rgb(10, 10, 10) !important; }
+      
+      /* Background colors */
+      [data-certificate="true"] .bg-neutral-50 { background-color: rgb(250, 250, 250) !important; }
+      [data-certificate="true"] .bg-neutral-100 { background-color: rgb(245, 245, 245) !important; }
+      [data-certificate="true"] .bg-neutral-200 { background-color: rgb(229, 229, 229) !important; }
+      [data-certificate="true"] .bg-neutral-300 { background-color: rgb(212, 212, 212) !important; }
+      [data-certificate="true"] .bg-neutral-400 { background-color: rgb(163, 163, 163) !important; }
+      [data-certificate="true"] .bg-neutral-500 { background-color: rgb(115, 115, 115) !important; }
+      [data-certificate="true"] .bg-neutral-600 { background-color: rgb(82, 82, 82) !important; }
+      [data-certificate="true"] .bg-neutral-700 { background-color: rgb(64, 64, 64) !important; }
+      [data-certificate="true"] .bg-neutral-800 { background-color: rgb(38, 38, 38) !important; }
+      [data-certificate="true"] .bg-neutral-900 { background-color: rgb(23, 23, 23) !important; }
+      [data-certificate="true"] .bg-neutral-950 { background-color: rgb(10, 10, 10) !important; }
+      
+      /* Arbitrary value classes */
+      [data-certificate="true"] .bg-\\[\\#191919\\] { background-color: rgb(25, 25, 25) !important; }
+      [data-certificate="true"] .bg-\\[\\#1a1a1a\\] { background-color: rgb(26, 26, 26) !important; }
+      
+      /* Border colors */
+      [data-certificate="true"] .border-neutral-50 { border-color: rgb(250, 250, 250) !important; }
+      [data-certificate="true"] .border-neutral-100 { border-color: rgb(245, 245, 245) !important; }
+      [data-certificate="true"] .border-neutral-200 { border-color: rgb(229, 229, 229) !important; }
+      [data-certificate="true"] .border-neutral-300 { border-color: rgb(212, 212, 212) !important; }
+      [data-certificate="true"] .border-neutral-400 { border-color: rgb(163, 163, 163) !important; }
+      [data-certificate="true"] .border-neutral-500 { border-color: rgb(115, 115, 115) !important; }
+      [data-certificate="true"] .border-neutral-600 { border-color: rgb(82, 82, 82) !important; }
+      [data-certificate="true"] .border-neutral-700 { border-color: rgb(64, 64, 64) !important; }
+      [data-certificate="true"] .border-neutral-800 { border-color: rgb(38, 38, 38) !important; }
+      [data-certificate="true"] .border-neutral-900 { border-color: rgb(23, 23, 23) !important; }
+      [data-certificate="true"] .border-neutral-950 { border-color: rgb(10, 10, 10) !important; }
+      
+      /* Ring colors (for Avatar component) */
       [data-certificate="true"] .ring-neutral-700 {
-        --tw-ring-color: #404040 !important;
+        --tw-ring-color: rgb(64, 64, 64) !important;
+        box-shadow: 0 0 0 3px rgb(64, 64, 64) !important;
       }
+      [data-certificate="true"] .ring-0 {
+        --tw-ring-offset-width: 0px !important;
+        box-shadow: none !important;
+      }
+      
+      /* Remove any shadows that might use oklch */
+      [data-certificate="true"] .shadow-none { box-shadow: none !important; }
+      
+      /* Rounded borders */
+      [data-certificate="true"] .rounded-xl { border-radius: 0.75rem !important; }
+      [data-certificate="true"] .rounded-full { border-radius: 9999px !important; }
+      
+      /* Border widths */
+      [data-certificate="true"] .border { border-width: 1px !important; }
+      [data-certificate="true"] .border-4 { border-width: 4px !important; }
     `;
     
     try {
@@ -218,27 +174,133 @@ const Certificate = forwardRef(({
       const courseTitle = sanitize(displayCourse);
       const filename = `${studentName}-${courseTitle}.pdf`;
       
-      // Add temporary style override
-      document.head.appendChild(tempStyle);
+      // Inject global style override
+      document.head.appendChild(globalStyleOverride);
       
-      // Wait a bit for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Force reflow and wait for styles to apply
+      void document.body.offsetHeight;
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Create high quality canvas with certificate's dark background
       const canvas = await html2canvas(ref.current, {
         scale: 2, // Higher resolution for better quality
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#191919', // Match certificate's exact dark background
+        backgroundColor: 'rgb(25, 25, 25)', // Use RGB format
         width: cardSize.width,
         height: cardSize.height,
         windowWidth: cardSize.width,
         windowHeight: cardSize.height,
         logging: false, // Reduce console output
+        onclone: (clonedDoc) => {
+          // CRITICAL: Override OKLCH colors GLOBALLY in the cloned document
+          // html2canvas processes the entire DOM tree, not just the certificate
+          const globalRgbOverride = clonedDoc.createElement('style');
+          globalRgbOverride.textContent = `
+            /* Force ALL elements in cloned doc to use RGB */
+            *, *::before, *::after {
+              background-color: inherit !important;
+              color: inherit !important;
+              border-color: inherit !important;
+            }
+            
+            /* Set RGB colors on root elements */
+            html, body {
+              background-color: rgb(25, 25, 25) !important;
+              color: rgb(250, 250, 250) !important;
+            }
+            
+            ${globalStyleOverride.textContent}
+          `;
+          clonedDoc.head.appendChild(globalRgbOverride);
+          
+          // Force ALL elements in the entire cloned document to have explicit RGB inline styles
+          // This is the nuclear option - override everything
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach((element) => {
+            try {
+              // Force transparent/clear backgrounds to rgb
+              const computedStyle = element.ownerDocument.defaultView.getComputedStyle(element);
+              
+              const bg = computedStyle.backgroundColor;
+              if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                element.style.backgroundColor = bg;
+              } else {
+                // Force transparent to explicit rgb
+                element.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+              }
+              
+              const color = computedStyle.color;
+              if (color) {
+                element.style.color = color;
+              }
+              
+              const borderColor = computedStyle.borderTopColor;
+              if (borderColor && borderColor !== 'rgba(0, 0, 0, 0)') {
+                element.style.borderColor = borderColor;
+              }
+            } catch (e) {
+              // Skip inaccessible elements
+            }
+          });
+          
+          // Force certificate root to have explicit RGB colors
+          const clonedCert = clonedDoc.querySelector('[data-certificate="true"]');
+          if (clonedCert) {
+            clonedCert.style.backgroundColor = 'rgb(25, 25, 25)';
+            clonedCert.style.color = 'rgb(250, 250, 250)';
+            clonedCert.style.borderColor = 'rgb(70, 70, 70)';
+          }
+          
+          // Force inline styles on all certificate children
+          const originalCert = document.querySelector('[data-certificate="true"]');
+          if (originalCert && clonedCert) {
+            const originalElements = originalCert.querySelectorAll('*');
+            const clonedElements = clonedCert.querySelectorAll('*');
+            
+            // Match original elements to cloned elements by index and copy computed styles
+            originalElements.forEach((origEl, index) => {
+              if (clonedElements[index]) {
+                try {
+                  const computedStyle = window.getComputedStyle(origEl);
+                  const clonedEl = clonedElements[index];
+                  
+                  // Copy all color-related computed styles as inline styles
+                  const colorProps = [
+                    'backgroundColor',
+                    'color',
+                    'borderTopColor',
+                    'borderRightColor',
+                    'borderBottomColor',
+                    'borderLeftColor',
+                    'outlineColor'
+                  ];
+                  
+                  colorProps.forEach(prop => {
+                    const value = computedStyle[prop];
+                    if (value && value !== 'rgba(0, 0, 0, 0)' && value !== 'transparent') {
+                      clonedEl.style[prop] = value;
+                    }
+                  });
+                  
+                  // Handle shadows
+                  if (computedStyle.boxShadow && computedStyle.boxShadow !== 'none') {
+                    clonedEl.style.boxShadow = computedStyle.boxShadow;
+                  }
+                  if (computedStyle.textShadow && computedStyle.textShadow !== 'none') {
+                    clonedEl.style.textShadow = computedStyle.textShadow;
+                  }
+                } catch (e) {
+                  // Skip if can't access element
+                }
+              }
+            });
+          }
+        }
       });
       
-      // Remove temporary style
-      document.head.removeChild(tempStyle);
+      // Remove global style override
+      document.head.removeChild(globalStyleOverride);
       
       // Calculate exact dimensions for 16:9 ratio PDF (no white space)
       const aspectRatio = 16 / 9;
@@ -274,10 +336,10 @@ const Certificate = forwardRef(({
     } catch (error) {
       console.error('Failed to generate PDF:', error);
       
-      // Ensure tempStyle is removed even on error
-      const existingStyle = document.getElementById('pdf-color-override');
-      if (existingStyle) {
-        document.head.removeChild(existingStyle);
+      // Remove global style override in case of error
+      const existingOverride = document.getElementById('pdf-global-override');
+      if (existingOverride) {
+        document.head.removeChild(existingOverride);
       }
       
       setErrorDialog({
@@ -358,8 +420,8 @@ const Certificate = forwardRef(({
               style={{ top: `${baseUnit * 3.5}px`, left: `${baseUnit * 3.5}px` }}
             >
               <div
-                className="font-yeseva leading-tight"
-                style={{ fontSize: `${getFontSize(2.2, 7)}px` }}
+                className="font-yeseva"
+                style={{ fontSize: `${getFontSize(2.2, 7)}px`, lineHeight: '1.4' , paddingBottom: '3px'}}
               >
                 {displayCourse}
               </div>
@@ -374,11 +436,13 @@ const Certificate = forwardRef(({
             {/* Title center-top */}
             <div className="absolute left-1/2 -translate-x-1/2 top-[18%] text-center">
               <h1
-                className="font-norwester font-normal uppercase leading-none tracking-[0.06em] whitespace-nowrap"
+                className="font-norwester font-normal uppercase tracking-[0.06em] whitespace-nowrap"
                 style={{
                   fontFamily: "Norwester, 'Bebas Neue', Oswald, Impact, sans-serif",
                   fontWeight: 400,
                   fontSize: `${getFontSize(3.8, 8)}px`,
+                  lineHeight: '1.3',
+                  paddingBottom: '2px'
                 }}
               >
                 Certificate of Completion
