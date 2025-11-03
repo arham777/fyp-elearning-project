@@ -301,23 +301,61 @@ class ContentProgress(models.Model):
 class Payment(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
+        ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
     )
     PAYMENT_METHODS = (
         ('stripe', 'Stripe'),
-        # Add more methods as needed
+        ('jazzcash', 'JazzCash'),
     )
     id = models.AutoField(primary_key=True)
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, related_name='payments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='stripe')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
-    payment_date = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    
+    # Transaction tracking
+    transaction_id = models.CharField(max_length=255, null=True, blank=True, unique=True)  # External payment gateway transaction ID
+    payment_intent_id = models.CharField(max_length=255, null=True, blank=True)  # Stripe PaymentIntent ID or JazzCash reference
+    
+    # Card details (last 4 digits only for display)
+    card_last4 = models.CharField(max_length=4, null=True, blank=True)
+    card_brand = models.CharField(max_length=20, null=True, blank=True)  # visa, mastercard, etc.
+    
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now)
+    payment_date = models.DateTimeField(null=True, blank=True)  # When payment was completed
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Additional metadata
+    failure_reason = models.TextField(null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True, default=dict)  # Store additional payment gateway data
+    
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.student.username} - {self.course.title} - {self.amount}"
+        return f"{self.student.username} - {self.course.title} - {self.amount} ({self.status})"
+    
+    def mark_as_completed(self):
+        """Mark payment as completed and create enrollment"""
+        if self.status != 'completed':
+            self.status = 'completed'
+            self.payment_date = timezone.now()
+            self.save()
+            
+            # Create enrollment if it doesn't exist
+            enrollment, created = Enrollment.objects.get_or_create(
+                student=self.student,
+                course=self.course,
+                defaults={'status': 'active'}
+            )
+            
+            return enrollment
+        return None
 
 # Assignments Model
 class Assignment(models.Model):

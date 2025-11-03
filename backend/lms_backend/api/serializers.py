@@ -324,10 +324,19 @@ class CertificateSerializer(serializers.ModelSerializer):
         read_only_fields = ['issue_date', 'verification_code']
 
 class PaymentSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.username', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    
     class Meta:
         model = Payment
-        fields = ['id', 'student', 'course', 'amount', 'payment_method', 'status', 'payment_date']
-        read_only_fields = ['payment_date'] 
+        fields = [
+            'id', 'student', 'student_name', 'course', 'course_title', 
+            'amount', 'payment_method', 'status', 'transaction_id', 
+            'payment_intent_id', 'card_last4', 'card_brand', 
+            'created_at', 'payment_date', 'updated_at', 
+            'failure_reason', 'metadata'
+        ]
+        read_only_fields = ['created_at', 'payment_date', 'updated_at', 'student_name', 'course_title'] 
 
 class SupportRequestSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)

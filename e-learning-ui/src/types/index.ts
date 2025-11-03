@@ -267,6 +267,34 @@ export interface SupportRequest {
   handled_by?: User | null;
 }
 
+export interface Payment {
+  id: number;
+  student: number;
+  student_name?: string;
+  course: number;
+  course_title?: string;
+  amount: number | string;
+  payment_method: 'stripe' | 'jazzcash';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+  transaction_id?: string;
+  payment_intent_id?: string;
+  card_last4?: string;
+  card_brand?: string;
+  created_at: string;
+  payment_date?: string;
+  updated_at?: string;
+  failure_reason?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PaymentFormData {
+  card_number: string;
+  card_holder: string;
+  expiry_date: string;
+  cvv: string;
+  phone_number?: string; // For JazzCash
+}
+
 export interface TeacherRequest {
   id: number;
   first_name: string;

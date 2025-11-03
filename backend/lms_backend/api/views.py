@@ -1699,3 +1699,176 @@ class SupportRequestViewSet(viewsets.ModelViewSet):
         sr.handled_by = request.user
         sr.save(update_fields=['status', 'handled_at', 'handled_by'])
         return Response(SupportRequestSerializer(sr).data)
+
+
+# Payment ViewSet
+class PaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'admin':
+            return Payment.objects.all()
+        elif user.role == 'student':
+            return Payment.objects.filter(student=user)
+        elif user.role == 'teacher':
+            # Teachers can see payments for their courses
+            return Payment.objects.filter(course__teacher=user)
+        return Payment.objects.none()
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsActiveUser])
+    def initiate(self, request):
+        """
+        Initiate a payment for a course
+        Expected payload: {
+            "course_id": 1,
+            "payment_method": "stripe" or "jazzcash"
+        }
+        """
+        if request.user.role != 'student':
+            return Response(
+                {"detail": "Only students can make payments."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        course_id = request.data.get('course_id')
+        payment_method = request.data.get('payment_method', 'stripe')
+        
+        if not course_id:
+            return Response(
+                {"detail": "course_id is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            course = Course.objects.get(id=course_id, is_published=True)
+        except Course.DoesNotExist:
+            return Response(
+                {"detail": "Course not found or not published."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if already enrolled
+        if Enrollment.objects.filter(student=request.user, course=course).exists():
+            return Response(
+                {"detail": "You are already enrolled in this course."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if there's already a pending payment
+        existing_payment = Payment.objects.filter(
+            student=request.user,
+            course=course,
+            status='pending'
+        ).first()
+        
+        if existing_payment:
+            return Response(
+                PaymentSerializer(existing_payment).data,
+                status=status.HTTP_200_OK
+            )
+        
+        # Create new payment record
+        payment = Payment.objects.create(
+            student=request.user,
+            course=course,
+            amount=course.price,
+            payment_method=payment_method,
+            status='pending'
+        )
+        
+        return Response(
+            PaymentSerializer(payment).data,
+            status=status.HTTP_201_CREATED
+        )
+    
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsActiveUser])
+    def process(self, request, pk=None):
+        """
+        Process payment with card/payment details
+        For now, this is a mock implementation that will be replaced with actual gateway integration
+        Expected payload: {
+            "card_number": "4242424242424242",
+            "card_holder": "John Doe",
+            "expiry_date": "12/25",
+            "cvv": "123",
+            // For JazzCash
+            "phone_number": "03001234567"
+        }
+        """
+        payment = self.get_object()
+        
+        if payment.student != request.user:
+            return Response(
+                {"detail": "You can only process your own payments."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if payment.status != 'pending':
+            return Response(
+                {"detail": f"Payment is already {payment.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Mock payment processing
+        # In production, integrate with Stripe/JazzCash APIs here
+        try:
+            payment.status = 'processing'
+            payment.save()
+            
+            # Simulate payment processing
+            import uuid
+            transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
+            
+            # Extract card details (for display only - never store full card numbers)
+            card_number = request.data.get('card_number', '')
+            if len(card_number) >= 4:
+                payment.card_last4 = card_number[-4:]
+            
+            # Determine card brand (simple detection)
+            if card_number.startswith('4'):
+                payment.card_brand = 'Visa'
+            elif card_number.startswith('5'):
+                payment.card_brand = 'Mastercard'
+            else:
+                payment.card_brand = 'Unknown'
+            
+            payment.transaction_id = transaction_id
+            payment.payment_intent_id = f"PI-{uuid.uuid4().hex[:16].upper()}"
+            payment.metadata = {
+                'card_holder': request.data.get('card_holder', ''),
+                'phone_number': request.data.get('phone_number', ''),
+                'processed_at': timezone.now().isoformat()
+            }
+            
+            # Mark as completed and create enrollment
+            enrollment = payment.mark_as_completed()
+            
+            return Response({
+                'payment': PaymentSerializer(payment).data,
+                'enrollment': EnrollmentSerializer(enrollment).data if enrollment else None,
+                'message': 'Payment processed successfully!'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            payment.status = 'failed'
+            payment.failure_reason = str(e)
+            payment.save()
+            return Response(
+                {"detail": f"Payment processing failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated, IsActiveUser])
+    def my_payments(self, request):
+        """Get current user's payment history"""
+        if request.user.role != 'student':
+            return Response(
+                {"detail": "Only students have payment history."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        payments = Payment.objects.filter(student=request.user).order_by('-created_at')
+        serializer = PaymentSerializer(payments, many=True)
+        return Response(serializer.data)

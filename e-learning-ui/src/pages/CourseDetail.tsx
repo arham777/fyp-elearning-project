@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import BackButton from '@/components/ui/back-button';
 import { updateEnrollmentCache } from '@/utils/courseNavigation';
+import PaymentModal from '@/components/payment/PaymentModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +81,7 @@ const CourseDetail: React.FC = () => {
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [reviewText, setReviewText] = useState<string>('');
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -168,18 +170,25 @@ const CourseDetail: React.FC = () => {
   }, [modules, insertAfter]);
 
   const handleEnroll = async () => {
+    // Open payment modal instead of direct enrollment
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Refresh enrollments after successful payment
     try {
-      setIsEnrolling(true);
-      await coursesApi.enrollInCourse(courseId);
-      const updated = new Set(enrolledCourseIds);
-      updated.add(courseId);
-      setEnrolledCourseIds(updated);
-      // Update the enrollment cache so navigation works immediately
-      updateEnrollmentCache(courseId, true);
+      const enrollments = await coursesApi.getMyEnrollments();
+      setMyEnrollments(enrollments as Enrollment[]);
+      const ids = new Set<number>(
+        (enrollments as Enrollment[])
+          .map((e) => e.course?.id)
+          .filter((cid): cid is number => typeof cid === 'number')
+      );
+      setEnrolledCourseIds(ids);
       // Navigate to my-courses route after successful enrollment
       await navigateToCourse(courseId);
-    } finally {
-      setIsEnrolling(false);
+    } catch (error) {
+      console.error('Failed to refresh enrollments:', error);
     }
   };
 
@@ -453,8 +462,8 @@ const CourseDetail: React.FC = () => {
                   <Link to="#">{hasCertificate ? 'Review' : 'Continue'}</Link>
                 </Button>
               ) : (
-                <Button className="h-9" onClick={handleEnroll} disabled={isEnrolling}>
-                  {isEnrolling ? 'Enrolling...' : 'Enroll now'}
+                <Button className="h-9" onClick={handleEnroll}>
+                  Enroll now
                 </Button>
               )
             )}
@@ -799,6 +808,16 @@ const CourseDetail: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Payment Modal */}
+      {course && !isTeacher && !isEnrolled && (
+        <PaymentModal
+          open={isPaymentModalOpen}
+          onOpenChange={setIsPaymentModalOpen}
+          course={course}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
     </div>
   );

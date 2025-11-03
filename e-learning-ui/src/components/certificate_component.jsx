@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, forwardRef } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 import { User, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import html2canvas from 'html2canvas';
@@ -23,6 +24,7 @@ const Certificate = forwardRef(({
 
   const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
   const [isDownloading, setIsDownloading] = useState(false);
+  const [errorDialog, setErrorDialog] = useState({ open: false, message: '' });
 
   // Compute responsive certificate card size
   useEffect(() => {
@@ -76,11 +78,135 @@ const Certificate = forwardRef(({
     return Math.max(scaledSize, minSize);
   };
 
+  // Helper function to convert OKLCH colors to RGB for html2canvas compatibility
+  const convertOklchToRgb = (element) => {
+    const computedStyle = window.getComputedStyle(element);
+    
+    // Store original inline styles
+    const originalStyles = {
+      backgroundColor: element.style.backgroundColor,
+      color: element.style.color,
+      borderColor: element.style.borderColor,
+      borderTopColor: element.style.borderTopColor,
+      borderRightColor: element.style.borderRightColor,
+      borderBottomColor: element.style.borderBottomColor,
+      borderLeftColor: element.style.borderLeftColor,
+      outlineColor: element.style.outlineColor,
+      boxShadow: element.style.boxShadow,
+      textShadow: element.style.textShadow,
+    };
+    
+    // Apply computed RGB values for all color properties
+    const bgColor = computedStyle.backgroundColor;
+    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
+      element.style.backgroundColor = bgColor;
+    }
+    
+    const textColor = computedStyle.color;
+    if (textColor) {
+      element.style.color = textColor;
+    }
+    
+    // Handle all border colors
+    const borderColor = computedStyle.borderColor;
+    if (borderColor) {
+      element.style.borderColor = borderColor;
+    }
+    
+    const borderTopColor = computedStyle.borderTopColor;
+    if (borderTopColor) {
+      element.style.borderTopColor = borderTopColor;
+    }
+    
+    const borderRightColor = computedStyle.borderRightColor;
+    if (borderRightColor) {
+      element.style.borderRightColor = borderRightColor;
+    }
+    
+    const borderBottomColor = computedStyle.borderBottomColor;
+    if (borderBottomColor) {
+      element.style.borderBottomColor = borderBottomColor;
+    }
+    
+    const borderLeftColor = computedStyle.borderLeftColor;
+    if (borderLeftColor) {
+      element.style.borderLeftColor = borderLeftColor;
+    }
+    
+    const outlineColor = computedStyle.outlineColor;
+    if (outlineColor) {
+      element.style.outlineColor = outlineColor;
+    }
+    
+    // Handle shadows (they can contain colors)
+    const boxShadow = computedStyle.boxShadow;
+    if (boxShadow && boxShadow !== 'none') {
+      element.style.boxShadow = boxShadow;
+    }
+    
+    const textShadow = computedStyle.textShadow;
+    if (textShadow && textShadow !== 'none') {
+      element.style.textShadow = textShadow;
+    }
+    
+    return originalStyles;
+  };
+
   // PDF Download Function
   const downloadAsPDF = async () => {
     if (!ref?.current || isDownloading) return;
     
     setIsDownloading(true);
+    
+    // Create a temporary style element to override OKLCH colors with RGB
+    const tempStyle = document.createElement('style');
+    tempStyle.id = 'pdf-color-override';
+    tempStyle.textContent = `
+      [data-certificate="true"] * {
+        /* Override all Tailwind OKLCH colors with RGB equivalents */
+        --background: 37 37 37 !important;
+        --foreground: 251 251 251 !important;
+        --card: 52 52 52 !important;
+        --card-foreground: 251 251 251 !important;
+        --muted: 68 68 68 !important;
+        --muted-foreground: 180 180 180 !important;
+        --border: 70 70 70 !important;
+        --input: 82 82 82 !important;
+        --ring: 142 142 142 !important;
+      }
+      [data-certificate="true"] {
+        background-color: #191919 !important;
+        color: #fafafa !important;
+        border-color: #333333 !important;
+      }
+      [data-certificate="true"] .text-neutral-100 {
+        color: #fafafa !important;
+      }
+      [data-certificate="true"] .text-neutral-300 {
+        color: #d4d4d4 !important;
+      }
+      [data-certificate="true"] .text-neutral-400 {
+        color: #a3a3a3 !important;
+      }
+      [data-certificate="true"] .text-neutral-900 {
+        color: #171717 !important;
+      }
+      [data-certificate="true"] .bg-neutral-300 {
+        background-color: #d4d4d4 !important;
+      }
+      [data-certificate="true"] .bg-neutral-700 {
+        background-color: #404040 !important;
+      }
+      [data-certificate="true"] .border-neutral-700 {
+        border-color: #404040 !important;
+      }
+      [data-certificate="true"] .border-neutral-800 {
+        border-color: #262626 !important;
+      }
+      [data-certificate="true"] .ring-neutral-700 {
+        --tw-ring-color: #404040 !important;
+      }
+    `;
     
     try {
       // Wait for any ongoing animations to complete
@@ -91,6 +217,12 @@ const Certificate = forwardRef(({
       const studentName = sanitize(displayName);
       const courseTitle = sanitize(displayCourse);
       const filename = `${studentName}-${courseTitle}.pdf`;
+      
+      // Add temporary style override
+      document.head.appendChild(tempStyle);
+      
+      // Wait a bit for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Create high quality canvas with certificate's dark background
       const canvas = await html2canvas(ref.current, {
@@ -104,6 +236,9 @@ const Certificate = forwardRef(({
         windowHeight: cardSize.height,
         logging: false, // Reduce console output
       });
+      
+      // Remove temporary style
+      document.head.removeChild(tempStyle);
       
       // Calculate exact dimensions for 16:9 ratio PDF (no white space)
       const aspectRatio = 16 / 9;
@@ -138,14 +273,32 @@ const Certificate = forwardRef(({
       
     } catch (error) {
       console.error('Failed to generate PDF:', error);
-      alert('Failed to download certificate. Please try again.');
+      
+      // Ensure tempStyle is removed even on error
+      const existingStyle = document.getElementById('pdf-color-override');
+      if (existingStyle) {
+        document.head.removeChild(existingStyle);
+      }
+      
+      setErrorDialog({
+        open: true,
+        message: 'Failed to download certificate. Please try again or contact support if the issue persists.',
+      });
     } finally {
       setIsDownloading(false);
     }
   };
 
   return (
-    <div className="grid place-items-center bg-transparent p-3 font-roboto w-full h-full overflow-hidden">
+    <>
+      <ErrorDialog
+        open={errorDialog.open}
+        onOpenChange={(open) => setErrorDialog({ ...errorDialog, open })}
+        title="Download Failed"
+        message={errorDialog.message}
+        onRetry={downloadAsPDF}
+      />
+      <div className="grid place-items-center bg-transparent p-3 font-roboto w-full h-full overflow-hidden">
       <motion.div
         className="relative w-full"
         style={{ width: `${cardSize.width}px`, height: `${cardSize.height}px` }}
@@ -296,6 +449,7 @@ const Certificate = forwardRef(({
         </div>
       </motion.div>
     </div>
+    </>
   );
 });
 

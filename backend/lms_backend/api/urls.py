@@ -28,6 +28,8 @@ router.register(r'certificates', views.CertificateViewSet, basename='certificate
 # Notifications router
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
 router.register(r'support', views.SupportRequestViewSet, basename='support')
+# Payment router
+router.register(r'payments', views.PaymentViewSet, basename='payment')
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
