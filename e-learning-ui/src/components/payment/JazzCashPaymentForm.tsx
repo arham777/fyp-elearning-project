@@ -36,13 +36,19 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
   };
 
   const validateForm = (): boolean => {
-    if (phoneNumber.length !== 11) {
-      toast({ title: 'Error', description: 'Please enter a valid 11-digit phone number', variant: 'destructive' });
+    const numberLength = phoneNumber.length;
+    if (numberLength < 10 || numberLength > 11) {
+      toast({ title: 'Error', description: 'Please enter a valid 10 or 11-digit phone number', variant: 'destructive' });
       return false;
     }
 
-    if (!phoneNumber.startsWith('03')) {
-      toast({ title: 'Error', description: 'Phone number must start with 03', variant: 'destructive' });
+    if (numberLength === 11 && !phoneNumber.startsWith('03')) {
+      toast({ title: 'Error', description: '11-digit numbers must start with 03', variant: 'destructive' });
+      return false;
+    }
+
+    if (numberLength === 10 && !phoneNumber.startsWith('3')) {
+      toast({ title: 'Error', description: '10-digit numbers must start with 3', variant: 'destructive' });
       return false;
     }
 
@@ -66,8 +72,9 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
       const payment = await paymentsApi.initiatePayment(course.id, 'jazzcash');
 
       // Step 2: Process payment with JazzCash details
+      const finalPhoneNumber = phoneNumber.length === 10 ? `0${phoneNumber}` : phoneNumber;
       const result = await paymentsApi.processPayment(payment.id, {
-        phone_number: phoneNumber,
+        phone_number: finalPhoneNumber,
         card_number: '', // Not needed for JazzCash
         card_holder: '',
         expiry_date: '',
@@ -122,7 +129,13 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
         
         <div className="space-y-3">
           <div className="font-mono text-lg tracking-wider">
-            {phoneNumber ? `+92 ${phoneNumber.slice(1, 4)} ${phoneNumber.slice(4, 11)}` : '+92 XXX XXXXXXX'}
+            {(() => {
+              const displayNum = phoneNumber.startsWith('0') ? phoneNumber.slice(1) : phoneNumber;
+              const part1 = displayNum.slice(0, 3);
+              const part2 = displayNum.slice(3, 10);
+              if (!part1) return '+92 XXX XXXXXXX';
+              return `+92 ${part1}${part2 ? ` ${part2}` : ''}`;
+            })()}
           </div>
           
           <div className="flex items-center gap-2 text-sm opacity-90">
@@ -142,7 +155,7 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
             </span>
             <Input
               id="phone_number"
-              placeholder="3001234567"
+              placeholder="03001234567"
               value={phoneNumber}
               onChange={(e) => handlePhoneChange(e.target.value)}
               disabled={isProcessing}

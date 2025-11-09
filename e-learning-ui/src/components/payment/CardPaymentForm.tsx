@@ -108,7 +108,7 @@ const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, on
       });
 
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       const errorMessage = error?.response?.data?.detail || 'Payment failed. Please try again.';
       toast({
         title: 'Payment Failed',
@@ -123,7 +123,7 @@ const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, on
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Card Visual */}
-      <div className="relative bg-gradient-to-br from-primary/90 to-primary rounded-xl p-6 text-white shadow-lg">
+      <div className="relative bg-slate-800 dark:bg-slate-900 rounded-xl p-6 text-white shadow-lg dark:shadow-2xl transition-shadow duration-300 hover:shadow-xl">
         <div className="flex items-center justify-between mb-8">
           <CreditCard className="w-10 h-10 opacity-80" />
           <div className="text-xs font-medium opacity-80">DEBIT</div>
