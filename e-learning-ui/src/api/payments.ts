@@ -21,6 +21,16 @@ export const paymentsApi = {
     return response.data;
   },
 
+  // Initialize JazzCash hosted checkout session
+  jazzcashInit: async (
+    paymentId: number,
+    phoneNumber?: string
+  ): Promise<{ post_url: string; fields: Record<string, string> }> => {
+    const payload = phoneNumber ? { phone_number: phoneNumber } : {};
+    const response = await apiClient.post(`/payments/${paymentId}/jazzcash_init/`, payload);
+    return response.data;
+  },
+
   // Get current user's payment history
   getMyPayments: async (): Promise<Payment[]> => {
     const response = await apiClient.get('/payments/my_payments/');

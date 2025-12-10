@@ -37,4 +37,5 @@ urlpatterns = [
     path('', include(courses_router.urls)),
     path('', include(modules_router.urls)),
     path('', include(assignments_router.urls)),
+    path('payments/jazzcash/return/', views.JazzCashReturnView.as_view(), name='jazzcash-return'),
 ] 

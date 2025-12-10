@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,9 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
   const [isProcessing, setIsProcessing] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [pin, setPin] = useState('');
+  const [jazzFields, setJazzFields] = useState<Record<string, string> | null>(null);
+  const [postUrl, setPostUrl] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const handlePhoneChange = (value: string) => {
     // Only allow digits and limit to 11 characters
@@ -68,30 +71,24 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
     try {
       setIsProcessing(true);
 
-      // Step 1: Initiate payment
+      // Step 1: Initiate payment record
       const payment = await paymentsApi.initiatePayment(course.id, 'jazzcash');
 
-      // Step 2: Process payment with JazzCash details
+      // Step 2: Ask backend to create signed JazzCash payload
       const finalPhoneNumber = phoneNumber.length === 10 ? `0${phoneNumber}` : phoneNumber;
-      const result = await paymentsApi.processPayment(payment.id, {
-        phone_number: finalPhoneNumber,
-        card_number: '', // Not needed for JazzCash
-        card_holder: '',
-        expiry_date: '',
-        cvv: pin, // Using CVV field for PIN
-      });
+      const session = await paymentsApi.jazzcashInit(payment.id, finalPhoneNumber);
 
-      // Update enrollment cache
-      updateEnrollmentCache(course.id, true);
+      setJazzFields(session.fields);
+      setPostUrl(session.post_url);
 
-      toast({
-        title: 'Payment Successful!',
-        description: `You are now enrolled in ${course.title}`,
-      });
-
-      onSuccess();
+      // Give React a tick to render hidden form, then submit to JazzCash
+      setTimeout(() => {
+        if (formRef.current) {
+          formRef.current.submit();
+        }
+      }, 0);
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail || 'Payment failed. Please try again.';
+      const errorMessage = error?.response?.data?.detail || 'Unable to start JazzCash payment. Please try again.';
       toast({
         title: 'Payment Failed',
         description: errorMessage,
@@ -231,6 +228,20 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
           )}
         </Button>
       </div>
+
+      {/* Hidden form that posts directly to JazzCash */}
+      {postUrl && jazzFields && (
+        <form
+          ref={formRef}
+          action={postUrl}
+          method="POST"
+          className="hidden"
+        >
+          {Object.entries(jazzFields).map(([key, value]) => (
+            <input key={key} type="hidden" name={key} value={value} />
+          ))}
+        </form>
+      )}
     </form>
   );
 };

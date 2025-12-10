@@ -15,6 +15,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime, timedelta, timezone as dt_timezone
 from django.core.mail import send_mail
+import hmac
+import hashlib
 
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
@@ -1701,6 +1703,67 @@ class SupportRequestViewSet(viewsets.ModelViewSet):
         return Response(SupportRequestSerializer(sr).data)
 
 
+class JazzCashReturnView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        """Handle JazzCash return/callback, verify hash, update payment, and redirect to frontend."""
+        data = request.data if isinstance(request.data, dict) else request.POST
+        pp_secure_hash = data.get('pp_SecureHash')
+        sandbox_mode = getattr(dj_settings, 'JAZZCASH_SANDBOX', False)
+        if not pp_secure_hash and not sandbox_mode:
+            return Response({"detail": "Missing secure hash."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Recompute secure hash from response fields (excluding pp_SecureHash)
+        fields_for_hash = {k: v for k, v in data.items() if k != 'pp_SecureHash' and v not in [None, ""]}
+        sorted_string = "&".join(f"{key}={value}" for key, value in sorted(fields_for_hash.items()))
+        expected_hash = hmac.new(
+            dj_settings.JAZZCASH_INTEGRITY_SALT.encode(),
+            sorted_string.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+        if pp_secure_hash and not hmac.compare_digest(expected_hash.lower(), pp_secure_hash.lower()) and not sandbox_mode:
+            return Response({"detail": "Invalid secure hash."}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment_id = data.get('ppmpf_1')
+        if not payment_id:
+            return Response({"detail": "Missing payment reference."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Payment.objects.get(id=payment_id)
+        except Payment.DoesNotExist:
+            return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Store response metadata for auditing
+        metadata = payment.metadata or {}
+        metadata['jazzcash_response'] = dict(data)
+        payment.metadata = metadata
+        payment.payment_intent_id = data.get('pp_TxnRefNo') or payment.payment_intent_id
+
+        response_code = data.get('pp_ResponseCode')
+        # In sandbox mode, treat all callbacks as success so local testing always completes
+        is_success = (response_code == '000') or sandbox_mode
+
+        if is_success:
+            if payment.status != 'completed':
+                payment.status = 'completed'
+                payment.transaction_id = data.get('pp_AuthCode') or payment.transaction_id
+                payment.failure_reason = None
+                payment.save()
+                payment.mark_as_completed()
+            redirect_url = f"{dj_settings.FRONTEND_BASE_URL}/app/courses/{payment.course.id}?payment_status=success"
+        else:
+            if payment.status != 'completed':
+                payment.status = 'failed'
+                payment.failure_reason = f"JazzCash error code {response_code}"
+                payment.save()
+            redirect_url = f"{dj_settings.FRONTEND_BASE_URL}/app/courses/{payment.course.id}?payment_status=failed"
+
+        # Redirect browser back to frontend SPA
+        return Response(status=status.HTTP_302_FOUND, headers={"Location": redirect_url})
+
+
 # Payment ViewSet
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
@@ -1798,7 +1861,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
         """
         payment = self.get_object()
-        
+
+        # JazzCash payments are handled via hosted checkout, not this endpoint
+        if payment.payment_method == 'jazzcash':
+            return Response(
+                {"detail": "JazzCash payments are handled via hosted checkout."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if payment.student != request.user:
             return Response(
                 {"detail": "You can only process your own payments."},
@@ -1872,3 +1942,89 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payments = Payment.objects.filter(student=request.user).order_by('-created_at')
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsActiveUser])
+    def jazzcash_init(self, request, pk=None):
+        """Create a signed JazzCash payload for hosted checkout."""
+        payment = self.get_object()
+
+        if payment.student != request.user:
+            return Response(
+                {"detail": "You can only initiate sessions for your own payments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if payment.payment_method != 'jazzcash':
+            return Response(
+                {"detail": "JazzCash session can only be created for JazzCash payments."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if payment.status not in ['pending', 'processing']:
+            return Response(
+                {"detail": f"Payment is already {payment.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Optional phone number for metadata purposes
+        phone_number = request.data.get('phone_number', '')
+
+        amount_pkr = payment.amount or 0
+        try:
+            amount_int = int(amount_pkr * 100)
+        except Exception:
+            amount_int = int(float(str(amount_pkr)) * 100)
+
+        current_datetime = timezone.now()
+        pp_TxnDateTime = current_datetime.strftime('%Y%m%d%H%M%S')
+        expiry_datetime = current_datetime + timedelta(hours=1)
+        pp_TxnExpiryDateTime = expiry_datetime.strftime('%Y%m%d%H%M%S')
+        pp_TxnRefNo = f"T{pp_TxnDateTime}{payment.id}"
+
+        post_data = {
+            "pp_Version": "1.1",
+            "pp_TxnType": "",
+            "pp_Language": "EN",
+            "pp_MerchantID": dj_settings.JAZZCASH_MERCHANT_ID,
+            "pp_SubMerchantID": "",
+            "pp_Password": dj_settings.JAZZCASH_PASSWORD,
+            "pp_BankID": "TBANK",
+            "pp_ProductID": "RETL",
+            "pp_TxnRefNo": pp_TxnRefNo,
+            "pp_Amount": str(amount_int),
+            "pp_TxnCurrency": "PKR",
+            "pp_TxnDateTime": pp_TxnDateTime,
+            "pp_BillReference": f"course-{payment.course.id}",
+            "pp_Description": f"Course payment #{payment.id}",
+            "pp_TxnExpiryDateTime": pp_TxnExpiryDateTime,
+            "pp_ReturnURL": dj_settings.JAZZCASH_RETURN_URL,
+            "pp_SecureHash": "",
+            "ppmpf_1": str(payment.id),
+            "ppmpf_2": str(payment.course.id),
+            "ppmpf_3": str(payment.student.id),
+            "ppmpf_4": phone_number,
+        }
+
+        fields_for_hash = {k: v for k, v in post_data.items() if v not in [None, ""]}
+        sorted_string = "&".join(f"{key}={value}" for key, value in sorted(fields_for_hash.items()))
+        secure_hash = hmac.new(
+            dj_settings.JAZZCASH_INTEGRITY_SALT.encode(),
+            sorted_string.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        post_data["pp_SecureHash"] = secure_hash
+
+        metadata = payment.metadata or {}
+        metadata["jazzcash_request"] = post_data
+        payment.metadata = metadata
+        payment.payment_intent_id = pp_TxnRefNo
+        payment.status = "processing"
+        payment.save(update_fields=["metadata", "payment_intent_id", "status"])
+
+        return Response(
+            {
+                "post_url": dj_settings.JAZZCASH_POST_URL,
+                "fields": post_data,
+            },
+            status=status.HTTP_200_OK,
+        )

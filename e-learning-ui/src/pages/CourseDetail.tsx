@@ -192,6 +192,31 @@ const CourseDetail: React.FC = () => {
     }
   };
 
+  // Handle payment_status query param (e.g. after JazzCash redirect)
+  useEffect(() => {
+    if (!location.search) return;
+
+    const params = new URLSearchParams(location.search);
+    const status = params.get('payment_status');
+    if (!status) return;
+
+    if (status === 'success') {
+      toast({
+        title: 'Payment Successful',
+        description: 'Your payment was successful. Preparing your course...',
+      });
+      // Optimistically mark as enrolled in client cache
+      updateEnrollmentCache(courseId, true);
+      handlePaymentSuccess();
+    } else if (status === 'failed') {
+      toast({
+        title: 'Payment Failed',
+        description: 'Your payment could not be completed. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }, [location.search, courseId]);
+
   const handlePublish = async () => {
     if (!course) return;
     try {

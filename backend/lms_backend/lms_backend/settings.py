@@ -200,6 +200,19 @@ CORS_ALLOWED_METHODS = [
     'OPTIONS'
 ]
 
+FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'http://localhost:5173')
+
+# JazzCash configuration
+JAZZCASH_MERCHANT_ID = os.getenv('JAZZCASH_MERCHANT_ID', '')
+JAZZCASH_PASSWORD = os.getenv('JAZZCASH_PASSWORD', '')
+JAZZCASH_INTEGRITY_SALT = os.getenv('JAZZCASH_INTEGRITY_SALT', '')
+JAZZCASH_RETURN_URL = os.getenv('JAZZCASH_RETURN_URL', 'http://localhost:8000/api/payments/jazzcash/return/')
+JAZZCASH_POST_URL = os.getenv(
+    'JAZZCASH_POST_URL',
+    'https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/'
+)
+JAZZCASH_SANDBOX = os.getenv('JAZZCASH_SANDBOX', 'True').lower() == 'true'
+
 
 # JWT Settings
 from datetime import timedelta

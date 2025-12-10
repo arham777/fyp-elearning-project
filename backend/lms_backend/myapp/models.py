@@ -342,20 +342,20 @@ class Payment(models.Model):
     
     def mark_as_completed(self):
         """Mark payment as completed and create enrollment"""
+        # Ensure payment is marked completed with a payment_date
         if self.status != 'completed':
             self.status = 'completed'
             self.payment_date = timezone.now()
             self.save()
-            
-            # Create enrollment if it doesn't exist
-            enrollment, created = Enrollment.objects.get_or_create(
-                student=self.student,
-                course=self.course,
-                defaults={'status': 'active'}
-            )
-            
-            return enrollment
-        return None
+
+        # Create enrollment if it doesn't exist
+        enrollment, created = Enrollment.objects.get_or_create(
+            student=self.student,
+            course=self.course,
+            defaults={'status': 'active'}
+        )
+
+        return enrollment
 
 # Assignments Model
 class Assignment(models.Model):
