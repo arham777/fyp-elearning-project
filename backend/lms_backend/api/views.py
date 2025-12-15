@@ -1710,8 +1710,15 @@ class JazzCashReturnView(APIView):
         """Handle JazzCash return/callback, verify hash, update payment, and redirect to frontend."""
         data = request.data if isinstance(request.data, dict) else request.POST
         pp_secure_hash = data.get('pp_SecureHash')
-        sandbox_mode = getattr(dj_settings, 'JAZZCASH_SANDBOX', False)
-        if not pp_secure_hash and not sandbox_mode:
+        if getattr(dj_settings, 'DEBUG', False):
+            try:
+                print("[JazzCashReturnView] Incoming data:", dict(data))
+                print("[JazzCashReturnView] Using integrity salt:", dj_settings.JAZZCASH_INTEGRITY_SALT)
+                print("[JazzCashReturnView] Provided pp_SecureHash:", pp_secure_hash)
+            except Exception:
+                pass
+
+        if not pp_secure_hash:
             return Response({"detail": "Missing secure hash."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Recompute secure hash from response fields (excluding pp_SecureHash)
@@ -1723,7 +1730,15 @@ class JazzCashReturnView(APIView):
             hashlib.sha256,
         ).hexdigest()
 
-        if pp_secure_hash and not hmac.compare_digest(expected_hash.lower(), pp_secure_hash.lower()) and not sandbox_mode:
+        if getattr(dj_settings, 'DEBUG', False):
+            try:
+                print("[JazzCashReturnView] Sorted string for hash:", sorted_string)
+                print("[JazzCashReturnView] Expected hash:", expected_hash.lower())
+                print("[JazzCashReturnView] Provided hash (lower):", str(pp_secure_hash).lower())
+            except Exception:
+                pass
+
+        if not hmac.compare_digest(expected_hash.lower(), pp_secure_hash.lower()):
             return Response({"detail": "Invalid secure hash."}, status=status.HTTP_400_BAD_REQUEST)
 
         payment_id = data.get('ppmpf_1')
@@ -1742,8 +1757,7 @@ class JazzCashReturnView(APIView):
         payment.payment_intent_id = data.get('pp_TxnRefNo') or payment.payment_intent_id
 
         response_code = data.get('pp_ResponseCode')
-        # In sandbox mode, treat all callbacks as success so local testing always completes
-        is_success = (response_code == '000') or sandbox_mode
+        is_success = (response_code == '000')
 
         if is_success:
             if payment.status != 'completed':
