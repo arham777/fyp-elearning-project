@@ -2,8 +2,7 @@ import axios from 'axios';
 import { AuthTokens } from '@/types';
 
 // Prefer explicit env, otherwise in dev use Vite proxy at "/api", else default to localhost backend
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim?.() as string | undefined)
-  || (import.meta.env.DEV ? '/api' : 'http://localhost:8000/api');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim?.();
 
 // Create axios instance
 export const apiClient = axios.create({
@@ -85,7 +84,7 @@ apiClient.interceptors.response.use(
             if (parsed.email) emailQP = String(parsed.email);
             if (parsed.username) usernameQP = String(parsed.username);
           }
-        } catch {}
+        } catch { }
         const qs = new URLSearchParams({ reason, ...(until ? { until } : {}), ...(emailQP ? { email: emailQP } : {}), ...(usernameQP ? { username: usernameQP } : {}) }).toString();
         if (!window.location.pathname.startsWith('/blocked')) {
           window.location.href = `/blocked?${qs}`;
@@ -107,10 +106,10 @@ apiClient.interceptors.response.use(
           const response = await tokenRefreshClient.post('/token/refresh/', {
             refresh: tokens.refresh,
           });
-          
+
           const newTokens = { ...tokens, access: response.data.access };
           setTokens(newTokens);
-          
+
           originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
           return apiClient(originalRequest);
         } catch (refreshError) {
