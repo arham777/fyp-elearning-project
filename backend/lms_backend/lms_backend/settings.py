@@ -18,8 +18,12 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file (search up the tree)
-load_dotenv(find_dotenv())
+# Load environment variables from backend/.env reliably (independent of CWD)
+_default_env_path = BASE_DIR.parent / '.env'
+if _default_env_path.exists():
+    load_dotenv(_default_env_path)
+else:
+    load_dotenv(find_dotenv())
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -226,6 +230,12 @@ JAZZCASH_POST_URL = os.getenv(
     'https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/'
 )
 JAZZCASH_SANDBOX = os.getenv('JAZZCASH_SANDBOX', 'True').lower() == 'true'
+
+
+# Stripe configuration
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_CURRENCY = os.getenv('STRIPE_CURRENCY', 'pkr')
 
 
 # JWT Settings

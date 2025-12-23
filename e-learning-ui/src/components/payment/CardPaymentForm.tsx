@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Loader2, CreditCard, Lock } from 'lucide-react';
-import { Course, PaymentFormData } from '@/types';
+import { Course } from '@/types';
 import { paymentsApi } from '@/api/payments';
 import { toast } from '@/hooks/use-toast';
-import { updateEnrollmentCache } from '@/utils/courseNavigation';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe, type Stripe, type StripeElementsOptions } from '@stripe/stripe-js';
 
 interface CardPaymentFormProps {
   course: Course;
@@ -14,107 +13,64 @@ interface CardPaymentFormProps {
   onCancel: () => void;
 }
 
-const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, onCancel }) => {
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+const stripePromise: Promise<Stripe | null> = STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(STRIPE_PUBLISHABLE_KEY)
+  : Promise.resolve<Stripe | null>(null);
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const maybeAxios = error as { response?: { data?: { detail?: unknown } } };
+    const detail = maybeAxios.response?.data?.detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    const maybeErr = error as { message?: unknown };
+    if (typeof maybeErr.message === 'string' && maybeErr.message.trim()) return maybeErr.message;
+  }
+  return 'Something went wrong. Please try again.';
+}
+
+const StripePaymentElementForm: React.FC<{
+  paymentId: number;
+  courseId: number;
+  onCancel: () => void;
+}> = ({ paymentId, courseId, onCancel }) => {
+  const stripe = useStripe();
+  const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [formData, setFormData] = useState<PaymentFormData>({
-    card_number: '',
-    card_holder: '',
-    expiry_date: '',
-    cvv: '',
-  });
-
-  const handleInputChange = (field: keyof PaymentFormData, value: string) => {
-    let formattedValue = value;
-
-    // Format card number with spaces
-    if (field === 'card_number') {
-      formattedValue = value.replace(/\s/g, '').replace(/(\d{4})/g, '$1 ').trim();
-      if (formattedValue.replace(/\s/g, '').length > 16) return;
-    }
-
-    // Format expiry date as MM/YY
-    if (field === 'expiry_date') {
-      formattedValue = value.replace(/\D/g, '');
-      if (formattedValue.length >= 2) {
-        formattedValue = formattedValue.slice(0, 2) + '/' + formattedValue.slice(2, 4);
-      }
-      if (formattedValue.length > 5) return;
-    }
-
-    // Limit CVV to 3-4 digits
-    if (field === 'cvv') {
-      formattedValue = value.replace(/\D/g, '');
-      if (formattedValue.length > 4) return;
-    }
-
-    setFormData((prev) => ({ ...prev, [field]: formattedValue }));
-  };
-
-  const validateForm = (): boolean => {
-    const cardNumber = formData.card_number.replace(/\s/g, '');
-    
-    if (!formData.card_holder.trim()) {
-      toast({ title: 'Error', description: 'Please enter cardholder name', variant: 'destructive' });
-      return false;
-    }
-
-    if (cardNumber.length < 13 || cardNumber.length > 16) {
-      toast({ title: 'Error', description: 'Please enter a valid card number', variant: 'destructive' });
-      return false;
-    }
-
-    if (!/^\d{2}\/\d{2}$/.test(formData.expiry_date)) {
-      toast({ title: 'Error', description: 'Please enter expiry date as MM/YY', variant: 'destructive' });
-      return false;
-    }
-
-    const [month, year] = formData.expiry_date.split('/').map(Number);
-    if (month < 1 || month > 12) {
-      toast({ title: 'Error', description: 'Invalid expiry month', variant: 'destructive' });
-      return false;
-    }
-
-    if (formData.cvv.length < 3) {
-      toast({ title: 'Error', description: 'Please enter a valid CVV', variant: 'destructive' });
-      return false;
-    }
-
-    return true;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!stripe || !elements) {
+      toast({
+        title: 'Stripe not ready',
+        description: 'Please wait a moment and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       setIsProcessing(true);
 
-      // Step 1: Initiate payment
-      const payment = await paymentsApi.initiatePayment(course.id, 'stripe');
+      const returnUrl = new URL('/app/payments/stripe/result', window.location.origin);
+      returnUrl.searchParams.set('payment_id', String(paymentId));
+      returnUrl.searchParams.set('course_id', String(courseId));
 
-      // Step 2: Process payment with card details
-      const result = await paymentsApi.processPayment(payment.id, {
-        ...formData,
-        card_number: formData.card_number.replace(/\s/g, ''),
+      const result = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: returnUrl.toString(),
+        },
       });
 
-      // Update enrollment cache
-      updateEnrollmentCache(course.id, true);
-
-      toast({
-        title: 'Payment Successful!',
-        description: `You are now enrolled in ${course.title}`,
-      });
-
-      onSuccess();
-    } catch (error) {
-      const errorMessage = error?.response?.data?.detail || 'Payment failed. Please try again.';
-      toast({
-        title: 'Payment Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      if (result.error) {
+        const msg = result.error.message || 'Unable to confirm payment. Please try again.';
+        toast({ title: 'Payment Failed', description: msg, variant: 'destructive' });
+      }
+    } catch (error: unknown) {
+      toast({ title: 'Payment Failed', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }
@@ -122,85 +78,99 @@ const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, on
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement />
+
+      <div className="flex gap-3 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isProcessing}
+          className="flex-1"
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isProcessing || !stripe || !elements} className="flex-1">
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Pay now'
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, onCancel }) => {
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [paymentId, setPaymentId] = useState<number | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+
+  const elementsOptions: StripeElementsOptions | undefined = useMemo(() => {
+    if (!clientSecret) return undefined;
+    return {
+      clientSecret,
+    };
+  }, [clientSecret]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      if (!STRIPE_PUBLISHABLE_KEY) {
+        toast({
+          title: 'Stripe not configured',
+          description: 'Missing VITE_STRIPE_PUBLISHABLE_KEY in the frontend environment.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        setIsInitializing(true);
+        const payment = await paymentsApi.initiatePayment(course.id, 'stripe');
+        if (!mounted) return;
+        setPaymentId(payment.id);
+
+        const intent = await paymentsApi.stripeCreateIntent(payment.id);
+        if (!mounted) return;
+        setClientSecret(intent.client_secret);
+      } catch (error: unknown) {
+        toast({ title: 'Payment Error', description: getErrorMessage(error), variant: 'destructive' });
+      } finally {
+        if (mounted) setIsInitializing(false);
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+    };
+  }, [course.id]);
+
+  return (
+    <div className="space-y-4">
       {/* Card Visual */}
       <div className="relative bg-slate-800 dark:bg-slate-900 rounded-xl p-6 text-white shadow-lg dark:shadow-2xl transition-shadow duration-300 hover:shadow-xl">
-        <div className="flex items-center justify-between mb-8">
-          <CreditCard className="w-10 h-10 opacity-80" />
-          <div className="text-xs font-medium opacity-80">DEBIT</div>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="font-mono text-lg tracking-wider">
-            {formData.card_number || '•••• •••• •••• ••••'}
-          </div>
-          
-          <div className="flex items-end justify-between">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-8 h-8 opacity-80" />
             <div>
-              <div className="text-[10px] opacity-70 mb-1">CARD HOLDER</div>
-              <div className="font-medium text-sm">
-                {formData.card_holder || 'YOUR NAME'}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] opacity-70 mb-1">EXPIRES</div>
-              <div className="font-medium text-sm">
-                {formData.expiry_date || 'MM/YY'}
-              </div>
+              <div className="text-sm font-semibold">Secure Card Payment</div>
+              <div className="text-xs opacity-80">Powered by Stripe</div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Form Fields */}
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="card_number">Card Number</Label>
-          <Input
-            id="card_number"
-            placeholder="1234 5678 9000 0000"
-            value={formData.card_number}
-            onChange={(e) => handleInputChange('card_number', e.target.value)}
-            disabled={isProcessing}
-            className="font-mono"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="card_holder">Account Holder Name</Label>
-          <Input
-            id="card_holder"
-            placeholder="John Doe"
-            value={formData.card_holder}
-            onChange={(e) => handleInputChange('card_holder', e.target.value.toUpperCase())}
-            disabled={isProcessing}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="expiry_date">Expiry Date</Label>
-            <Input
-              id="expiry_date"
-              placeholder="MM/YY"
-              value={formData.expiry_date}
-              onChange={(e) => handleInputChange('expiry_date', e.target.value)}
-              disabled={isProcessing}
-              className="font-mono"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cvv">CVV</Label>
-            <Input
-              id="cvv"
-              type="password"
-              placeholder="123"
-              value={formData.cvv}
-              onChange={(e) => handleInputChange('cvv', e.target.value)}
-              disabled={isProcessing}
-              className="font-mono"
-              maxLength={4}
-            />
+          <div className="text-sm font-semibold">
+            {new Intl.NumberFormat('en-PK', {
+              style: 'currency',
+              currency: 'PKR',
+              maximumFractionDigits: 0,
+            }).format(typeof course.price === 'string' ? parseFloat(course.price) : course.price)}
           </div>
         </div>
       </div>
@@ -213,37 +183,27 @@ const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, on
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isProcessing}
-          className="flex-1"
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isProcessing}
-          className="flex-1"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            `Pay ${new Intl.NumberFormat('en-PK', {
-              style: 'currency',
-              currency: 'PKR',
-              maximumFractionDigits: 0,
-            }).format(typeof course.price === 'string' ? parseFloat(course.price) : course.price)}`
-          )}
-        </Button>
-      </div>
-    </form>
+      {isInitializing ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : (
+        clientSecret && paymentId && elementsOptions ? (
+          <Elements stripe={stripePromise} options={elementsOptions}>
+            <StripePaymentElementForm paymentId={paymentId} courseId={course.id} onCancel={onCancel} />
+          </Elements>
+        ) : (
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="button" onClick={onSuccess} className="flex-1" disabled>
+              Pay now
+            </Button>
+          </div>
+        )
+      )}
+    </div>
   );
 };
 

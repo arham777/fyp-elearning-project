@@ -38,4 +38,5 @@ urlpatterns = [
     path('', include(modules_router.urls)),
     path('', include(assignments_router.urls)),
     path('payments/jazzcash/return/', views.JazzCashReturnView.as_view(), name='jazzcash-return'),
+    path('payments/stripe/webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook'),
 ] 

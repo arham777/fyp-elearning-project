@@ -32,6 +32,7 @@ import CertificatesPage from "@/pages/Certificates";
 import CertificateView from "@/pages/CertificateView";
 import AdminCourseView from "@/pages/adminRole/AdminCourseView";
 import Support from "@/pages/adminRole/Support";
+import StripePaymentResult from "@/pages/StripePaymentResult";
 
 // centralized queryClient moved to `lib/queryClient` so we can clear cache on logout
 
@@ -126,6 +127,7 @@ const App = () => (
                 <Route path="settings" element={<Settings />} />
                 <Route path="support" element={<Support />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="payments/stripe/result" element={<StripePaymentResult />} />
                 {/* Redirect old /app/assignments URL to dashboard */}
                 <Route path="assignments" element={<Navigate to="/app" replace />} />
               </Route>

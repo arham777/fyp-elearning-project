@@ -21,6 +21,21 @@ export const paymentsApi = {
     return response.data;
   },
 
+  stripeCreateIntent: async (paymentId: number): Promise<{ client_secret: string; payment_intent_id: string }> => {
+    const response = await apiClient.post(`/payments/${paymentId}/stripe_create_intent/`, {});
+    return response.data;
+  },
+
+  stripeFulfill: async (
+    paymentId: number,
+    paymentIntentId: string
+  ): Promise<{ payment: Payment; enrollment: unknown; message?: string; already_fulfilled?: boolean }> => {
+    const response = await apiClient.post(`/payments/${paymentId}/stripe_fulfill/`, {
+      payment_intent_id: paymentIntentId,
+    });
+    return response.data;
+  },
+
   // Initialize JazzCash hosted checkout session
   jazzcashInit: async (
     paymentId: number,
