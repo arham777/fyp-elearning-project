@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { coursesApi } from '@/api/courses';
 import { toast } from '@/hooks/use-toast';
 import type { Course } from '@/types';
@@ -11,6 +12,7 @@ import type { Course } from '@/types';
 export type CreateCourseFormValues = {
   title: string;
   description: string;
+  category: string;
   price: number;
 };
 
@@ -24,17 +26,22 @@ export default function CreateCourseForm({
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
     reset,
   } = useForm<CreateCourseFormValues>({
-    defaultValues: { title: '', description: '', price: 0 },
+    defaultValues: { title: '', description: '', category: 'Web Development', price: 0 },
   });
+
+  const category = watch('category');
 
   const onSubmit = async (values: CreateCourseFormValues) => {
     try {
       const course = await coursesApi.createCourse({
         title: values.title.trim(),
         description: values.description.trim(),
+        category: values.category,
         price: Number(values.price),
       });
       toast({ title: 'Course created', description: 'Your course has been created as a draft.' });
@@ -77,6 +84,24 @@ export default function CreateCourseForm({
         </div>
 
         <div className="space-y-2">
+          <Label>Category</Label>
+          <input type="hidden" {...register('category', { required: 'Category is required' })} />
+          <Select
+            value={category}
+            onValueChange={(v) => setValue('category', v, { shouldValidate: true, shouldDirty: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Web Development">Web Development</SelectItem>
+              <SelectItem value="AI">AI</SelectItem>
+              <SelectItem value="Design">Design</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="description">Description</Label>
           <Textarea
             id="description"
@@ -105,7 +130,7 @@ export default function CreateCourseForm({
               className="pr-16"
               {...register('price', {
                 required: 'Price is required',
-                valueAsNumber: true,
+                setValueAs: (v) => (v === '' || v === null || typeof v === 'undefined' ? 0 : Number(v)),
                 min: { value: 0, message: 'Price cannot be negative' },
               })}
             />

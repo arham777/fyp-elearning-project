@@ -51,6 +51,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     # If set in the future, user remains blocked until this timestamp
     deactivated_until = models.DateTimeField(null=True, blank=True)
 
+    SKILL_LEVELS = (
+        ('beginner', 'Beginner'),
+        ('intermediate', 'Intermediate'),
+        ('advanced', 'Advanced'),
+    )
+    LEARNING_GOALS = (
+        ('job', 'Job'),
+        ('skill_upgrade', 'Skill Upgrade'),
+        ('certification', 'Certification'),
+    )
+    preferred_category = models.CharField(max_length=50, null=True, blank=True)
+    skill_level = models.CharField(max_length=20, choices=SKILL_LEVELS, null=True, blank=True)
+    learning_goal = models.CharField(max_length=20, choices=LEARNING_GOALS, null=True, blank=True)
+
     objects = UserManager()
 
     USERNAME_FIELD = 'username'
@@ -96,6 +110,15 @@ class Course(models.Model):
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=200)
     description = models.TextField()
+    category = models.CharField(max_length=50, null=True, blank=True)
+
+    DIFFICULTY_LEVELS = (
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    )
+    difficulty_level = models.CharField(max_length=10, choices=DIFFICULTY_LEVELS, default='medium')
+    difficulty_feedback_avg = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'teacher'}, related_name='courses_taught')
     created_at = models.DateTimeField(default=timezone.now)
@@ -249,6 +272,14 @@ class Enrollment(models.Model):
             # Mark enrollment as completed
             self.status = 'completed'
             self.save()
+
+            try:
+                course_category = getattr(self.course, 'category', None)
+                if course_category:
+                    self.student.preferred_category = course_category
+                    self.student.save(update_fields=['preferred_category'])
+            except Exception:
+                pass
             
             # Check if certificate already exists
             certificate_exists = Certificate.objects.filter(
@@ -502,6 +533,13 @@ class CourseRating(models.Model):
     )
     rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     review = models.TextField(null=True, blank=True)
+    teacher_reply = models.TextField(null=True, blank=True)
+    DIFFICULTY_FEEDBACK_CHOICES = (
+        (1, 'Easy'),
+        (2, 'Medium'),
+        (3, 'Hard'),
+    )
+    difficulty_feedback = models.PositiveSmallIntegerField(null=True, blank=True, choices=DIFFICULTY_FEEDBACK_CHOICES)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -538,3 +576,193 @@ class SupportRequest(models.Model):
 
     def __str__(self):
         return f"SupportRequest #{self.id} - {self.email} - {self.status}"
+
+
+# ==================== GAMIFICATION MODELS ====================
+
+class Badge(models.Model):
+    """Badge definitions for gamification"""
+    BADGE_TYPES = (
+        ('streak', 'Streak'),
+        ('completion', 'Completion'),
+        ('performance', 'Performance'),
+        ('engagement', 'Engagement'),
+        ('milestone', 'Milestone'),
+    )
+    id = models.AutoField(primary_key=True)
+    code = models.CharField(max_length=50, unique=True)  # e.g., 'streak_7', 'first_course'
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    badge_type = models.CharField(max_length=20, choices=BADGE_TYPES)
+    icon = models.CharField(max_length=50)  # emoji or icon class
+    xp_reward = models.IntegerField(default=0)
+    requirement_value = models.IntegerField(default=0)  # e.g., 7 for 7-day streak
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['badge_type', 'requirement_value']
+
+    def __str__(self):
+        return f"{self.icon} {self.name}"
+
+
+class UserBadge(models.Model):
+    """Badges earned by users"""
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_badges')
+    badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name='user_badges')
+    earned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'badge')
+        ordering = ['-earned_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.badge.name}"
+
+
+class UserStats(models.Model):
+    """Track user gamification statistics"""
+    LEVEL_THRESHOLDS = [
+        (1, 0, 'Beginner'),
+        (2, 100, 'Learner'),
+        (3, 300, 'Achiever'),
+        (4, 600, 'Scholar'),
+        (5, 1000, 'Expert'),
+        (6, 2000, 'Master'),
+    ]
+
+    id = models.AutoField(primary_key=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='stats')
+    total_xp = models.IntegerField(default=0)
+    level = models.IntegerField(default=1)
+    level_title = models.CharField(max_length=50, default='Beginner')
+    current_streak = models.IntegerField(default=0)
+    longest_streak = models.IntegerField(default=0)
+    last_activity_date = models.DateField(null=True, blank=True)
+    total_learning_seconds = models.IntegerField(default=0)
+    courses_completed = models.IntegerField(default=0)
+    assignments_completed = models.IntegerField(default=0)
+    perfect_scores = models.IntegerField(default=0)
+    reviews_written = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.user.username} - Level {self.level} ({self.total_xp} XP)"
+
+    def add_xp(self, amount, source, description=""):
+        """Add XP and update level if needed"""
+        self.total_xp += amount
+        self._update_level()
+        self.save()
+        
+        # Log the transaction
+        XPTransaction.objects.create(
+            user=self.user,
+            amount=amount,
+            source=source,
+            description=description
+        )
+        
+        return self.total_xp
+
+    def _update_level(self):
+        """Update level based on total XP"""
+        for level, threshold, title in reversed(self.LEVEL_THRESHOLDS):
+            if self.total_xp >= threshold:
+                self.level = level
+                self.level_title = title
+                break
+
+    def get_xp_for_next_level(self):
+        """Get XP required for next level"""
+        for level, threshold, title in self.LEVEL_THRESHOLDS:
+            if level > self.level:
+                return threshold
+        return self.LEVEL_THRESHOLDS[-1][1]  # Max level threshold
+
+    def get_xp_progress_percentage(self):
+        """Get percentage progress to next level"""
+        current_threshold = 0
+        next_threshold = self.LEVEL_THRESHOLDS[-1][1]
+        
+        for level, threshold, _ in self.LEVEL_THRESHOLDS:
+            if level == self.level:
+                current_threshold = threshold
+            elif level == self.level + 1:
+                next_threshold = threshold
+                break
+        
+        if next_threshold == current_threshold:
+            return 100
+        
+        progress = ((self.total_xp - current_threshold) / (next_threshold - current_threshold)) * 100
+        return min(100, max(0, round(progress, 1)))
+
+    def update_streak(self):
+        """Update streak based on activity"""
+        from datetime import date, timedelta
+        today = date.today()
+        
+        if self.last_activity_date is None:
+            self.current_streak = 1
+        elif self.last_activity_date == today:
+            # Already recorded today
+            return self.current_streak
+        elif self.last_activity_date == today - timedelta(days=1):
+            # Consecutive day
+            self.current_streak += 1
+        else:
+            # Streak broken
+            self.current_streak = 1
+        
+        self.last_activity_date = today
+        if self.current_streak > self.longest_streak:
+            self.longest_streak = self.current_streak
+        
+        self.save()
+        return self.current_streak
+
+
+class DailyActivity(models.Model):
+    """Track daily learning activity for detailed analytics"""
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='daily_activities')
+    date = models.DateField()
+    content_completed = models.IntegerField(default=0)
+    assignments_completed = models.IntegerField(default=0)
+    xp_earned = models.IntegerField(default=0)
+    time_spent_seconds = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('user', 'date')
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
+
+
+class XPTransaction(models.Model):
+    """Log all XP earnings for audit trail"""
+    XP_SOURCES = (
+        ('content', 'Content Completion'),
+        ('assignment', 'Assignment'),
+        ('perfect_score', 'Perfect Score Bonus'),
+        ('course', 'Course Completion'),
+        ('streak', 'Streak Bonus'),
+        ('badge', 'Badge Reward'),
+        ('review', 'Course Review'),
+        ('first_attempt', 'First Attempt Bonus'),
+    )
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_transactions')
+    amount = models.IntegerField()
+    source = models.CharField(max_length=20, choices=XP_SOURCES)
+    description = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} +{self.amount} XP ({self.source})"

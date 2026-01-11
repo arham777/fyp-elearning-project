@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv, find_dotenv
 import dj_database_url
+from django import VERSION as DJANGO_VERSION
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -53,9 +54,20 @@ INSTALLED_APPS = [
     'corsheaders',
     'myapp',
     'api',
-    'cloudinary',
-    'cloudinary_storage',
 ]
+
+_cloudinary_available = True
+try:
+    import cloudinary  # noqa: F401
+    import cloudinary_storage  # noqa: F401
+except ModuleNotFoundError:
+    _cloudinary_available = False
+
+if _cloudinary_available:
+    INSTALLED_APPS += [
+        'cloudinary',
+        'cloudinary_storage',
+    ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -176,7 +188,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # for backward compatibility, STORAGES takes precedence.
 STORAGES = {
     'default': {
-        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage'
+        if _cloudinary_available
+        else 'django.core.files.storage.FileSystemStorage',
         # 'OPTIONS': {},  # optional
     },
     'staticfiles': {
@@ -189,14 +203,16 @@ if DEBUG:
     STORAGES['staticfiles']['BACKEND'] = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # Optional: also keep legacy setting for 3rd-party code that still reads it
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+if DJANGO_VERSION < (4, 2):
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Optional: force https delivery and set an optional folder prefix for organization
 # CLOUDINARY_STORAGE is optional; CLOUDINARY_URL is sufficient for basic usage.
-CLOUDINARY_STORAGE = {
-    'SECURE': True,
-    # 'PREFIX': 'videos',  # uncomment to place uploads under a folder in Cloudinary
-}
+if _cloudinary_available:
+    CLOUDINARY_STORAGE = {
+        'SECURE': True,
+        # 'PREFIX': 'videos',  # uncomment to place uploads under a folder in Cloudinary
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

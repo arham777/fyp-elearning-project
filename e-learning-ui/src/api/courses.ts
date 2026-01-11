@@ -28,6 +28,12 @@ export const coursesApi = {
     return response.data;
   },
 
+  async getRecommendations(limit = 6): Promise<Course[]> {
+    const response = await apiClient.get('/courses/recommendations/', { params: { limit } });
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  },
+
   async replyToReview(courseId: number, ratingId: number, reply: string) {
     // Teacher/Admin endpoint to reply to a specific rating's review
     const response = await apiClient.post(`/courses/${courseId}/reply-review/`, {
@@ -37,8 +43,17 @@ export const coursesApi = {
     return response.data;
   },
 
-  async rateCourse(id: number, rating: number, review?: string) {
-    const response = await apiClient.post(`/courses/${id}/rate/`, { rating, review });
+  async rateCourse(
+    id: number,
+    rating: number,
+    review?: string,
+    difficultyFeedback?: 'easy' | 'medium' | 'hard'
+  ) {
+    const response = await apiClient.post(`/courses/${id}/rate/`, {
+      rating,
+      review,
+      difficulty_feedback: difficultyFeedback,
+    });
     return response.data;
   },
 

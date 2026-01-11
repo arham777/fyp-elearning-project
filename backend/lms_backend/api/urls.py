@@ -30,6 +30,8 @@ router.register(r'notifications', views.NotificationViewSet, basename='notificat
 router.register(r'support', views.SupportRequestViewSet, basename='support')
 # Payment router
 router.register(r'payments', views.PaymentViewSet, basename='payment')
+# Gamification router
+router.register(r'gamification', views.GamificationViewSet, basename='gamification')
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),

@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronRight, Check, Play, BookOpen, FileText, Lock, Pause, Volume2, VolumeX, Maximize2, Minimize2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,7 @@ const CourseViewer: React.FC = () => {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
   const [myReview, setMyReview] = useState<string | null>(null);
+  const [difficultyFeedback, setDifficultyFeedback] = useState<'easy' | 'medium' | 'hard' | ''>('');
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -518,6 +520,19 @@ const CourseViewer: React.FC = () => {
                           placeholder="Write your feedback here... (one per course)"
                           rows={5}
                         />
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Course difficulty</div>
+                          <Select value={difficultyFeedback} onValueChange={(v) => setDifficultyFeedback(v as any)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select difficulty" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="easy">Easy</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="flex justify-end gap-2">
                           <Button
                             onClick={async () => {
@@ -527,12 +542,17 @@ const CourseViewer: React.FC = () => {
                                 toast({ title: 'Select a rating', description: 'Please choose 1-5 stars.', variant: 'destructive' });
                                 return;
                               }
+                              if (!difficultyFeedback) {
+                                toast({ title: 'Select course difficulty', description: 'Please choose easy, medium, or hard.', variant: 'destructive' });
+                                return;
+                              }
                               setSubmittingFeedback(true);
                               try {
-                                await coursesApi.rateCourse(courseId, feedbackRating, text);
+                                await coursesApi.rateCourse(courseId, feedbackRating, text, difficultyFeedback as any);
                                 setIsFeedbackOpen(false);
                                 setFeedbackText('');
                                 setFeedbackRating(0);
+                                setDifficultyFeedback('');
                                 // Immediately mark as rated locally to prevent multiple reviews
                                 setCourse((prev) => prev ? { ...prev, my_rating: feedbackRating } as Course : prev);
                                 setFeedbackSubmitted(true);
@@ -556,6 +576,7 @@ const CourseViewer: React.FC = () => {
                               submittingFeedback ||
                               !feedbackText.trim() ||
                               !feedbackRating ||
+                              !difficultyFeedback ||
                               !(
                                 // Allow send if any of these indicate completion
                                 showCourseCompleted ||

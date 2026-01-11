@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -7,9 +7,13 @@ import { Label } from '../../components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Avatar, AvatarFallback } from '../../components/ui/avatar';
 import { useToast } from '../../hooks/use-toast';
-import { User } from '../../types';
+import { User, UserBadge } from '../../types';
 import { adminApi } from '../../api/admin';
-import { MoreHorizontal, UserX, UserMinus, GraduationCap, BookOpen } from 'lucide-react';
+import * as gamificationApi from '../../api/gamification';
+import { 
+  MoreHorizontal, UserX, UserMinus, GraduationCap, BookOpen, Award,
+  Flame, Zap, Crown, Medal, Target, Rocket, Star, Trophy, Search, X, Users as UsersIcon, ChevronsRight
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +21,31 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
+import { cn } from '../../lib/utils';
 
 type RoleCategory = 'teacher' | 'student';
+
+// Badge icon mapping
+const BADGE_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
+  'streak_7': { icon: Flame, color: 'text-orange-400' },
+  'streak_30': { icon: Zap, color: 'text-yellow-400' },
+  'streak_100': { icon: Crown, color: 'text-amber-400' },
+  'first_course': { icon: GraduationCap, color: 'text-blue-400' },
+  'courses_5': { icon: BookOpen, color: 'text-indigo-400' },
+  'courses_10': { icon: Medal, color: 'text-purple-400' },
+  'perfect_score': { icon: Target, color: 'text-emerald-400' },
+  'quick_learner': { icon: Rocket, color: 'text-cyan-400' },
+  'reviewer': { icon: Star, color: 'text-yellow-400' },
+  'top_3': { icon: Trophy, color: 'text-amber-400' },
+};
+
+const DEFAULT_BADGE_ICON = { icon: Award, color: 'text-neutral-400' };
 
 interface UserActionDialogProps {
   user: User | null;
@@ -35,13 +62,13 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
   onClose, 
   onConfirm 
 }) => {
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     email: '',
     role: 'teacher' as 'student' | 'teacher'
   });
-  const [blockData, setBlockData] = React.useState<{ reason: string; duration_days?: number; until?: string }>({
+  const [blockData, setBlockData] = useState<{ reason: string; duration_days?: number; until?: string }>({
     reason: '',
   });
 
@@ -199,6 +226,60 @@ const UserActionDialog: React.FC<UserActionDialogProps> = ({
   );
 };
 
+// Component to display student badges
+const StudentBadges: React.FC<{ userId: number }> = ({ userId }) => {
+  const { data: badges = [], isLoading } = useQuery({
+    queryKey: ['admin', 'user-badges', userId],
+    queryFn: () => gamificationApi.getUserBadges(userId),
+  });
+
+  if (isLoading) {
+    return <div className="flex gap-1 animate-pulse"><div className="w-4 h-4 bg-muted rounded" /></div>;
+  }
+
+  if (badges.length === 0) {
+    return <span className="text-xs text-muted-foreground">No badges</span>;
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-1 flex-wrap">
+        {badges.slice(0, 5).map((userBadge) => {
+          const { icon: Icon, color } = BADGE_ICONS[userBadge.badge.code] || DEFAULT_BADGE_ICON;
+          return (
+            <Tooltip key={userBadge.id}>
+              <TooltipTrigger>
+                <div className="w-5 h-5 rounded bg-neutral-800 flex items-center justify-center">
+                  <Icon className={cn('w-3 h-3', color)} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-neutral-900 border-neutral-700">
+                <p className="font-medium text-xs">{userBadge.badge.name}</p>
+                <p className="text-[10px] text-neutral-400">{userBadge.badge.description}</p>
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Earned: {new Date(userBadge.earned_at).toLocaleDateString()}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+        {badges.length > 5 && (
+          <Tooltip>
+            <TooltipTrigger>
+              <div className="w-5 h-5 rounded bg-neutral-800 flex items-center justify-center">
+                <span className="text-[10px] text-neutral-400">+{badges.length - 5}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="bg-neutral-900 border-neutral-700">
+              <p className="text-xs">{badges.length - 5} more badges</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+};
+
 const RoleUsersCard: React.FC<{ 
   title: string; 
   users: User[]; 
@@ -206,18 +287,21 @@ const RoleUsersCard: React.FC<{
   onUserAction: (user: User | null, action: 'add' | 'remove' | 'block' | 'unblock') => void;
   enrollmentsByStudentId?: Record<number, number>;
   coursesByTeacherId?: Record<number, number>;
-}> = ({ title, users, role, onUserAction, enrollmentsByStudentId, coursesByTeacherId }) => {
+  searchQuery?: string;
+}> = ({ title, users, role, onUserAction, enrollmentsByStudentId, coursesByTeacherId, searchQuery }) => {
 	return (
 		<Card className="border-border/60">
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between">
 					<span>{title}</span>
 					<div className="flex items-center gap-2">
-						<span className="text-sm text-muted-foreground">{users.length}</span>
+						<span className="text-sm text-muted-foreground">
+							{users.length} {searchQuery && `found`}
+						</span>
 					</div>
 				</CardTitle>
 			</CardHeader>
-			<CardContent className="space-y-3">
+			<CardContent className="space-y-3 max-h-[600px] overflow-y-auto">
 				{users.map((u) => {
 					const initials = `${u.first_name?.[0] ?? ''}${u.last_name?.[0] ?? ''}` || ((u.username?.slice(0, 2) ?? 'U'));
 					const enrolledCourses = role === 'student' ? (enrollmentsByStudentId?.[u.id] ?? 0) : 0;
@@ -240,12 +324,18 @@ const RoleUsersCard: React.FC<{
 										)}
 									</div>
 									<div className="text-xs text-muted-foreground truncate">{u.email}</div>
-									<div className="text-xs text-muted-foreground flex items-center gap-4">
+									<div className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
 										{role === 'student' && (
-											<span className="flex items-center gap-1">
-												<BookOpen className="h-3 w-3" />
-												{enrolledCourses} courses
-											</span>
+											<>
+												<span className="flex items-center gap-1">
+													<BookOpen className="h-3 w-3" />
+													{enrolledCourses} courses
+												</span>
+												<span className="flex items-center gap-1">
+													<Award className="h-3 w-3" />
+													<StudentBadges userId={u.id} />
+												</span>
+											</>
 										)}
 										{role === 'teacher' && (
 											<span className="flex items-center gap-1">
@@ -292,19 +382,56 @@ const RoleUsersCard: React.FC<{
 					);
 				})}
 				{users.length === 0 && (
-					<div className="text-sm text-muted-foreground text-center py-4">No {role}s found</div>
+					<div className="text-sm text-muted-foreground text-center py-8">
+						{searchQuery ? (
+							<div className="space-y-2">
+								<Search className="h-8 w-8 mx-auto text-muted-foreground/50" />
+								<p>No {role}s matching "{searchQuery}"</p>
+							</div>
+						) : (
+							<p>No {role}s found</p>
+						)}
+					</div>
 				)}
 			</CardContent>
 		</Card>
 	);
 };
 
+// Helper function to normalize text for search
+const normalizeText = (text: string | null | undefined): string => {
+	return (text || '').toLowerCase().trim();
+};
+
+// Helper function to check if user matches search query
+const userMatchesSearch = (user: User, query: string): boolean => {
+	if (!query) return true;
+	
+	const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+	const firstName = normalizeText(user.first_name);
+	const lastName = normalizeText(user.last_name);
+	const username = normalizeText(user.username);
+	const email = normalizeText(user.email);
+	const fullName = `${firstName} ${lastName}`.trim();
+	
+	// All search terms must match at least one field
+	return searchTerms.every(term => 
+		firstName.includes(term) ||
+		lastName.includes(term) ||
+		fullName.includes(term) ||
+		username.includes(term) ||
+		email.includes(term)
+	);
+};
+
 const Users: React.FC = () => {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
-	const [searchTerm, setSearchTerm] = React.useState('');
-	const [activeTab, setActiveTab] = React.useState('users');
-	const [dialogState, setDialogState] = React.useState<{
+	const [activeTab, setActiveTab] = useState('users');
+	const [searchInput, setSearchInput] = useState('');
+	const [searchQuery, setSearchQuery] = useState('');
+	const searchInputRef = useRef<HTMLInputElement>(null);
+	const [dialogState, setDialogState] = useState<{
 		user: User | null;
 		action: 'add' | 'remove' | 'block' | 'unblock' | null;
 		isOpen: boolean;
@@ -313,6 +440,14 @@ const Users: React.FC = () => {
 		action: null,
 		isOpen: false
 	});
+
+	// Debounce search input
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setSearchQuery(searchInput.trim());
+		}, 300);
+		return () => clearTimeout(timer);
+	}, [searchInput]);
 
 	const { data: allUsers = [], isLoading } = useQuery<User[]>({
 		queryKey: ['admin', 'users'],
@@ -379,17 +514,27 @@ const Users: React.FC = () => {
 		}
 	});
 
-	const byRole = React.useMemo(() => {
-		const grouped: Record<RoleCategory, User[]> = { teacher: [], student: [] };
-		for (const u of allUsers) {
-			if (u.role === 'teacher') grouped.teacher.push(u);
-			else if (u.role === 'student') grouped.student.push(u);
+	// Filter and group users by role
+	const { filteredStudents, filteredTeachers, totalMatches } = useMemo(() => {
+		const students: User[] = [];
+		const teachers: User[] = [];
+		
+		for (const user of allUsers) {
+			if (!userMatchesSearch(user, searchQuery)) continue;
+			
+			if (user.role === 'student') students.push(user);
+			else if (user.role === 'teacher') teachers.push(user);
 		}
-		return grouped;
-	}, [allUsers]);
+		
+		return {
+			filteredStudents: students,
+			filteredTeachers: teachers,
+			totalMatches: students.length + teachers.length,
+		};
+	}, [allUsers, searchQuery]);
 
 	// Precompute insights maps
-	const enrollmentsByStudentId = React.useMemo(() => {
+	const enrollmentsByStudentId = useMemo(() => {
 		const map: Record<number, number> = {};
 		for (const enr of allEnrollments as any[]) {
 			const studentId = typeof enr.student === 'object' ? enr.student?.id : enr.student;
@@ -398,7 +543,7 @@ const Users: React.FC = () => {
 		return map;
 	}, [allEnrollments]);
 
-	const coursesByTeacherId = React.useMemo(() => {
+	const coursesByTeacherId = useMemo(() => {
 		const map: Record<number, number> = {};
 		for (const c of allCourses as any[]) {
 			const teacherId = typeof c.teacher === 'object' ? c.teacher?.id : c.teacher;
@@ -421,16 +566,72 @@ const Users: React.FC = () => {
 		}
 	};
 
+	const handleClearSearch = () => {
+		setSearchInput('');
+		setSearchQuery('');
+		searchInputRef.current?.focus();
+	};
+
 
 	if (isLoading) {
-		return <div>Loading...</div>;
+		return (
+			<div className="min-h-[40vh] grid place-items-center">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+			</div>
+		);
 	}
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-3xl font-bold">User Management</h1>
-				<p className="text-muted-foreground">Manage students and teachers</p>
+			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+				<div>
+					<h1 className="text-3xl font-bold">User Management</h1>
+					<p className="text-muted-foreground">Manage students and teachers</p>
+				</div>
+				
+				{/* Stats Summary */}
+				<div className="flex items-center gap-4 text-sm">
+					<div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-full">
+						<UsersIcon className="h-4 w-4 text-muted-foreground" />
+						<span className="text-muted-foreground">{allUsers.length} total users</span>
+					</div>
+				</div>
+			</div>
+
+			{/* Search Bar */}
+			<div className="relative max-w-xl w-full" role="search">
+				<Search 
+					className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" 
+					aria-hidden="true" 
+				/>
+				<Input
+					ref={searchInputRef}
+					type="text"
+					placeholder="Search..."
+					value={searchInput}
+					onChange={(e) => setSearchInput(e.target.value)}
+					className="pl-10 pr-24 h-10 rounded-full"
+					aria-label="Search users"
+				/>
+				{searchInput && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 absolute right-12 top-1/2 -translate-y-1/2 rounded-full"
+						onClick={handleClearSearch}
+						aria-label="Clear search"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				)}
+				<Button
+					variant="link"
+					className="h-10 absolute right-3 top-1/2 -translate-y-1/2 p-0 rounded-none"
+					aria-label="Search"
+				>
+					<ChevronsRight className="h-8 w-8" strokeWidth={3} />
+				</Button>
 			</div>
 			
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -442,17 +643,19 @@ const Users: React.FC = () => {
 					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 						<RoleUsersCard 
 							title="Students" 
-							users={byRole.student} 
+							users={filteredStudents} 
 							role="student"
 							onUserAction={handleUserAction}
 							enrollmentsByStudentId={enrollmentsByStudentId}
+							searchQuery={searchQuery}
 						/>
 						<RoleUsersCard 
 							title="Teachers" 
-							users={byRole.teacher} 
+							users={filteredTeachers} 
 							role="teacher"
 							onUserAction={handleUserAction}
 							coursesByTeacherId={coursesByTeacherId}
+							searchQuery={searchQuery}
 						/>
 					</div>
 				</TabsContent>
@@ -471,5 +674,3 @@ const Users: React.FC = () => {
 };
 
 export default Users;
-
-

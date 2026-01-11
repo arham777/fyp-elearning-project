@@ -18,6 +18,9 @@ const RegisterForm: React.FC = () => {
     password: '',
     confirm_password: '',
     role: 'student',
+    preferred_category: 'Web Development',
+    skill_level: 'beginner',
+    learning_goal: undefined,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,6 +62,13 @@ const RegisterForm: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       role,
+    }));
+  };
+
+  const handleSelectChange = (field: keyof RegisterData) => (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value as any,
     }));
   };
 
@@ -137,6 +147,66 @@ const RegisterForm: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {formData.role === 'student' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Preferred course category</Label>
+                  <Select
+                    value={formData.preferred_category || ''}
+                    onValueChange={handleSelectChange('preferred_category')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Web Development">Web Development</SelectItem>
+                      <SelectItem value="AI">AI</SelectItem>
+                      <SelectItem value="Design">Design</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Skill level</Label>
+                  <Select
+                    value={formData.skill_level || 'beginner'}
+                    onValueChange={handleSelectChange('skill_level')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select skill level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Learning goal (optional)</Label>
+                  <Select
+                    value={formData.learning_goal || ''}
+                    onValueChange={(v) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        learning_goal: (v ? (v as any) : undefined),
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select goal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="job">Job</SelectItem>
+                      <SelectItem value="skill_upgrade">Skill Upgrade</SelectItem>
+                      <SelectItem value="certification">Certification</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

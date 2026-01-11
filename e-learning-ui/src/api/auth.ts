@@ -44,6 +44,9 @@ export const authApi = {
       password: data.password,
       confirm_password: data.confirm_password,
       role: data.role,
+      preferred_category: data.preferred_category,
+      skill_level: data.skill_level,
+      learning_goal: data.learning_goal,
     };
     const response = await apiClient.post('/register/', payload);
     return response.data as User;

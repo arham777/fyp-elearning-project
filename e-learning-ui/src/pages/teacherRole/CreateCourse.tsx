@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { coursesApi } from '@/api/courses';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -13,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 type CreateCourseForm = {
 	title: string;
 	description: string;
+	category: string;
 	price: number;
 };
 
@@ -28,15 +30,20 @@ const CreateCourse: React.FC = () => {
 	const {
 		register,
 		handleSubmit,
+		setValue,
+		watch,
 		formState: { errors, isSubmitting },
 		reset,
 	} = useForm<CreateCourseForm>({
 		defaultValues: {
 			title: '',
 			description: '',
+			category: 'Web Development',
 			price: 0,
 		},
 	});
+
+	const category = watch('category');
 
 	const onSubmit = async (values: CreateCourseForm) => {
 		try {
@@ -47,6 +54,7 @@ const CreateCourse: React.FC = () => {
 			const course = await coursesApi.createCourse({
 				title: values.title.trim(),
 				description: values.description.trim(),
+				category: values.category,
 				price: Number(values.price),
 			});
 
@@ -114,6 +122,27 @@ const CreateCourse: React.FC = () => {
 						</div>
 
 						<div className="space-y-2">
+							<Label>Category</Label>
+							<input type="hidden" {...register('category', { required: 'Category is required' })} />
+							<Select
+								value={category}
+								onValueChange={(value) => setValue('category', value, { shouldDirty: true, shouldValidate: true })}
+							>
+								<SelectTrigger className="w-full">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="Web Development">Web Development</SelectItem>
+									<SelectItem value="AI">AI</SelectItem>
+									<SelectItem value="Design">Design</SelectItem>
+								</SelectContent>
+							</Select>
+							{errors.category && (
+								<p className="text-sm text-destructive">{errors.category.message}</p>
+							)}
+						</div>
+
+						<div className="space-y-2">
 							<Label htmlFor="description">Description</Label>
 							<Textarea
 								id="description"
@@ -138,7 +167,7 @@ const CreateCourse: React.FC = () => {
 									className="pr-16"
 									{...register('price', {
 										required: 'Price is required',
-										valueAsNumber: true,
+										setValueAs: (v) => (v === '' || v === null || typeof v === 'undefined' ? 0 : Number(v)),
 										min: { value: 0, message: 'Price cannot be negative' },
 									})}
 								/>

@@ -5,16 +5,26 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { coursesApi } from '@/api/courses';
-import { Enrollment, Course } from '@/types';
-import { BookOpen, Clock, Award, TrendingUp, Play } from 'lucide-react';
+import { usersApi } from '@/api/users';
+import * as gamificationApi from '@/api/gamification';
+import { Enrollment, Course, UserStats, LeaderboardEntry } from '@/types';
+import { BookOpen, Clock, Award, TrendingUp, Play, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CourseLink } from '@/components/ui/CourseLink';
+import { StatsCard, Leaderboard, StreakBadge, ActivityHeatmap } from '@/components/gamification';
 
 const StudentDashboard: React.FC = () => {
 	const { user } = useAuth();
 	const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
 	const [recommendedCourses, setRecommendedCourses] = useState<Course[]>([]);
+	const [heatmap, setHeatmap] = useState<Array<{ date: string; count: number }>>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	
+	// Gamification state
+	const [userStats, setUserStats] = useState<UserStats | null>(null);
+	const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+	const [myRank, setMyRank] = useState<number | null>(null);
+	const [weekStart, setWeekStart] = useState<string>('');
 
 	const formatPKR = (value: number | string): string => {
 		const amount = typeof value === 'string' ? parseFloat(value) : value;
@@ -29,21 +39,36 @@ const StudentDashboard: React.FC = () => {
 	useEffect(() => {
 		const fetchDashboardData = async () => {
 			try {
-				const [enrollmentsData, coursesData] = await Promise.all([
+				const [enrollmentsData, recs, heat] = await Promise.all([
 					coursesApi.getMyEnrollments(),
-					coursesApi.getCourses({ page: 1 }),
+					coursesApi.getRecommendations(3).catch(() => [] as Course[]),
+					usersApi.getProgressHeatmap({ days: 91 }).catch(() => [] as Array<{ date: string; count: number }>),
 				]);
 				
 				setEnrollments(enrollmentsData);
-				const enrolledIds = new Set<number>(
-					enrollmentsData
-						.map((e) => e.course?.id)
-						.filter((id): id is number => typeof id === 'number')
-				);
-				const notEnrolled = coursesData.filter(c => !enrolledIds.has(c.id));
-				setRecommendedCourses(notEnrolled.slice(0, 3));
+				setRecommendedCourses(recs);
+				setHeatmap(heat);
+				
+				// Fetch gamification data
+				try {
+					const [stats, leaderboardData] = await Promise.all([
+						gamificationApi.getMyStats(),
+						gamificationApi.getLeaderboard(),
+					]);
+					setUserStats(stats);
+					setLeaderboard(leaderboardData.leaderboard);
+					setMyRank(leaderboardData.my_rank);
+					setWeekStart(leaderboardData.week_start);
+					
+					// Record activity to update streak
+					gamificationApi.recordActivity(0).catch(() => {});
+				} catch (gamErr) {
+					console.error('Failed to fetch gamification data:', gamErr);
+				}
 			} catch (error) {
 				console.error('Failed to fetch dashboard data:', error);
+				setRecommendedCourses([]);
+				setHeatmap([]);
 			} finally {
 				setIsLoading(false);
 			}
@@ -56,6 +81,7 @@ const StudentDashboard: React.FC = () => {
 	const inProgressCourses = enrollments.filter(e => e.progress > 0 && e.progress < 100).length;
 	// Enrollments to show in "Continue Learning" (hide fully completed)
 	const incompleteEnrollments = enrollments.filter(e => e.progress < 100 && e.status !== 'completed');
+
 
 	if (isLoading) {
 		return (
@@ -74,14 +100,29 @@ const StudentDashboard: React.FC = () => {
 
 	return (
 		<div className="space-y-6">
-			{/* Welcome Section */}
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">
-					Welcome back, {user?.first_name || user?.username}!
-				</h1>
-				<p className="text-sm text-muted-foreground mt-1">
-					Continue your learning journey and explore new courses.
-				</p>
+			{/* Welcome Section with Streak */}
+			<div className="flex items-center justify-between">
+				<div>
+					<h1 className="text-2xl font-semibold text-foreground">
+						Welcome back, {user?.first_name || user?.username}!
+					</h1>
+					<p className="text-sm text-muted-foreground mt-1">
+						Continue your learning journey and explore new courses.
+					</p>
+				</div>
+				{userStats && (
+					<div className="flex items-center gap-4 bg-neutral-800/50 rounded-xl px-4 py-2.5">
+						<StreakBadge streak={userStats.current_streak} size="md" />
+						<div className="w-px h-8 bg-neutral-700" />
+						<div className="flex items-center gap-2">
+							<Zap className="w-4 h-4 text-yellow-500" />
+							<div>
+								<div className="text-sm font-medium text-neutral-200">Lv.{userStats.level}</div>
+								<div className="text-xs text-neutral-500">{userStats.total_xp} XP</div>
+							</div>
+						</div>
+					</div>
+				)}
 			</div>
 
 			{/* Stats Cards */}
@@ -135,7 +176,11 @@ const StudentDashboard: React.FC = () => {
 				</Card>
 			</div>
 
+			{/* Activity Heatmap - Full Width */}
+			<ActivityHeatmap data={heatmap} days={91} />
+
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
 				{/* Continue Learning */}
 				<Card className="card-elevated">
 					<CardHeader>
@@ -212,6 +257,22 @@ const StudentDashboard: React.FC = () => {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Gamification Section */}
+			{userStats && (
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+					{/* Stats Card */}
+					<StatsCard stats={userStats} />
+					
+					{/* Leaderboard */}
+					<Leaderboard 
+						entries={leaderboard.slice(0, 10)} 
+						currentUserId={user?.id}
+						myRank={myRank}
+						weekStart={weekStart}
+					/>
+				</div>
+			)}
 
 
 		</div>

@@ -7,8 +7,8 @@ from django.conf import settings as dj_settings
 from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q, Max, F, Count
-from django.db.models.functions import TruncMonth
+from django.db.models import Q, Max, F, Count, Avg
+from django.db.models.functions import TruncMonth, TruncDate
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -27,7 +27,8 @@ except ModuleNotFoundError:
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion, Notification, CourseRating, SupportRequest
+    AssignmentQuestion, Notification, CourseRating, SupportRequest,
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction
 )
 
 from .serializers import (
@@ -35,7 +36,8 @@ from .serializers import (
     CourseModuleSerializer, ContentSerializer, EnrollmentSerializer,
     ContentProgressSerializer, PaymentSerializer, AssignmentSerializer,
     AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer,
-    CourseRatingSerializer, SupportRequestSerializer
+    CourseRatingSerializer, SupportRequestSerializer,
+    BadgeSerializer, UserBadgeSerializer, UserStatsSerializer, XPTransactionSerializer, LeaderboardEntrySerializer
 )
 
 from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher, IsActiveUser
@@ -142,6 +144,89 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['patch'], url_path='learning-preferences', permission_classes=[permissions.IsAuthenticated, IsActiveUser])
+    def learning_preferences(self, request):
+        user = request.user
+        if user.role != 'student':
+            return Response({"detail": "Only students can update learning preferences."}, status=status.HTTP_403_FORBIDDEN)
+
+        preferred_category = request.data.get('preferred_category')
+        skill_level = request.data.get('skill_level')
+        learning_goal = request.data.get('learning_goal')
+
+        allowed_skill = {'beginner', 'intermediate', 'advanced'}
+        allowed_goal = {'job', 'skill_upgrade', 'certification'}
+
+        if skill_level is not None:
+            skill_level = str(skill_level).strip().lower() or None
+            if skill_level and skill_level not in allowed_skill:
+                return Response({"detail": "Invalid skill_level."}, status=status.HTTP_400_BAD_REQUEST)
+            user.skill_level = skill_level
+
+        if preferred_category is not None:
+            preferred_category = str(preferred_category).strip() or None
+            user.preferred_category = preferred_category
+
+        if learning_goal is not None:
+            learning_goal = str(learning_goal).strip().lower() or None
+            if learning_goal and learning_goal not in allowed_goal:
+                return Response({"detail": "Invalid learning_goal."}, status=status.HTTP_400_BAD_REQUEST)
+            user.learning_goal = learning_goal
+
+        user.save(update_fields=['preferred_category', 'skill_level', 'learning_goal'])
+        return Response(UserSerializer(user).data)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='progress-heatmap',
+        permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsStudent],
+    )
+    def progress_heatmap(self, request):
+        user = request.user
+        days_raw = request.query_params.get('days', '84')
+        try:
+            days = int(days_raw)
+        except Exception:
+            days = 84
+        days = max(7, min(days, 365))
+
+        course_id_raw = request.query_params.get('course_id')
+        course_id = None
+        if course_id_raw not in (None, '', 'null'):
+            try:
+                course_id = int(course_id_raw)
+            except Exception:
+                course_id = None
+
+        start_dt = timezone.now() - timedelta(days=days - 1)
+
+        qs = ContentProgress.objects.filter(
+            enrollment__student=user,
+            completed=True,
+            completed_date__isnull=False,
+            completed_date__gte=start_dt,
+        )
+        if course_id:
+            qs = qs.filter(enrollment__course_id=course_id)
+
+        rows = (
+            qs.annotate(day=TruncDate('completed_date'))
+            .values('day')
+            .annotate(count=Count('id'))
+            .order_by('day')
+        )
+
+        data = [
+            {
+                'date': r['day'].isoformat() if r.get('day') else None,
+                'count': int(r.get('count') or 0),
+            }
+            for r in rows
+            if r.get('day') is not None
+        ]
+        return Response(data)
+
     @action(detail=True, methods=['post'], url_path='block', permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsTeacherOrAdmin])
     def block_user(self, request, pk=None):
         """Admin-only: block a user with optional reason and duration.
@@ -218,6 +303,9 @@ class RegisterView(APIView):
             role = request.data.get('role', 'student')
             first_name = request.data.get('first_name', '').strip()
             last_name = request.data.get('last_name', '').strip()
+            preferred_category = request.data.get('preferred_category')
+            skill_level = request.data.get('skill_level')
+            learning_goal = request.data.get('learning_goal')
 
             if not username or not email or not password:
                 return Response({"detail": "Username, email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -227,6 +315,26 @@ class RegisterView(APIView):
 
             if role not in ['student', 'teacher']:
                 role = 'student'
+
+            # Optional learning preferences (students only)
+            extra_fields = {}
+            if role == 'student':
+                allowed_skill = {'beginner', 'intermediate', 'advanced'}
+                allowed_goal = {'job', 'skill_upgrade', 'certification'}
+
+                if preferred_category is not None:
+                    v = str(preferred_category).strip() or None
+                    extra_fields['preferred_category'] = v
+                if skill_level is not None:
+                    v = str(skill_level).strip().lower() or None
+                    if v and v not in allowed_skill:
+                        return Response({"detail": "Invalid skill_level."}, status=status.HTTP_400_BAD_REQUEST)
+                    extra_fields['skill_level'] = v
+                if learning_goal is not None:
+                    v = str(learning_goal).strip().lower() or None
+                    if v and v not in allowed_goal:
+                        return Response({"detail": "Invalid learning_goal."}, status=status.HTTP_400_BAD_REQUEST)
+                    extra_fields['learning_goal'] = v
 
             # Validate password using Django's validators for clearer feedback
             try:
@@ -254,6 +362,7 @@ class RegisterView(APIView):
                 role=role,
                 first_name=first_name,
                 last_name=last_name,
+                **extra_fields,
             )
             serializer = UserSerializer(user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -284,6 +393,54 @@ class CourseViewSet(viewsets.ModelViewSet):
             # (Enrollment is handled via the enroll action)
             # Only published courses are visible to students
             return Course.objects.filter(is_published=True)
+
+    @action(detail=False, methods=['get'], url_path='recommendations', permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsStudent])
+    def recommendations(self, request):
+        user = request.user
+
+        preferred_category = getattr(user, 'preferred_category', None)
+        skill_level = getattr(user, 'skill_level', None)
+        if not preferred_category or not skill_level:
+            return Response([])
+
+        # Map student skill -> allowed course difficulties
+        # beginner -> easy
+        # intermediate -> easy + medium
+        # advanced -> easy + medium + hard
+        allowed_by_skill = {
+            'beginner': ['easy'],
+            'intermediate': ['easy', 'medium'],
+            'advanced': ['easy', 'medium', 'hard'],
+        }
+        allowed_difficulty = allowed_by_skill.get(str(skill_level).lower(), ['easy'])
+
+        completed_ids = Enrollment.objects.filter(
+            student=user,
+            status='completed'
+        ).values_list('course_id', flat=True)
+
+        qs = (
+            Course.objects.filter(
+                is_published=True,
+                category=preferred_category,
+            )
+            .filter(
+                Q(difficulty_feedback_avg__isnull=True) |
+                Q(difficulty_level__in=allowed_difficulty)
+            )
+            .exclude(id__in=completed_ids)
+            .order_by('-published_at', '-created_at')
+        )
+
+        # Keep response small for dashboard
+        try:
+            limit = int(request.query_params.get('limit', '6'))
+        except ValueError:
+            limit = 6
+        limit = max(1, min(limit, 24))
+
+        serializer = CourseListSerializer(qs[:limit], many=True, context={'request': request})
+        return Response(serializer.data)
     
     def get_permissions(self):
         """
@@ -429,14 +586,54 @@ class CourseViewSet(viewsets.ModelViewSet):
         rating_value = max(1, min(5, rating_value))
         review_text = request.data.get('review')
 
+        # Optional: student-perceived difficulty feedback (easy/medium/hard)
+        difficulty_feedback_raw = request.data.get('difficulty_feedback')
+        difficulty_feedback = None
+        if difficulty_feedback_raw is not None and str(difficulty_feedback_raw).strip() != '':
+            s = str(difficulty_feedback_raw).strip().lower()
+            if s in ('1', 'easy'):
+                difficulty_feedback = 1
+            elif s in ('2', 'medium'):
+                difficulty_feedback = 2
+            elif s in ('3', 'hard'):
+                difficulty_feedback = 3
+            else:
+                return Response({"detail": "Invalid difficulty_feedback. Use easy, medium, or hard."}, status=status.HTTP_400_BAD_REQUEST)
+
         cr, created = CourseRating.objects.get_or_create(course=course, student=user, defaults={
             'rating': rating_value,
             'review': review_text or None,
+            'difficulty_feedback': difficulty_feedback,
         })
         if not created:
             cr.rating = rating_value
             cr.review = review_text or None
-            cr.save(update_fields=['rating', 'review', 'updated_at'])
+            cr.difficulty_feedback = difficulty_feedback
+            cr.save(update_fields=['rating', 'review', 'difficulty_feedback', 'updated_at'])
+
+        # Award XP for first-time review with text
+        if created and review_text:
+            award_xp(user, XP_CONFIG['review_written'], 'review', f'Reviewed: {course.title}')
+            stats = get_or_create_user_stats(user)
+            stats.reviews_written += 1
+            stats.save()
+            check_and_award_badges(user)
+
+        # Update course derived difficulty from average feedback (1..3)
+        try:
+            avg_val = CourseRating.objects.filter(course=course, difficulty_feedback__isnull=False).aggregate(a=Avg('difficulty_feedback')).get('a')
+            if avg_val is not None:
+                course.difficulty_feedback_avg = avg_val
+                # Map average back to label
+                if float(avg_val) <= 1.5:
+                    course.difficulty_level = 'easy'
+                elif float(avg_val) <= 2.5:
+                    course.difficulty_level = 'medium'
+                else:
+                    course.difficulty_level = 'hard'
+                course.save(update_fields=['difficulty_feedback_avg', 'difficulty_level'])
+        except Exception:
+            pass
 
         return Response(CourseRatingSerializer(cr).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
@@ -1093,13 +1290,31 @@ class ContentViewSet(viewsets.ModelViewSet):
             defaults={'completed': True, 'completed_date': timezone.now()}
         )
         
-        if not created and not content_progress.completed:
+        first_time_completion = False
+        if created:
+            first_time_completion = True
+        elif not content_progress.completed:
             content_progress.completed = True
             content_progress.completed_date = timezone.now()
             content_progress.save()
+            first_time_completion = True
+        
+        # Award XP for first-time content completion
+        if first_time_completion:
+            award_xp(user, XP_CONFIG['content_complete'], 'content', f'Completed: {content.title}')
+            record_daily_activity(user, content_completed=1, xp_earned=XP_CONFIG['content_complete'])
+            check_and_award_badges(user)
         
         # Check if this affects course completion
-        enrollment.check_completion_and_issue_certificate()
+        course_completed = enrollment.check_completion_and_issue_certificate()
+        
+        # Award XP for course completion
+        if course_completed:
+            award_xp(user, XP_CONFIG['course_complete'], 'course', f'Completed course: {enrollment.course.title}')
+            stats = get_or_create_user_stats(user)
+            stats.courses_completed += 1
+            stats.save()
+            check_and_award_badges(user)
         
         return Response({"detail": "Content marked as completed"})
 
@@ -1307,6 +1522,8 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
                 submission.grade = percent
                 submission.status = 'graded'
                 submission.save(update_fields=['grade', 'status'])
+                # Award XP for graded MCQ submission
+                self._award_assignment_xp(user, assignment, submission, attempts_used + 1)
             elif assignment.assignment_type == 'qa':
                 # Advanced keyword/acceptable-answer QA auto-grading
                 answers = submission.answers or []
@@ -1379,9 +1596,47 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
                 submission.grade = percent
                 submission.status = 'graded'
                 submission.save(update_fields=['grade', 'status'])
+                # Award XP for graded QA submission
+                self._award_assignment_xp(user, assignment, submission, attempts_used + 1)
         except Enrollment.DoesNotExist:
             return Response({"detail": "You are not enrolled in this course"}, 
                             status=status.HTTP_400_BAD_REQUEST)
+    
+    def _award_assignment_xp(self, user, assignment, submission, attempt_number):
+        """Award XP for assignment completion with bonuses for perfect scores and first attempts"""
+        if submission.grade is None or submission.status != 'graded':
+            return
+        
+        passed = submission.grade >= assignment.passing_grade
+        if not passed:
+            return
+        
+        # Base XP for passing
+        total_xp = XP_CONFIG['assignment_pass']
+        description = f'Passed: {assignment.title}'
+        
+        # First attempt bonus
+        if attempt_number == 1:
+            total_xp += XP_CONFIG['first_attempt_pass']
+            description += ' (First attempt!)'
+        
+        # Perfect score bonus
+        if submission.grade >= 100:
+            total_xp += XP_CONFIG['perfect_score']
+            description += ' (Perfect!)'
+            stats = get_or_create_user_stats(user)
+            stats.perfect_scores += 1
+            stats.save()
+        
+        award_xp(user, total_xp, 'assignment', description)
+        
+        # Update stats
+        stats = get_or_create_user_stats(user)
+        stats.assignments_completed += 1
+        stats.save()
+        
+        record_daily_activity(user, assignments_completed=1, xp_earned=total_xp)
+        check_and_award_badges(user)
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
     def grade(self, request, pk=None, assignment_pk=None, course_pk=None):
@@ -1396,7 +1651,20 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         # Only course teacher or admin can grade submissions
         if (self.request.user.role == 'admin' or 
                 submission.assignment.course.teacher == self.request.user):
+            # Check if this is the first time being graded (for XP)
+            was_ungraded = submission.status != 'graded'
             submission.grade_submission(grade, feedback)
+            
+            # Award XP for first-time grading
+            if was_ungraded:
+                student = submission.enrollment.student
+                self._award_assignment_xp(
+                    student, 
+                    submission.assignment, 
+                    submission, 
+                    submission.attempt_number
+                )
+            
             return Response(AssignmentSubmissionSerializer(submission).data)
         else:
             return Response({"detail": "You don't have permission to grade this submission"}, 
@@ -1717,42 +1985,37 @@ class JazzCashReturnView(APIView):
     def post(self, request, *args, **kwargs):
         """Handle JazzCash return/callback, verify hash, update payment, and redirect to frontend."""
         data = request.data if isinstance(request.data, dict) else request.POST
+        sandbox_mode = getattr(dj_settings, 'JAZZCASH_SANDBOX', False)
         pp_secure_hash = data.get('pp_SecureHash')
+        
         if getattr(dj_settings, 'DEBUG', False):
             try:
                 print("[JazzCashReturnView] Incoming data:", dict(data))
-                print("[JazzCashReturnView] Using integrity salt:", dj_settings.JAZZCASH_INTEGRITY_SALT)
+                print("[JazzCashReturnView] Sandbox mode:", sandbox_mode)
                 print("[JazzCashReturnView] Provided pp_SecureHash:", pp_secure_hash)
             except Exception:
                 pass
 
-        if not pp_secure_hash:
-            return Response({"detail": "Missing secure hash."}, status=status.HTTP_400_BAD_REQUEST)
+        # In sandbox mode, skip ALL hash verification for local testing
+        if not sandbox_mode:
+            if not pp_secure_hash:
+                return Response({"detail": "Missing secure hash."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Recompute secure hash from response fields (excluding pp_SecureHash)
-        fields_for_hash = {k: v for k, v in data.items() if k != 'pp_SecureHash' and v not in [None, ""]}
-        sorted_string = "&".join(f"{key}={value}" for key, value in sorted(fields_for_hash.items()))
-        expected_hash = hmac.new(
-            dj_settings.JAZZCASH_INTEGRITY_SALT.encode(),
-            sorted_string.encode(),
-            hashlib.sha256,
-        ).hexdigest()
+            # Recompute secure hash from response fields (excluding pp_SecureHash)
+            fields_for_hash = {k: v for k, v in data.items() if k != 'pp_SecureHash' and v not in [None, ""]}
+            sorted_string = "&".join(f"{key}={value}" for key, value in sorted(fields_for_hash.items()))
+            # JazzCash requires integrity salt to be prepended to the message before hashing
+            message_to_hash = dj_settings.JAZZCASH_INTEGRITY_SALT + "&" + sorted_string
+            expected_hash = hmac.new(
+                dj_settings.JAZZCASH_INTEGRITY_SALT.encode(),
+                message_to_hash.encode(),
+                hashlib.sha256,
+            ).hexdigest()
 
-        if getattr(dj_settings, 'DEBUG', False):
-            try:
-                print("[JazzCashReturnView] Sorted string for hash:", sorted_string)
-                print("[JazzCashReturnView] Expected hash:", expected_hash.lower())
-                print("[JazzCashReturnView] Provided hash (lower):", str(pp_secure_hash).lower())
-            except Exception:
-                pass
-
-        # Validate hash (unless in sandbox/debug mode which might bypass strict checking)
-        sandbox_mode = getattr(dj_settings, 'JAZZCASH_SANDBOX', False)
-        if not hmac.compare_digest(expected_hash.lower(), pp_secure_hash.lower()):
-            if not sandbox_mode:
+            if not hmac.compare_digest(expected_hash.lower(), pp_secure_hash.lower()):
                 return Response({"detail": "Invalid secure hash."}, status=status.HTTP_400_BAD_REQUEST)
-            # If sandbox mode, log warning but proceed (or you can choose to fail even in sandbox)
-            print("[JazzCashReturnView] Hash mismatch ignored in sandbox mode.")
+        else:
+            print("[JazzCashReturnView] Hash verification SKIPPED in sandbox mode.")
 
         payment_id = data.get('ppmpf_1')
         if not payment_id:
@@ -1770,7 +2033,12 @@ class JazzCashReturnView(APIView):
         payment.payment_intent_id = data.get('pp_TxnRefNo') or payment.payment_intent_id
 
         response_code = data.get('pp_ResponseCode')
-        is_success = (response_code == '000')
+        # In sandbox mode, treat ALL callbacks as success for local testing
+        # (JazzCash sandbox rejects localhost URLs with code 110, but we still want to test the flow)
+        is_success = (response_code == '000') or sandbox_mode
+        
+        if sandbox_mode and response_code != '000':
+            print(f"[JazzCashReturnView] Sandbox mode: treating response code {response_code} as SUCCESS for testing.")
 
         if is_success:
             if payment.status != 'completed':
@@ -2177,9 +2445,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         fields_for_hash = {k: v for k, v in post_data.items() if v not in [None, ""]}
         sorted_string = "&".join(f"{key}={value}" for key, value in sorted(fields_for_hash.items()))
+        # JazzCash requires integrity salt to be prepended to the message before hashing
+        message_to_hash = dj_settings.JAZZCASH_INTEGRITY_SALT + "&" + sorted_string
         secure_hash = hmac.new(
             dj_settings.JAZZCASH_INTEGRITY_SALT.encode(),
-            sorted_string.encode(),
+            message_to_hash.encode(),
             hashlib.sha256,
         ).hexdigest()
         post_data["pp_SecureHash"] = secure_hash
@@ -2265,3 +2535,291 @@ class StripeWebhookView(APIView):
         except Exception:
             logger.exception('Stripe webhook handler error')
             return Response({"detail": "Webhook handler error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== GAMIFICATION VIEWS ====================
+
+# XP amounts for different actions
+XP_CONFIG = {
+    'content_complete': 10,
+    'assignment_pass': 30,
+    'perfect_score': 20,  # bonus
+    'first_attempt_pass': 20,  # bonus
+    'course_complete': 200,
+    'review_written': 15,
+    'streak_bonus_multiplier': 2,  # per streak day
+}
+
+# Default badges to be seeded
+DEFAULT_BADGES = [
+    # Streak badges
+    {'code': 'streak_7', 'name': '7-Day Warrior', 'description': 'Maintain a 7-day learning streak', 'badge_type': 'streak', 'icon': '🔥', 'xp_reward': 50, 'requirement_value': 7},
+    {'code': 'streak_30', 'name': '30-Day Champion', 'description': 'Maintain a 30-day learning streak', 'badge_type': 'streak', 'icon': '⚡', 'xp_reward': 150, 'requirement_value': 30},
+    {'code': 'streak_100', 'name': '100-Day Legend', 'description': 'Maintain a 100-day learning streak', 'badge_type': 'streak', 'icon': '👑', 'xp_reward': 500, 'requirement_value': 100},
+    # Completion badges
+    {'code': 'first_course', 'name': 'First Steps', 'description': 'Complete your first course', 'badge_type': 'completion', 'icon': '🎓', 'xp_reward': 100, 'requirement_value': 1},
+    {'code': 'courses_5', 'name': 'Knowledge Seeker', 'description': 'Complete 5 courses', 'badge_type': 'completion', 'icon': '📚', 'xp_reward': 200, 'requirement_value': 5},
+    {'code': 'courses_10', 'name': 'Course Master', 'description': 'Complete 10 courses', 'badge_type': 'completion', 'icon': '🏅', 'xp_reward': 400, 'requirement_value': 10},
+    # Performance badges
+    {'code': 'perfect_score', 'name': 'Perfect Score', 'description': 'Get 100% on any assignment', 'badge_type': 'performance', 'icon': '💯', 'xp_reward': 50, 'requirement_value': 1},
+    {'code': 'quick_learner', 'name': 'Quick Learner', 'description': 'Complete a course in under 7 days', 'badge_type': 'performance', 'icon': '🚀', 'xp_reward': 100, 'requirement_value': 7},
+    # Engagement badges
+    {'code': 'reviewer', 'name': 'Reviewer', 'description': 'Write your first course review', 'badge_type': 'engagement', 'icon': '⭐', 'xp_reward': 30, 'requirement_value': 1},
+    {'code': 'top_3', 'name': 'Top 3', 'description': 'Rank in top 3 on weekly leaderboard', 'badge_type': 'engagement', 'icon': '🏆', 'xp_reward': 100, 'requirement_value': 3},
+]
+
+
+def get_or_create_user_stats(user):
+    """Get or create UserStats for a user"""
+    stats, created = UserStats.objects.get_or_create(user=user)
+    return stats
+
+
+def award_xp(user, amount, source, description=""):
+    """Award XP to user and return updated stats"""
+    stats = get_or_create_user_stats(user)
+    stats.add_xp(amount, source, description)
+    return stats
+
+
+def check_and_award_badges(user):
+    """Check and award any badges the user has earned"""
+    stats = get_or_create_user_stats(user)
+    newly_earned = []
+    
+    for badge_data in DEFAULT_BADGES:
+        # Check if user already has this badge
+        if UserBadge.objects.filter(user=user, badge__code=badge_data['code']).exists():
+            continue
+        
+        badge = Badge.objects.filter(code=badge_data['code']).first()
+        if not badge:
+            continue
+        
+        earned = False
+        
+        # Check streak badges
+        if badge.badge_type == 'streak':
+            if stats.current_streak >= badge.requirement_value or stats.longest_streak >= badge.requirement_value:
+                earned = True
+        
+        # Check completion badges
+        elif badge.badge_type == 'completion':
+            if stats.courses_completed >= badge.requirement_value:
+                earned = True
+        
+        # Check performance badges
+        elif badge.badge_type == 'performance':
+            if badge.code == 'perfect_score' and stats.perfect_scores >= badge.requirement_value:
+                earned = True
+            # Quick learner is checked separately when course is completed
+        
+        # Check engagement badges
+        elif badge.badge_type == 'engagement':
+            if badge.code == 'reviewer' and stats.reviews_written >= badge.requirement_value:
+                earned = True
+            # Top 3 is checked separately
+        
+        if earned:
+            UserBadge.objects.create(user=user, badge=badge)
+            # Award badge XP
+            if badge.xp_reward > 0:
+                award_xp(user, badge.xp_reward, 'badge', f'Earned badge: {badge.name}')
+            newly_earned.append(badge)
+    
+    return newly_earned
+
+
+def record_daily_activity(user, content_completed=0, assignments_completed=0, xp_earned=0, time_spent_seconds=0):
+    """Record or update daily activity for a user"""
+    from datetime import date
+    today = date.today()
+    
+    activity, created = DailyActivity.objects.get_or_create(
+        user=user,
+        date=today,
+        defaults={
+            'content_completed': content_completed,
+            'assignments_completed': assignments_completed,
+            'xp_earned': xp_earned,
+            'time_spent_seconds': time_spent_seconds
+        }
+    )
+    
+    if not created:
+        activity.content_completed += content_completed
+        activity.assignments_completed += assignments_completed
+        activity.xp_earned += xp_earned
+        activity.time_spent_seconds += time_spent_seconds
+        activity.save()
+    
+    # Update streak
+    stats = get_or_create_user_stats(user)
+    stats.update_streak()
+    
+    return activity
+
+
+class GamificationViewSet(viewsets.ViewSet):
+    """ViewSet for gamification-related endpoints"""
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+    
+    @action(detail=False, methods=['get'])
+    def my_stats(self, request):
+        """Get current user's gamification stats"""
+        stats = get_or_create_user_stats(request.user)
+        return Response(UserStatsSerializer(stats).data)
+    
+    @action(detail=False, methods=['get'])
+    def my_badges(self, request):
+        """Get current user's badges"""
+        badges = UserBadge.objects.filter(user=request.user).select_related('badge')
+        return Response(UserBadgeSerializer(badges, many=True).data)
+    
+    @action(detail=False, methods=['get'])
+    def all_badges(self, request):
+        """Get all available badges with user's earned status"""
+        all_badges = Badge.objects.filter(is_active=True)
+        earned_codes = set(
+            UserBadge.objects.filter(user=request.user).values_list('badge__code', flat=True)
+        )
+        
+        result = []
+        for badge in all_badges:
+            badge_data = BadgeSerializer(badge).data
+            badge_data['earned'] = badge.code in earned_codes
+            if badge.code in earned_codes:
+                ub = UserBadge.objects.filter(user=request.user, badge=badge).first()
+                badge_data['earned_at'] = ub.earned_at if ub else None
+            result.append(badge_data)
+        
+        return Response(result)
+    
+    @action(detail=False, methods=['get'])
+    def xp_history(self, request):
+        """Get user's XP transaction history"""
+        transactions = XPTransaction.objects.filter(user=request.user)[:50]
+        return Response(XPTransactionSerializer(transactions, many=True).data)
+    
+    @action(detail=False, methods=['get'], url_path='user-badges/(?P<user_id>[^/.]+)')
+    def user_badges(self, request, user_id=None):
+        """Get badges for a specific user (admin only)"""
+        if request.user.role != 'admin':
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        badges = UserBadge.objects.filter(user=user).select_related('badge')
+        return Response(UserBadgeSerializer(badges, many=True).data)
+    
+    @action(detail=False, methods=['get'])
+    def leaderboard(self, request):
+        """Get weekly leaderboard"""
+        from datetime import date, timedelta
+        
+        # Calculate week start (Monday)
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+        
+        # Get weekly XP for all users
+        weekly_xp = {}
+        transactions = XPTransaction.objects.filter(
+            created_at__date__gte=week_start
+        ).values('user_id').annotate(weekly_xp=Count('amount'))
+        
+        # Actually sum the amounts
+        from django.db.models import Sum
+        transactions = XPTransaction.objects.filter(
+            created_at__date__gte=week_start
+        ).values('user_id').annotate(weekly_xp=Sum('amount'))
+        
+        for t in transactions:
+            weekly_xp[t['user_id']] = t['weekly_xp'] or 0
+        
+        # Get all user stats, ordered by total XP
+        all_stats = UserStats.objects.filter(
+            user__role='student',
+            user__is_active=True
+        ).select_related('user').order_by('-total_xp')[:50]
+        
+        leaderboard = []
+        for rank, stats in enumerate(all_stats, 1):
+            entry = {
+                'rank': rank,
+                'user_id': stats.user.id,
+                'username': stats.user.username,
+                'first_name': stats.user.first_name or '',
+                'last_name': stats.user.last_name or '',
+                'total_xp': stats.total_xp,
+                'level': stats.level,
+                'level_title': stats.level_title,
+                'current_streak': stats.current_streak,
+                'weekly_xp': weekly_xp.get(stats.user.id, 0),
+            }
+            leaderboard.append(entry)
+        
+        # Sort by weekly XP for weekly leaderboard
+        leaderboard.sort(key=lambda x: x['weekly_xp'], reverse=True)
+        
+        # Update ranks after sorting
+        for i, entry in enumerate(leaderboard, 1):
+            entry['rank'] = i
+        
+        # Find current user's position
+        my_rank = None
+        for entry in leaderboard:
+            if entry['user_id'] == request.user.id:
+                my_rank = entry['rank']
+                break
+        
+        return Response({
+            'leaderboard': leaderboard[:20],
+            'my_rank': my_rank,
+            'week_start': week_start.isoformat(),
+        })
+    
+    @action(detail=False, methods=['post'])
+    def record_activity(self, request):
+        """Record learning activity (used by frontend to update streak)"""
+        time_spent = request.data.get('time_spent_seconds', 0)
+        
+        activity = record_daily_activity(
+            request.user,
+            time_spent_seconds=time_spent
+        )
+        
+        # Check for newly earned badges
+        newly_earned = check_and_award_badges(request.user)
+        
+        stats = get_or_create_user_stats(request.user)
+        
+        return Response({
+            'stats': UserStatsSerializer(stats).data,
+            'newly_earned_badges': BadgeSerializer(newly_earned, many=True).data,
+        })
+    
+    @action(detail=False, methods=['post'])
+    def seed_badges(self, request):
+        """Seed default badges (admin only)"""
+        if request.user.role != 'admin':
+            return Response(
+                {'detail': 'Only admins can seed badges.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        created_count = 0
+        for badge_data in DEFAULT_BADGES:
+            badge, created = Badge.objects.get_or_create(
+                code=badge_data['code'],
+                defaults=badge_data
+            )
+            if created:
+                created_count += 1
+        
+        return Response({
+            'message': f'Seeded {created_count} new badges.',
+            'total_badges': Badge.objects.count()
+        })

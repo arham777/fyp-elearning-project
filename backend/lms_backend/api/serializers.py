@@ -2,7 +2,8 @@ from rest_framework import serializers
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
-    AssignmentQuestion, AssignmentOption, CourseRating, SupportRequest
+    AssignmentQuestion, AssignmentOption, CourseRating, SupportRequest,
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction
 )
 from django.db.models import Avg, Count
 
@@ -12,7 +13,8 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role', 'created_at',
             # Blocking-related fields
-            'is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until'
+            'is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until',
+            'preferred_category', 'skill_level', 'learning_goal'
         ]
         read_only_fields = ['created_at']
 
@@ -199,8 +201,8 @@ class CourseListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
-        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
+        fields = ['id', 'title', 'description', 'category', 'difficulty_level', 'difficulty_feedback_avg', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating', 'difficulty_feedback_avg', 'difficulty_level']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()
@@ -244,8 +246,8 @@ class CourseDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'modules', 'assignments', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
-        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'modules', 'assignments', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
+        fields = ['id', 'title', 'description', 'category', 'difficulty_level', 'difficulty_feedback_avg', 'price', 'teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'status', 'modules', 'assignments', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'is_published', 'published_at', 'publication_status', 'approval_note', 'modules', 'assignments', 'enrollment_count', 'average_rating', 'ratings_count', 'my_rating', 'difficulty_feedback_avg', 'difficulty_level']
 
     def get_enrollment_count(self, obj):
         return obj.enrollments.count()
@@ -280,7 +282,7 @@ class CourseRatingSerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
     class Meta:
         model = CourseRating
-        fields = ['id', 'course', 'student', 'rating', 'review', 'created_at', 'updated_at']
+        fields = ['id', 'course', 'student', 'rating', 'review', 'teacher_reply', 'difficulty_feedback', 'created_at', 'updated_at']
         read_only_fields = ['course', 'student', 'created_at', 'updated_at']
 
 class ContentProgressSerializer(serializers.ModelSerializer):
@@ -344,3 +346,73 @@ class SupportRequestSerializer(serializers.ModelSerializer):
         model = SupportRequest
         fields = ['id', 'user', 'email', 'username', 'reason_seen', 'until_reported', 'message', 'status', 'created_at', 'handled_at', 'handled_by']
         read_only_fields = ['user', 'status', 'created_at', 'handled_at', 'handled_by']
+
+
+# ==================== GAMIFICATION SERIALIZERS ====================
+
+class BadgeSerializer(serializers.ModelSerializer):
+    """Serializer for Badge model"""
+    class Meta:
+        model = Badge
+        fields = ['id', 'code', 'name', 'description', 'badge_type', 'icon', 'xp_reward', 'requirement_value']
+
+
+class UserBadgeSerializer(serializers.ModelSerializer):
+    """Serializer for user's earned badges"""
+    badge = BadgeSerializer(read_only=True)
+    
+    class Meta:
+        model = UserBadge
+        fields = ['id', 'badge', 'earned_at']
+
+
+class UserStatsSerializer(serializers.ModelSerializer):
+    """Serializer for user gamification stats"""
+    xp_for_next_level = serializers.SerializerMethodField()
+    xp_progress_percentage = serializers.SerializerMethodField()
+    badges_count = serializers.SerializerMethodField()
+    total_learning_hours = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserStats
+        fields = [
+            'id', 'total_xp', 'level', 'level_title', 
+            'current_streak', 'longest_streak', 'last_activity_date',
+            'total_learning_seconds', 'total_learning_hours',
+            'courses_completed', 'assignments_completed', 'perfect_scores', 'reviews_written',
+            'xp_for_next_level', 'xp_progress_percentage', 'badges_count'
+        ]
+    
+    def get_xp_for_next_level(self, obj):
+        return obj.get_xp_for_next_level()
+    
+    def get_xp_progress_percentage(self, obj):
+        return obj.get_xp_progress_percentage()
+    
+    def get_badges_count(self, obj):
+        return obj.user.user_badges.count()
+    
+    def get_total_learning_hours(self, obj):
+        hours = obj.total_learning_seconds / 3600
+        return round(hours, 1)
+
+
+class XPTransactionSerializer(serializers.ModelSerializer):
+    """Serializer for XP transaction history"""
+    class Meta:
+        model = XPTransaction
+        fields = ['id', 'amount', 'source', 'description', 'created_at']
+
+
+class LeaderboardEntrySerializer(serializers.Serializer):
+    """Serializer for leaderboard entries"""
+    rank = serializers.IntegerField()
+    user_id = serializers.IntegerField()
+    username = serializers.CharField()
+    first_name = serializers.CharField(allow_blank=True)
+    last_name = serializers.CharField(allow_blank=True)
+    total_xp = serializers.IntegerField()
+    level = serializers.IntegerField()
+    level_title = serializers.CharField()
+    current_streak = serializers.IntegerField()
+    weekly_xp = serializers.IntegerField(required=False, default=0)

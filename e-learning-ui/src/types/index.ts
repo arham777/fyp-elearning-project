@@ -17,6 +17,9 @@ export interface User {
   deactivated_at?: string | null;
   deactivation_reason?: string | null;
   deactivated_until?: string | null;
+  preferred_category?: string | null;
+  skill_level?: 'beginner' | 'intermediate' | 'advanced' | null;
+  learning_goal?: 'job' | 'skill_upgrade' | 'certification' | null;
 }
 
 export interface CourseRating {
@@ -25,6 +28,8 @@ export interface CourseRating {
   student?: User | null;
   rating: number;
   review?: string | null;
+  teacher_reply?: string | null;
+  difficulty_feedback?: 1 | 2 | 3 | null;
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +47,8 @@ export interface Course {
   status?: 'published' | 'draft' | 'pending' | 'rejected';
   approval_note?: string;
   category?: string;
+  difficulty_level?: 'easy' | 'medium' | 'hard';
+  difficulty_feedback_avg?: number | string | null;
   modules?: CourseModule[];
   assignments?: Assignment[];
   enrollment_count?: number;
@@ -228,6 +235,9 @@ export interface RegisterData {
   confirm_password: string;
   // Only student and teacher can self-register from the UI
   role: 'student' | 'teacher';
+  preferred_category?: string;
+  skill_level?: 'beginner' | 'intermediate' | 'advanced';
+  learning_goal?: 'job' | 'skill_upgrade' | 'certification';
 }
 
 export interface ApiResponse<T> {
@@ -305,4 +315,81 @@ export interface TeacherRequest {
   created_at: string;
   reviewed_at?: string;
   reviewed_by?: User;
+}
+
+// ==================== GAMIFICATION TYPES ====================
+
+export type BadgeType = 'streak' | 'completion' | 'performance' | 'engagement' | 'milestone';
+
+export interface Badge {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  badge_type: BadgeType;
+  icon: string;
+  xp_reward: number;
+  requirement_value: number;
+}
+
+export interface UserBadge {
+  id: number;
+  badge: Badge;
+  earned_at: string;
+}
+
+export interface BadgeWithStatus extends Badge {
+  earned: boolean;
+  earned_at?: string | null;
+}
+
+export interface UserStats {
+  id: number;
+  total_xp: number;
+  level: number;
+  level_title: string;
+  current_streak: number;
+  longest_streak: number;
+  last_activity_date: string | null;
+  total_learning_seconds: number;
+  total_learning_hours: number;
+  courses_completed: number;
+  assignments_completed: number;
+  perfect_scores: number;
+  reviews_written: number;
+  xp_for_next_level: number;
+  xp_progress_percentage: number;
+  badges_count: number;
+}
+
+export interface XPTransaction {
+  id: number;
+  amount: number;
+  source: 'content' | 'assignment' | 'perfect_score' | 'course' | 'streak' | 'badge' | 'review' | 'first_attempt';
+  description: string;
+  created_at: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  total_xp: number;
+  level: number;
+  level_title: string;
+  current_streak: number;
+  weekly_xp: number;
+}
+
+export interface LeaderboardResponse {
+  leaderboard: LeaderboardEntry[];
+  my_rank: number | null;
+  week_start: string;
+}
+
+export interface RecordActivityResponse {
+  stats: UserStats;
+  newly_earned_badges: Badge[];
 }
