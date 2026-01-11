@@ -61,7 +61,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('skill_upgrade', 'Skill Upgrade'),
         ('certification', 'Certification'),
     )
-    preferred_category = models.CharField(max_length=50, null=True, blank=True)
+    preferred_category = models.CharField(max_length=500, null=True, blank=True)  # Comma-separated for multiple interests
     skill_level = models.CharField(max_length=20, choices=SKILL_LEVELS, null=True, blank=True)
     learning_goal = models.CharField(max_length=20, choices=LEARNING_GOALS, null=True, blank=True)
 

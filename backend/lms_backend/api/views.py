@@ -400,37 +400,79 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         preferred_category = getattr(user, 'preferred_category', None)
         skill_level = getattr(user, 'skill_level', None)
-        if not preferred_category or not skill_level:
-            return Response([])
-
+        
         # Map student skill -> allowed course difficulties
-        # beginner -> easy
-        # intermediate -> easy + medium
-        # advanced -> easy + medium + hard
         allowed_by_skill = {
             'beginner': ['easy'],
             'intermediate': ['easy', 'medium'],
             'advanced': ['easy', 'medium', 'hard'],
         }
-        allowed_difficulty = allowed_by_skill.get(str(skill_level).lower(), ['easy'])
+        allowed_difficulty = allowed_by_skill.get(str(skill_level).lower() if skill_level else 'beginner', ['easy', 'medium', 'hard'])
 
-        completed_ids = Enrollment.objects.filter(
-            student=user,
-            status='completed'
+        enrolled_ids = Enrollment.objects.filter(
+            student=user
         ).values_list('course_id', flat=True)
 
-        qs = (
-            Course.objects.filter(
-                is_published=True,
-                category=preferred_category,
+        # Category keyword mappings for better matching
+        category_keywords = {
+            'dbms': ['database', 'sql', 'mysql', 'postgresql', 'mongodb', 'dbms'],
+            'database management': ['database', 'sql', 'dbms'],
+            'web development': ['web', 'frontend', 'backend', 'fullstack', 'html', 'css', 'javascript', 'react', 'angular', 'vue', 'node', 'mern', 'mean'],
+            'mobile app development': ['mobile', 'android', 'ios', 'flutter', 'react native', 'app'],
+            'artificial intelligence': ['ai', 'machine learning', 'ml', 'deep learning', 'neural'],
+            'data science': ['data', 'analytics', 'pandas', 'numpy', 'visualization'],
+            'cybersecurity': ['security', 'cyber', 'hacking', 'penetration', 'ethical'],
+            'cloud computing': ['cloud', 'aws', 'azure', 'gcp', 'docker', 'kubernetes'],
+            'devops': ['devops', 'ci/cd', 'jenkins', 'docker', 'kubernetes'],
+        }
+
+        # Build category filter
+        category_q = Q()
+        
+        if preferred_category:
+            categories = [cat.strip().lower() for cat in preferred_category.split(',') if cat.strip()]
+            
+            for cat in categories:
+                # Direct match (case-insensitive)
+                category_q |= Q(category__iexact=cat)
+                # Partial match - category contains the preference
+                category_q |= Q(category__icontains=cat)
+                # Partial match - preference contains the category
+                category_q |= Q(title__icontains=cat)
+                category_q |= Q(description__icontains=cat)
+                
+                # Check keyword mappings
+                cat_lower = cat.lower()
+                if cat_lower in category_keywords:
+                    for keyword in category_keywords[cat_lower]:
+                        category_q |= Q(category__icontains=keyword)
+                        category_q |= Q(title__icontains=keyword)
+                
+                # Also check reverse - if any keyword maps to this category
+                for key, keywords in category_keywords.items():
+                    if cat_lower in keywords or any(kw in cat_lower for kw in keywords):
+                        category_q |= Q(category__icontains=key)
+        
+        # If no category preference, show popular courses
+        if not category_q:
+            qs = (
+                Course.objects.filter(is_published=True)
+                .exclude(id__in=enrolled_ids)
+                .order_by('-enrollment_count', '-published_at')
             )
-            .filter(
-                Q(difficulty_feedback_avg__isnull=True) |
-                Q(difficulty_level__in=allowed_difficulty)
+        else:
+            qs = (
+                Course.objects.filter(is_published=True)
+                .filter(category_q)
+                .filter(
+                    Q(difficulty_feedback_avg__isnull=True) |
+                    Q(difficulty_level__isnull=True) |
+                    Q(difficulty_level__in=allowed_difficulty)
+                )
+                .exclude(id__in=enrolled_ids)
+                .distinct()
+                .order_by('-published_at', '-created_at')
             )
-            .exclude(id__in=completed_ids)
-            .order_by('-published_at', '-created_at')
-        )
 
         # Keep response small for dashboard
         try:

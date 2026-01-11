@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CategorySelector } from '@/components/ui/CategorySelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { RegisterData } from '@/types';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
@@ -152,19 +153,11 @@ const RegisterForm: React.FC = () => {
               <>
                 <div className="space-y-2">
                   <Label>Preferred course category</Label>
-                  <Select
+                  <CategorySelector
                     value={formData.preferred_category || ''}
-                    onValueChange={handleSelectChange('preferred_category')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Web Development">Web Development</SelectItem>
-                      <SelectItem value="AI">AI</SelectItem>
-                      <SelectItem value="Design">Design</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    onChange={handleSelectChange('preferred_category')}
+                    placeholder="Search and select category..."
+                  />
                 </div>
 
                 <div className="space-y-2">

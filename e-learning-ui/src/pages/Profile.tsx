@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CategorySelector } from '@/components/ui/CategorySelector';
 import { toast } from '@/hooks/use-toast';
 import { UserBadge, UserStats } from '@/types';
 import { 
@@ -332,16 +333,11 @@ const Profile: React.FC = () => {
             >
               <div className="space-y-2">
                 <Label>Preferred course category</Label>
-                <Select value={preferredCategory} onValueChange={setPreferredCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Web Development">Web Development</SelectItem>
-                    <SelectItem value="AI">AI</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                  </SelectContent>
-                </Select>
+                <CategorySelector 
+                  value={preferredCategory} 
+                  onChange={setPreferredCategory}
+                  placeholder="Search and select category..."
+                />
               </div>
 
               <div className="space-y-2">
