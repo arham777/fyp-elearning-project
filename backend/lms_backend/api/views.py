@@ -382,6 +382,9 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        # Handle anonymous users - show only published courses
+        if not user.is_authenticated:
+            return Course.objects.filter(is_published=True)
         if user.role == 'admin':
             # Admin can see all courses
             return Course.objects.all()
@@ -488,7 +491,10 @@ class CourseViewSet(viewsets.ModelViewSet):
         """
         Instantiates and returns the list of permissions that this view requires.
         """
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish', 'approve', 'reject']:
+        # Allow public access for listing and viewing courses
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [permissions.AllowAny]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish', 'approve', 'reject']:
             permission_classes = [permissions.IsAuthenticated, IsTeacherOrAdmin]
         else:
             permission_classes = [permissions.IsAuthenticated]

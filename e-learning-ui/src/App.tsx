@@ -26,6 +26,7 @@ import Settings from "@/pages/adminRole/Settings";
 import Profile from "@/pages/Profile";
 import { ThemeProvider } from "next-themes";
 import Index from "@/pages/Index";
+import Courses from "@/pages/Courses";
 import StudentsPage from "@/pages/teacherRole/Students";
 import { queryClient } from "@/lib/queryClient";
 import CertificatesPage from "@/pages/Certificates";
@@ -80,6 +81,7 @@ const App = () => (
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
+              <Route path="/courses" element={<Courses />} />
               <Route path="/login" element={<LoginForm />} />
               <Route path="/register" element={<RegisterForm />} />
               <Route path="/blocked" element={<Blocked />} />
