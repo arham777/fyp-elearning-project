@@ -382,20 +382,39 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        # Handle anonymous users - show only published courses
+        qs = Course.objects.none()
+
+        # Determine base queryset based on role
         if not user.is_authenticated:
-            return Course.objects.filter(is_published=True)
-        if user.role == 'admin':
-            # Admin can see all courses
-            return Course.objects.all()
+            qs = Course.objects.filter(is_published=True)
+        elif user.role == 'admin':
+            qs = Course.objects.all()
         elif user.role == 'teacher':
             # Teachers see only their courses
-            return Course.objects.filter(teacher=user)
+            qs = Course.objects.filter(teacher=user)
         else:
             # Students can browse all available courses
-            # (Enrollment is handled via the enroll action)
-            # Only published courses are visible to students
-            return Course.objects.filter(is_published=True)
+            qs = Course.objects.filter(is_published=True)
+
+        # Apply Category Filter (using contains for flexible matching)
+        category = (self.request.query_params.get('category') or '').strip()
+        if category and category.lower() != 'all':
+            qs = qs.filter(category__icontains=category)
+
+        # Apply Search Filter (Title, Description, Teacher)
+        search_term = (self.request.query_params.get('search') or '').strip()
+        if search_term:
+            terms = search_term.split()
+            for term in terms:
+                qs = qs.filter(
+                    Q(title__icontains=term) |
+                    Q(description__icontains=term) |
+                    Q(teacher__username__icontains=term) |
+                    Q(teacher__first_name__icontains=term) |
+                    Q(teacher__last_name__icontains=term)
+                )
+            
+        return qs
 
     @action(detail=False, methods=['get'], url_path='recommendations', permission_classes=[permissions.IsAuthenticated, IsActiveUser, IsStudent])
     def recommendations(self, request):
