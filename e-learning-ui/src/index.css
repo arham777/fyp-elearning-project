@@ -203,4 +203,49 @@
     transform: translateY(0);
   }
 
+  /* Course completion modal animations */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) translateX(0) rotate(0deg);
+      opacity: 0.4;
+    }
+    25% {
+      transform: translateY(-20px) translateX(10px) rotate(5deg);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translateY(-40px) translateX(-10px) rotate(-5deg);
+      opacity: 0.8;
+    }
+    75% {
+      transform: translateY(-20px) translateX(5px) rotate(3deg);
+      opacity: 0.6;
+    }
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  .delay-500 {
+    animation-delay: 500ms;
+  }
+
+  .delay-700 {
+    animation-delay: 700ms;
+  }
+
 }

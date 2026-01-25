@@ -83,6 +83,7 @@ const MyCourses: React.FC = () => {
                 to={`/app/my-courses/${course.id}`}
                 isEnrolled
                 isCompleted={completedCourseIds.has(course.id)}
+                certificateId={certificates.find(c => c.course?.id === course.id)?.id}
                 progress={enrollmentByCourseId[course.id]?.progress}
                 context="myCourses"
               />

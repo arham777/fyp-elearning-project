@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ChevronDown, ChevronRight, Check, Play, BookOpen, FileText, Lock, Pause, Volume2, VolumeX, Maximize2, Minimize2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import BackButton from '@/components/ui/back-button';
+import { CourseCompletionModal } from '@/components/course/CourseCompletionModal';
+import { FeedbackModal } from '@/components/course/FeedbackModal';
 
 interface ModuleContent {
   module: CourseModule;
@@ -73,6 +75,12 @@ const CourseViewer: React.FC = () => {
   const [myRating, setMyRating] = useState<number | null>(null);
   const [myReview, setMyReview] = useState<string | null>(null);
   const [difficultyFeedback, setDifficultyFeedback] = useState<'easy' | 'medium' | 'hard' | ''>('');
+
+  // New modal states
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showDelayedFeedbackModal, setShowDelayedFeedbackModal] = useState(false);
+  const [hasShownCompletionModal, setHasShownCompletionModal] = useState(false);
+
 
   const basePath = useMemo(() => {
     return location.pathname.startsWith('/app/my-courses') ? '/app/my-courses' : '/app/courses';
@@ -136,20 +144,20 @@ const CourseViewer: React.FC = () => {
     const loadCourseData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Load basic course info
         const [courseData, enrollments, certs] = await Promise.all([
           coursesApi.getCourse(courseId),
           coursesApi.getMyEnrollments().catch(() => []),
           coursesApi.getMyCertificates().catch(() => [] as Certificate[]),
         ]);
-        
+
         setCourse(courseData);
         if ((courseData as any)?.my_rating) {
           setFeedbackSubmitted(true);
           setMyRating((courseData as any).my_rating ?? null);
         }
-        
+
         // Find user's enrollment for this course
         const userEnrollment = (enrollments as Enrollment[]).find(
           e => e.course?.id === courseId
@@ -161,7 +169,7 @@ const CourseViewer: React.FC = () => {
 
         // Load modules
         const modules = await coursesApi.getCourseModules(courseId);
-        
+
         // Load content and progress for each module
         const moduleData = await Promise.all(
           modules.map(async (module: CourseModule) => {
@@ -194,15 +202,15 @@ const CourseViewer: React.FC = () => {
             if (typeof mine.review === 'string') setMyReview(mine.review);
             setFeedbackSubmitted(true);
           }
-        } catch {}
+        } catch { }
 
         // Smart auto-selection logic
         const { moduleToExpand, contentToSelect } = determineAutoSelection(moduleData);
-        
+
         if (moduleToExpand) {
           setExpandedModules(new Set([moduleToExpand]));
         }
-        
+
         if (contentToSelect) {
           setSelectedContent(contentToSelect);
         }
@@ -289,13 +297,13 @@ const CourseViewer: React.FC = () => {
 
   // Calculate overall progress
   const courseProgress = useMemo((): CourseProgress => {
-    const totalItems = moduleContents.reduce((sum, md) => 
+    const totalItems = moduleContents.reduce((sum, md) =>
       sum + md.contents.length + md.assignments.length, 0
     );
-    const completedItems = moduleContents.reduce((sum, md) => 
+    const completedItems = moduleContents.reduce((sum, md) =>
       sum + md.completedContentIds.length + md.completedAssignmentIds.length, 0
     );
-    
+
     return {
       totalItems,
       completedItems,
@@ -311,11 +319,11 @@ const CourseViewer: React.FC = () => {
   // Check if module is unlocked
   const isModuleUnlocked = useCallback((moduleIndex: number): boolean => {
     if (moduleIndex === 0) return true; // First module is always unlocked
-    
+
     // For now, unlock all modules to fix the locking issue
     // Later you can implement proper sequential unlocking
     return true;
-    
+
     // Original logic (commented out for now):
     // const prevModule = moduleContents[moduleIndex - 1];
     // if (!prevModule) return false;
@@ -348,7 +356,7 @@ const CourseViewer: React.FC = () => {
 
     // Sort modules by order
     const sortedModules = moduleData.slice().sort((a, b) => a.module.order - b.module.order);
-    
+
     // Find the next item to work on
     for (const md of sortedModules) {
       // Combine and sort all items in this module
@@ -359,10 +367,10 @@ const CourseViewer: React.FC = () => {
 
       // Find first incomplete item in this module
       for (const item of allItems) {
-        const isCompleted = item.type === 'content' 
+        const isCompleted = item.type === 'content'
           ? md.completedContentIds.includes(item.id)
           : md.completedAssignmentIds.includes(item.id);
-        
+
         if (!isCompleted) {
           return {
             moduleToExpand: md.module.id,
@@ -385,10 +393,10 @@ const CourseViewer: React.FC = () => {
       ].sort((a, b) => b.order - a.order); // Reverse order to get last item first
 
       for (const item of allItems) {
-        const isCompleted = item.type === 'content' 
+        const isCompleted = item.type === 'content'
           ? md.completedContentIds.includes(item.id)
           : md.completedAssignmentIds.includes(item.id);
-        
+
         if (isCompleted) {
           return {
             moduleToExpand: md.module.id,
@@ -429,11 +437,11 @@ const CourseViewer: React.FC = () => {
   // Navigate to next incomplete item
   const goToNextIncomplete = useCallback(() => {
     const { moduleToExpand, contentToSelect } = determineAutoSelection(moduleContents);
-    
+
     if (moduleToExpand) {
       setExpandedModules(new Set([moduleToExpand]));
     }
-    
+
     if (contentToSelect) {
       setSelectedContent(contentToSelect);
     }
@@ -486,112 +494,112 @@ const CourseViewer: React.FC = () => {
                       <DialogTrigger asChild>
                         <Button variant="outline">Feedback</Button>
                       </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Share your feedback</DialogTitle>
-                        <DialogDescription>Your feedback is visible to the course teacher.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          {Array.from({ length: 5 }).map((_, idx) => {
-                            const starVal = idx + 1;
-                            const active = (hoverFeedbackRating || feedbackRating || 0) >= starVal;
-                            return (
-                              <button
-                                key={idx}
-                                type="button"
-                                className="p-0.5"
-                                onMouseEnter={() => setHoverFeedbackRating(starVal)}
-                                onMouseLeave={() => setHoverFeedbackRating(0)}
-                                onClick={() => setFeedbackRating(starVal)}
-                                aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
-                              >
-                                <Star className={`w-5 h-5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
-                              </button>
-                            );
-                          })}
-                          {feedbackRating > 0 && (
-                            <span className="text-xs text-muted-foreground ml-1">{feedbackRating}/5</span>
-                          )}
-                        </div>
-                        <Textarea
-                          value={feedbackText}
-                          onChange={(e) => setFeedbackText(e.target.value)}
-                          placeholder="Write your feedback here... (one per course)"
-                          rows={5}
-                        />
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium">Course difficulty</div>
-                          <Select value={difficultyFeedback} onValueChange={(v) => setDifficultyFeedback(v as any)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select difficulty" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="easy">Easy</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="hard">Hard</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            onClick={async () => {
-                              const text = feedbackText.trim();
-                              if (!text) return;
-                              if (!feedbackRating) {
-                                toast({ title: 'Select a rating', description: 'Please choose 1-5 stars.', variant: 'destructive' });
-                                return;
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Share your feedback</DialogTitle>
+                          <DialogDescription>Your feedback is visible to the course teacher.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            {Array.from({ length: 5 }).map((_, idx) => {
+                              const starVal = idx + 1;
+                              const active = (hoverFeedbackRating || feedbackRating || 0) >= starVal;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  className="p-0.5"
+                                  onMouseEnter={() => setHoverFeedbackRating(starVal)}
+                                  onMouseLeave={() => setHoverFeedbackRating(0)}
+                                  onClick={() => setFeedbackRating(starVal)}
+                                  aria-label={`Rate ${starVal} star${starVal > 1 ? 's' : ''}`}
+                                >
+                                  <Star className={`w-5 h-5 ${active ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`} />
+                                </button>
+                              );
+                            })}
+                            {feedbackRating > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">{feedbackRating}/5</span>
+                            )}
+                          </div>
+                          <Textarea
+                            value={feedbackText}
+                            onChange={(e) => setFeedbackText(e.target.value)}
+                            placeholder="Write your feedback here... (one per course)"
+                            rows={5}
+                          />
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium">Course difficulty</div>
+                            <Select value={difficultyFeedback} onValueChange={(v) => setDifficultyFeedback(v as any)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select difficulty" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="easy">Easy</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              onClick={async () => {
+                                const text = feedbackText.trim();
+                                if (!text) return;
+                                if (!feedbackRating) {
+                                  toast({ title: 'Select a rating', description: 'Please choose 1-5 stars.', variant: 'destructive' });
+                                  return;
+                                }
+                                if (!difficultyFeedback) {
+                                  toast({ title: 'Select course difficulty', description: 'Please choose easy, medium, or hard.', variant: 'destructive' });
+                                  return;
+                                }
+                                setSubmittingFeedback(true);
+                                try {
+                                  await coursesApi.rateCourse(courseId, feedbackRating, text, difficultyFeedback as any);
+                                  setIsFeedbackOpen(false);
+                                  setFeedbackText('');
+                                  setFeedbackRating(0);
+                                  setDifficultyFeedback('');
+                                  // Immediately mark as rated locally to prevent multiple reviews
+                                  setCourse((prev) => prev ? { ...prev, my_rating: feedbackRating } as Course : prev);
+                                  setFeedbackSubmitted(true);
+                                  setMyRating(feedbackRating);
+                                  setMyReview(text);
+                                  toast({ title: 'Feedback sent', description: 'Thank you for your feedback.' });
+                                } catch (err: unknown) {
+                                  const asRecord = (v: unknown): Record<string, unknown> | null =>
+                                    typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
+                                  const detail = (asRecord(asRecord(err)?.response)?.data as any)?.detail as string | undefined;
+                                  toast({
+                                    title: 'Could not send feedback',
+                                    description: detail || 'Please try again after completing the course.',
+                                    variant: 'destructive',
+                                  });
+                                } finally {
+                                  setSubmittingFeedback(false);
+                                }
+                              }}
+                              disabled={
+                                submittingFeedback ||
+                                !feedbackText.trim() ||
+                                !feedbackRating ||
+                                !difficultyFeedback ||
+                                !(
+                                  // Allow send if any of these indicate completion
+                                  showCourseCompleted ||
+                                  (courseProgress.totalItems > 0 && courseProgress.completedItems === courseProgress.totalItems) ||
+                                  enrollment?.status === 'completed' ||
+                                  myCertificates.some(c => c.course?.id === courseId)
+                                )
                               }
-                              if (!difficultyFeedback) {
-                                toast({ title: 'Select course difficulty', description: 'Please choose easy, medium, or hard.', variant: 'destructive' });
-                                return;
-                              }
-                              setSubmittingFeedback(true);
-                              try {
-                                await coursesApi.rateCourse(courseId, feedbackRating, text, difficultyFeedback as any);
-                                setIsFeedbackOpen(false);
-                                setFeedbackText('');
-                                setFeedbackRating(0);
-                                setDifficultyFeedback('');
-                                // Immediately mark as rated locally to prevent multiple reviews
-                                setCourse((prev) => prev ? { ...prev, my_rating: feedbackRating } as Course : prev);
-                                setFeedbackSubmitted(true);
-                                setMyRating(feedbackRating);
-                                setMyReview(text);
-                                toast({ title: 'Feedback sent', description: 'Thank you for your feedback.' });
-                              } catch (err: unknown) {
-                                const asRecord = (v: unknown): Record<string, unknown> | null =>
-                                  typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
-                                const detail = (asRecord(asRecord(err)?.response)?.data as any)?.detail as string | undefined;
-                                toast({
-                                  title: 'Could not send feedback',
-                                  description: detail || 'Please try again after completing the course.',
-                                  variant: 'destructive',
-                                });
-                              } finally {
-                                setSubmittingFeedback(false);
-                              }
-                            }}
-                            disabled={
-                              submittingFeedback ||
-                              !feedbackText.trim() ||
-                              !feedbackRating ||
-                              !difficultyFeedback ||
-                              !(
-                                // Allow send if any of these indicate completion
-                                showCourseCompleted ||
-                                (courseProgress.totalItems > 0 && courseProgress.completedItems === courseProgress.totalItems) ||
-                                enrollment?.status === 'completed' ||
-                                myCertificates.some(c => c.course?.id === courseId)
-                              )
-                            }
-                          >
-                            {verifyingCompletion ? 'Checking…' : (submittingFeedback ? 'Sending…' : 'Send')}
-                          </Button>
+                            >
+                              {verifyingCompletion ? 'Checking…' : (submittingFeedback ? 'Sending…' : 'Send')}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogContent>
+                    </Dialog>
                   ) : (
                     <Button variant="secondary" disabled title="You already submitted feedback for this course">
                       Feedback sent
@@ -713,7 +721,7 @@ const CourseViewer: React.FC = () => {
               {moduleData.completedContentIds.includes(content.id) ? 'Completed' : 'In Progress'}
             </Badge>
           </div>
-          
+
           <Card>
             <CardContent className="p-6">
               {content.content_type === 'video' ? (
@@ -809,7 +817,7 @@ const CourseViewer: React.FC = () => {
                   )}
                 </div>
               )}
-              
+
               <div className="mt-6 flex justify-end">
                 {(() => {
                   const isCompleted = moduleData.completedContentIds.includes(content.id);
@@ -824,14 +832,14 @@ const CourseViewer: React.FC = () => {
                             await coursesApi.markContentComplete(courseId, selectedContent.moduleId, content.id);
                             // Refresh module data
                             const updatedProgress = await coursesApi.getModuleProgress(courseId, selectedContent.moduleId);
-                            setModuleContents(prev => prev.map(md => 
-                              md.module.id === selectedContent.moduleId 
-                                ? { 
-                                    ...md, 
-                                    completedContentIds: updatedProgress.completedContentIds,
-                                    completedAssignmentIds: updatedProgress.completedAssignmentIds,
-                                    assignmentResults: updatedProgress.assignmentResults
-                                  }
+                            setModuleContents(prev => prev.map(md =>
+                              md.module.id === selectedContent.moduleId
+                                ? {
+                                  ...md,
+                                  completedContentIds: updatedProgress.completedContentIds,
+                                  completedAssignmentIds: updatedProgress.completedAssignmentIds,
+                                  assignmentResults: updatedProgress.assignmentResults
+                                }
                                 : md
                             ));
                           } catch (error) {
@@ -847,13 +855,39 @@ const CourseViewer: React.FC = () => {
                   }
 
                   // When completed, show a single Next/Finish button in the same place
+                  // Check if user already has certificate or if modal was shown this session
+                  const hasCertificate = myCertificates.some(c => c.course?.id === courseId);
+                  const shouldShowFinishButton = finishingCourse && !hasCertificate && !hasShownCompletionModal;
+
+                  // If we are finishing the course but shouldn't show the button (already done), hide it
+                  if (finishingCourse && !shouldShowFinishButton) {
+                    return null;
+                  }
+
                   return (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        if (finishingCourse) {
+                      onClick={async () => {
+                        if (shouldShowFinishButton) {
+                          // Show both modals - completion modal first, then feedback on top
+                          setShowCompletionModal(true);
                           setShowCourseCompleted(true);
                           setSelectedContent(null);
+                          setHasShownCompletionModal(true); // Mark as shown to prevent showing again
+
+                          // Refresh certificates to ensure we have the ID for the modal button
+                          try {
+                            await coursesApi.refreshMyCompletion().catch(() => { });
+                            const certs = await coursesApi.getMyCertificates();
+                            setMyCertificates(Array.isArray(certs) ? certs : []);
+                          } catch (e) {
+                            console.error('Failed to refresh certificates', e);
+                          }
+
+                          // Show feedback modal immediately on top if user hasn't submitted feedback
+                          if (!feedbackSubmitted && !course?.my_rating) {
+                            setShowDelayedFeedbackModal(true);
+                          }
                           return;
                         }
                         if (nextItem) {
@@ -863,7 +897,7 @@ const CourseViewer: React.FC = () => {
                         }
                       }}
                     >
-                      {finishingCourse ? 'Finish Course' : (nextItemIsAssignment ? 'Next Assignment' : 'Next Lesson')}
+                      {shouldShowFinishButton ? 'Finish Course' : (nextItemIsAssignment ? 'Next Assignment' : 'Next Lesson')}
                     </Button>
                   );
                 })()}
@@ -914,7 +948,7 @@ const CourseViewer: React.FC = () => {
               {moduleData.completedAssignmentIds.includes(assignment.id) ? 'Completed' : 'Not Started'}
             </Badge>
           </div>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -923,7 +957,7 @@ const CourseViewer: React.FC = () => {
                   <div>Total Points: {assignment.total_points}</div>
                   <div>Passing Grade: {assignment.passing_grade}%</div>
                 </div>
-                
+
                 {/* Assignment Results Display */}
                 {(() => {
                   const result = moduleData.assignmentResults[assignment.id];
@@ -933,7 +967,7 @@ const CourseViewer: React.FC = () => {
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">Your Results</h4>
                           <div className="flex items-center gap-2">
-                            <Badge 
+                            <Badge
                               variant={result.passed ? "default" : "destructive"}
                               className="text-sm"
                             >
@@ -958,8 +992,8 @@ const CourseViewer: React.FC = () => {
                   }
                   return null;
                 })()}
-                
-                <Button 
+
+                <Button
                   onClick={() => {
                     navigate(`${basePath}/${courseId}/assignments/${assignment.id}`);
                   }}
@@ -992,14 +1026,39 @@ const CourseViewer: React.FC = () => {
                   const idx = allItems.findIndex(it => it.type === 'assignment' && it.id === assignment.id);
                   const next = idx >= 0 ? allItems[idx + 1] : undefined;
 
+                  const hasCertificate = myCertificates.some(c => c.course?.id === courseId);
+                  const shouldShowFinishButton = finishingCourse && !hasCertificate && !hasShownCompletionModal;
+
+                  // If we are finishing the course but shouldn't show the button (already done), hide it
+                  if (finishingCourse && !shouldShowFinishButton) {
+                    return null;
+                  }
+
                   return (
                     <div className="mt-6 flex justify-end">
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          if (finishingCourse) {
+                        onClick={async () => {
+                          if (shouldShowFinishButton) {
+                            // Show both modals - completion modal first, then feedback on top
+                            setShowCompletionModal(true);
                             setShowCourseCompleted(true);
                             setSelectedContent(null);
+                            setHasShownCompletionModal(true); // Mark as shown to prevent showing again
+
+                            // Refresh certificates to ensure we have the ID for the modal button
+                            try {
+                              await coursesApi.refreshMyCompletion().catch(() => { });
+                              const certs = await coursesApi.getMyCertificates();
+                              setMyCertificates(Array.isArray(certs) ? certs : []);
+                            } catch (e) {
+                              console.error('Failed to refresh certificates', e);
+                            }
+
+                            // Show feedback modal immediately on top if user hasn't submitted feedback
+                            if (!feedbackSubmitted && !course?.my_rating) {
+                              setShowDelayedFeedbackModal(true);
+                            }
                             return;
                           }
                           if (next) {
@@ -1009,7 +1068,7 @@ const CourseViewer: React.FC = () => {
                           }
                         }}
                       >
-                        {finishingCourse ? 'Finish Course' : (next?.type === 'assignment' ? 'Next Assignment' : 'Next Lesson')}
+                        {shouldShowFinishButton ? 'Finish Course' : (next?.type === 'assignment' ? 'Next Assignment' : 'Next Lesson')}
                       </Button>
                     </div>
                   );
@@ -1111,7 +1170,7 @@ const CourseViewer: React.FC = () => {
                         {moduleData.contents.map((content) => {
                           const isCompleted = moduleData.completedContentIds.includes(content.id);
                           const isSelected = selectedContent?.type === 'content' && selectedContent.id === content.id;
-                          
+
                           return (
                             <button
                               key={content.id}
@@ -1138,7 +1197,7 @@ const CourseViewer: React.FC = () => {
                           const isSelected = selectedContent?.type === 'assignment' && selectedContent.id === assignment.id;
                           const result = moduleData.assignmentResults[assignment.id];
                           const hasResult = result && result.score !== undefined;
-                          
+
                           return (
                             <button
                               key={assignment.id}
@@ -1153,7 +1212,7 @@ const CourseViewer: React.FC = () => {
                                 <div>{assignment.title}</div>
                                 {hasResult && (
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    Score: {result.score}/{result.totalPoints} • 
+                                    Score: {result.score}/{result.totalPoints} •
                                     <span className={result.passed ? "text-green-600" : "text-red-600"}>
                                       {result.passed ? 'Passed' : 'Failed'}
                                     </span>
@@ -1165,7 +1224,7 @@ const CourseViewer: React.FC = () => {
                               {isCompleted ? (
                                 <div className="flex items-center gap-1">
                                   {hasResult && (
-                                    <Badge 
+                                    <Badge
                                       variant={result.passed ? "default" : "destructive"}
                                       className="text-xs px-1 py-0"
                                     >
@@ -1205,6 +1264,67 @@ const CourseViewer: React.FC = () => {
           {renderMainContent()}
         </div>
       </div>
+
+      {/* Course Completion Modal */}
+      <CourseCompletionModal
+        isOpen={showCompletionModal}
+        onClose={() => {
+          setShowCompletionModal(false);
+          setShowDelayedFeedbackModal(false);
+        }}
+        courseTitle={course?.title || 'Course'}
+        courseId={courseId}
+        onViewCertificate={() => {
+          // Close both modals and navigate to certificates
+          setShowCompletionModal(false);
+          setShowDelayedFeedbackModal(false);
+          const myCert = myCertificates.find(c => c.course?.id === courseId);
+          if (myCert) {
+            navigate(`/app/certificates/${myCert.id}`);
+          } else {
+            navigate('/app/certificates');
+          }
+        }}
+        isDisabled={showDelayedFeedbackModal} // Disable when feedback modal is on top
+      />
+
+      {/* Feedback Modal - Shows on top of completion modal */}
+      <FeedbackModal
+        isOpen={showDelayedFeedbackModal}
+        onClose={() => {
+          setShowDelayedFeedbackModal(false);
+          // Completion modal remains open in background
+        }}
+        onSubmit={async (rating, review, difficulty) => {
+          try {
+            await coursesApi.rateCourse(courseId, rating, review, difficulty);
+            setShowDelayedFeedbackModal(false);
+
+            // Update local state
+            setCourse((prev) => prev ? { ...prev, my_rating: rating } as Course : prev);
+            setFeedbackSubmitted(true);
+            setMyRating(rating);
+            setMyReview(review);
+
+            toast({
+              title: 'Thank you!',
+              description: 'Your feedback has been submitted successfully.'
+            });
+          } catch (err: unknown) {
+            const asRecord = (v: unknown): Record<string, unknown> | null =>
+              typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
+            const detail = (asRecord(asRecord(err)?.response)?.data as any)?.detail as string | undefined;
+
+            toast({
+              title: 'Could not submit feedback',
+              description: detail || 'Please try again later.',
+              variant: 'destructive',
+            });
+          }
+        }}
+        isSubmitting={submittingFeedback}
+        courseTitle={course?.title || 'Course'}
+      />
     </div>
   );
 };

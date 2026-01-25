@@ -15,6 +15,7 @@ interface CourseCardProps {
   to?: string; // optional link target
   isEnrolled?: boolean;
   isCompleted?: boolean;
+  certificateId?: number;
   progress?: number;
   // Controls visual behavior differences across pages
   context?: 'default' | 'myCourses' | 'catalog';
@@ -37,7 +38,7 @@ const getInitials = (first?: string, last?: string, username?: string): string =
   return (a + b) || fallback;
 };
 
-const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompleted, progress, context = 'default' }) => {
+const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompleted, certificateId, progress, context = 'default' }) => {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const teacher = course.teacher;
@@ -137,7 +138,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
       </CardHeader>
       <CardContent className="mt-auto flex flex-col gap-3">
 
-      {typeof progress === 'number' && (
+        {typeof progress === 'number' && (
           <div className="flex flex-col items-center justify-center pt-2">
             <div className="flex items-center justify-between w-full text-xs mb-1 text-muted-foreground">
               <span>Progress</span>
@@ -157,7 +158,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
           </div>
         </div>
 
-       
+
 
         {isTeacher && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -178,7 +179,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, to, isEnrolled, isCompl
                 <UiBadge>Completed</UiBadge>
               )}
               <Button asChild variant="outline" className="h-9">
-                <Link to={`/app/certificates?courseId=${course.id}`}>View certificate</Link>
+                <Link to={certificateId ? `/app/certificates/${certificateId}` : `/app/certificates?courseId=${course.id}`}>View certificate</Link>
               </Button>
             </>
           )}
