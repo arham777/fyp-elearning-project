@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Loader2, CreditCard, Lock } from 'lucide-react';
 import { Course } from '@/types';
@@ -38,22 +39,29 @@ const StripePaymentElementForm: React.FC<{
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!stripe || !elements) {
-      toast({
-        title: 'Stripe not ready',
-        description: 'Please wait a moment and try again.',
-        variant: 'destructive',
-      });
+    if (!stripe || !elements || !isComplete) {
       return;
     }
 
     try {
       setIsProcessing(true);
 
+      // First, validate the form fields
+      const { error: submitError } = await elements.submit();
+
+      if (submitError) {
+        // Validation error - Stripe will show inline errors
+        // Don't show "Payment Failed" for validation issues
+        setIsProcessing(false);
+        return;
+      }
+
+      // If validation passes, proceed with payment confirmation
       const returnUrl = new URL('/app/payments/stripe/result', window.location.origin);
       returnUrl.searchParams.set('payment_id', String(paymentId));
       returnUrl.searchParams.set('course_id', String(courseId));
@@ -66,11 +74,12 @@ const StripePaymentElementForm: React.FC<{
       });
 
       if (result.error) {
-        const msg = result.error.message || 'Unable to confirm payment. Please try again.';
+        // This is an actual payment processing error
+        const msg = result.error.message || 'Unable to process payment. Please try again.';
         toast({ title: 'Payment Failed', description: msg, variant: 'destructive' });
       }
     } catch (error: unknown) {
-      toast({ title: 'Payment Failed', description: getErrorMessage(error), variant: 'destructive' });
+      toast({ title: 'Payment Error', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }
@@ -78,7 +87,7 @@ const StripePaymentElementForm: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement />
+      <PaymentElement onChange={(e) => setIsComplete(e.complete)} />
 
       <div className="flex gap-3 pt-2">
         <Button
@@ -90,7 +99,7 @@ const StripePaymentElementForm: React.FC<{
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isProcessing || !stripe || !elements} className="flex-1">
+        <Button type="submit" disabled={isProcessing || !stripe || !elements || !isComplete} className="flex-1">
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -110,12 +119,31 @@ const CardPaymentForm: React.FC<CardPaymentFormProps> = ({ course, onSuccess, on
   const [paymentId, setPaymentId] = useState<number | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
+  const { resolvedTheme } = useTheme();
+
   const elementsOptions: StripeElementsOptions | undefined = useMemo(() => {
     if (!clientSecret) return undefined;
+
+    const isDark = resolvedTheme === 'dark';
+
     return {
       clientSecret,
+      appearance: isDark
+        ? {
+          theme: 'night',
+          variables: {
+            colorPrimary: '#e2b340',
+            colorBackground: '#1e293b', // slate-800 to match UI
+            colorText: '#f8fafc',
+            colorDanger: '#ef4444',
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          },
+        }
+        : {
+          theme: 'stripe',
+        },
     };
-  }, [clientSecret]);
+  }, [clientSecret, resolvedTheme]);
 
   useEffect(() => {
     let mounted = true;

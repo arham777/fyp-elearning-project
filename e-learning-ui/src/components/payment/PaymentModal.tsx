@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Smartphone, ArrowLeft } from 'lucide-react';
 import { Course } from '@/types';
@@ -72,6 +72,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onOpenChange, course,
             )}
             {step === 'select' ? 'Choose Payment Method' : 'Payment Details'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {step === 'select'
+              ? 'Select your preferred payment method to complete your course purchase'
+              : 'Enter your payment details to complete the transaction'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
