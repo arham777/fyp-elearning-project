@@ -18,9 +18,9 @@ export function StatsCard({ stats }: StatsCardProps) {
   };
 
   return (
-    <Card className="bg-neutral-900/50 border-neutral-800 backdrop-blur-sm">
+    <Card className="card-elevated">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium text-neutral-200">
+        <CardTitle className="text-base font-medium">
           Your Learning Stats
         </CardTitle>
       </CardHeader>
@@ -31,9 +31,9 @@ export function StatsCard({ stats }: StatsCardProps) {
             <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center">
               <Flame className="w-5 h-5 text-orange-500" />
             </div>
-            <span className="text-sm text-neutral-400">Current Streak</span>
+            <span className="text-sm text-muted-foreground">Current Streak</span>
           </div>
-          <span className="text-lg font-semibold text-neutral-100">
+          <span className="text-lg font-semibold">
             {stats.current_streak} {stats.current_streak === 1 ? 'day' : 'days'}
           </span>
         </div>
@@ -45,67 +45,67 @@ export function StatsCard({ stats }: StatsCardProps) {
               <div className="w-9 h-9 rounded-lg bg-yellow-500/10 flex items-center justify-center">
                 <Zap className="w-5 h-5 text-yellow-500" />
               </div>
-              <span className="text-sm text-neutral-400">
+              <span className="text-sm text-muted-foreground">
                 Level {stats.level} · {stats.level_title}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-sm font-medium text-neutral-200">{stats.total_xp}</span>
-              <span className="text-xs text-neutral-500 ml-1">XP</span>
+              <span className="text-sm font-medium">{stats.total_xp}</span>
+              <span className="text-xs text-muted-foreground ml-1">XP</span>
             </div>
           </div>
-          <Progress 
-            value={stats.xp_progress_percentage} 
-            className="h-1.5 bg-neutral-800"
+          <Progress
+            value={stats.xp_progress_percentage}
+            className="h-1.5"
           />
           <div className="flex justify-end">
-            <span className="text-[10px] text-neutral-500">
+            <span className="text-[10px] text-muted-foreground">
               {stats.xp_for_next_level} XP to next level
             </span>
           </div>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-neutral-800" />
+        <div className="border-t" />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-neutral-800/50">
+          <div className="p-3 rounded-lg bg-secondary/50">
             <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs text-neutral-500">Courses</span>
+              <BookOpen className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Courses</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-100">
+            <span className="text-2xl font-semibold">
               {stats.courses_completed}
             </span>
           </div>
-          
-          <div className="p-3 rounded-lg bg-neutral-800/50">
+
+          <div className="p-3 rounded-lg bg-secondary/50">
             <div className="flex items-center gap-2 mb-2">
-              <Award className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs text-neutral-500">Badges</span>
+              <Award className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Badges</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-100">
+            <span className="text-2xl font-semibold">
               {stats.badges_count}
             </span>
           </div>
-          
-          <div className="p-3 rounded-lg bg-neutral-800/50">
+
+          <div className="p-3 rounded-lg bg-secondary/50">
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs text-neutral-500">Assignments</span>
+              <CheckCircle className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Assignments</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-100">
+            <span className="text-2xl font-semibold">
               {stats.assignments_completed}
             </span>
           </div>
-          
-          <div className="p-3 rounded-lg bg-neutral-800/50">
+
+          <div className="p-3 rounded-lg bg-secondary/50">
             <div className="flex items-center gap-2 mb-2">
-              <Clock className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs text-neutral-500">Time</span>
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Time</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-100">
+            <span className="text-2xl font-semibold">
               {formatTime(stats.total_learning_hours)}
             </span>
           </div>

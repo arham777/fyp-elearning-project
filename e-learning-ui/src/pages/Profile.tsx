@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CategorySelector } from '@/components/ui/CategorySelector';
 import { toast } from '@/hooks/use-toast';
 import { UserBadge, UserStats } from '@/types';
-import { 
-  Flame, Zap, Crown, GraduationCap, BookOpen, Medal, Target, Rocket, Star, Trophy, Award, Check 
+import {
+  Flame, Zap, Crown, GraduationCap, BookOpen, Medal, Target, Rocket, Star, Trophy, Award, Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -134,7 +134,7 @@ const Profile: React.FC = () => {
 
       {/* Latest Badge Banner - Only for students with badges */}
       {user.role === 'student' && latestBadge && (
-        <Card className="bg-gradient-to-r from-neutral-900 to-neutral-800 border-neutral-700">
+        <Card className="bg-gradient-to-r from-card to-muted border-border">
           <CardContent className="py-4">
             <div className="flex items-center gap-4">
               {(() => {
@@ -146,13 +146,13 @@ const Profile: React.FC = () => {
                 );
               })()}
               <div className="flex-1">
-                <p className="text-xs text-neutral-500 uppercase tracking-wide">Latest Achievement</p>
-                <p className="text-lg font-semibold text-neutral-100">{latestBadge.badge.name}</p>
-                <p className="text-sm text-neutral-400">{latestBadge.badge.description}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Latest Achievement</p>
+                <p className="text-lg font-semibold text-foreground">{latestBadge.badge.name}</p>
+                <p className="text-sm text-muted-foreground">{latestBadge.badge.description}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-neutral-500">Earned</p>
-                <p className="text-sm text-neutral-300">
+                <p className="text-xs text-muted-foreground">Earned</p>
+                <p className="text-sm text-muted-foreground">
                   {new Date(latestBadge.earned_at).toLocaleDateString()}
                 </p>
               </div>
@@ -164,54 +164,54 @@ const Profile: React.FC = () => {
       {/* Stats Overview - Only for students */}
       {user.role === 'student' && userStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="bg-neutral-900/50 border-neutral-800">
+          <Card className="card-elevated">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
                   <Zap className="w-5 h-5 text-yellow-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-neutral-100">{userStats.level}</p>
-                  <p className="text-xs text-neutral-500">Level</p>
+                  <p className="text-2xl font-bold text-foreground">{userStats.level}</p>
+                  <p className="text-xs text-muted-foreground">Level</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-neutral-900/50 border-neutral-800">
+          <Card className="card-elevated">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
                   <Flame className="w-5 h-5 text-orange-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-neutral-100">{userStats.current_streak}</p>
-                  <p className="text-xs text-neutral-500">Day Streak</p>
+                  <p className="text-2xl font-bold text-foreground">{userStats.current_streak}</p>
+                  <p className="text-xs text-muted-foreground">Day Streak</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-neutral-900/50 border-neutral-800">
+          <Card className="card-elevated">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                   <BookOpen className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-neutral-100">{userStats.courses_completed}</p>
-                  <p className="text-xs text-neutral-500">Courses</p>
+                  <p className="text-2xl font-bold text-foreground">{userStats.courses_completed}</p>
+                  <p className="text-xs text-muted-foreground">Courses</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-neutral-900/50 border-neutral-800">
+          <Card className="card-elevated">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
                   <Award className="w-5 h-5 text-purple-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-neutral-100">{userStats.badges_count}</p>
-                  <p className="text-xs text-neutral-500">Badges</p>
+                  <p className="text-2xl font-bold text-foreground">{userStats.badges_count}</p>
+                  <p className="text-xs text-muted-foreground">Badges</p>
                 </div>
               </div>
             </CardContent>
@@ -221,14 +221,14 @@ const Profile: React.FC = () => {
 
       {/* Earned Badges - Only for students */}
       {user.role === 'student' && (
-        <Card className="bg-neutral-900/50 border-neutral-800">
+        <Card className="card-elevated">
           <CardHeader>
-            <CardTitle className="text-base font-medium text-neutral-200 flex items-center gap-2">
+            <CardTitle className="text-base font-medium text-foreground flex items-center gap-2">
               <Award className="w-5 h-5 text-purple-500" />
               Earned Badges
             </CardTitle>
-            <CardDescription className="text-neutral-500">
-              {earnedBadges.length > 0 
+            <CardDescription className="text-muted-foreground">
+              {earnedBadges.length > 0
                 ? `You have earned ${earnedBadges.length} badge${earnedBadges.length > 1 ? 's' : ''}`
                 : 'Complete courses and assignments to earn badges'}
             </CardDescription>
@@ -237,31 +237,31 @@ const Profile: React.FC = () => {
             {isLoadingBadges ? (
               <div className="flex gap-3">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="w-20 h-24 rounded-xl bg-neutral-800 animate-pulse" />
+                  <div key={i} className="w-20 h-24 rounded-xl bg-muted animate-pulse" />
                 ))}
               </div>
             ) : earnedBadges.length === 0 ? (
               <div className="text-center py-8">
-                <Trophy className="w-12 h-12 text-neutral-700 mx-auto mb-3" />
-                <p className="text-neutral-400">No badges earned yet</p>
-                <p className="text-sm text-neutral-600 mt-1">Keep learning to unlock achievements!</p>
+                <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No badges earned yet</p>
+                <p className="text-sm text-muted-foreground mt-1">Keep learning to unlock achievements!</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                 {earnedBadges.map((userBadge) => {
                   const { icon: Icon, color, bg } = getBadgeIcon(userBadge.badge.code);
                   return (
-                    <div 
-                      key={userBadge.id} 
-                      className="relative flex flex-col items-center p-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-800 transition-colors group"
+                    <div
+                      key={userBadge.id}
+                      className="relative flex flex-col items-center p-3 rounded-xl bg-muted/30 hover:bg-muted transition-colors group"
                     >
                       <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center mb-2', bg)}>
                         <Icon className={cn('w-6 h-6', color)} />
                       </div>
-                      <p className="text-xs font-medium text-neutral-200 text-center line-clamp-1">
+                      <p className="text-xs font-medium text-foreground text-center line-clamp-1">
                         {userBadge.badge.name}
                       </p>
-                      <p className="text-[10px] text-neutral-500 mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
                         {new Date(userBadge.earned_at).toLocaleDateString()}
                       </p>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
@@ -333,8 +333,8 @@ const Profile: React.FC = () => {
             >
               <div className="space-y-2">
                 <Label>Preferred course category</Label>
-                <CategorySelector 
-                  value={preferredCategory} 
+                <CategorySelector
+                  value={preferredCategory}
                   onChange={setPreferredCategory}
                   placeholder="Search and select category..."
                 />

@@ -19,7 +19,7 @@ const StudentDashboard: React.FC = () => {
 	const [recommendedCourses, setRecommendedCourses] = useState<Course[]>([]);
 	const [heatmap, setHeatmap] = useState<Array<{ date: string; count: number }>>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	
+
 	// Gamification state
 	const [userStats, setUserStats] = useState<UserStats | null>(null);
 	const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -44,11 +44,11 @@ const StudentDashboard: React.FC = () => {
 					coursesApi.getRecommendations(3).catch(() => [] as Course[]),
 					usersApi.getProgressHeatmap({ days: 91 }).catch(() => [] as Array<{ date: string; count: number }>),
 				]);
-				
+
 				setEnrollments(enrollmentsData);
 				setRecommendedCourses(recs);
 				setHeatmap(heat);
-				
+
 				// Fetch gamification data
 				try {
 					const [stats, leaderboardData] = await Promise.all([
@@ -59,9 +59,9 @@ const StudentDashboard: React.FC = () => {
 					setLeaderboard(leaderboardData.leaderboard);
 					setMyRank(leaderboardData.my_rank);
 					setWeekStart(leaderboardData.week_start);
-					
+
 					// Record activity to update streak
-					gamificationApi.recordActivity(0).catch(() => {});
+					gamificationApi.recordActivity(0).catch(() => { });
 				} catch (gamErr) {
 					console.error('Failed to fetch gamification data:', gamErr);
 				}
@@ -111,14 +111,14 @@ const StudentDashboard: React.FC = () => {
 					</p>
 				</div>
 				{userStats && (
-					<div className="flex items-center gap-4 bg-neutral-800/50 rounded-xl px-4 py-2.5">
+					<div className="flex items-center gap-4 bg-muted/50 rounded-xl px-4 py-2.5">
 						<StreakBadge streak={userStats.current_streak} size="md" />
-						<div className="w-px h-8 bg-neutral-700" />
+						<div className="w-px h-8 bg-border" />
 						<div className="flex items-center gap-2">
 							<Zap className="w-4 h-4 text-yellow-500" />
 							<div>
-								<div className="text-sm font-medium text-neutral-200">Lv.{userStats.level}</div>
-								<div className="text-xs text-neutral-500">{userStats.total_xp} XP</div>
+								<div className="text-sm font-medium">Lv.{userStats.level}</div>
+								<div className="text-xs text-muted-foreground">{userStats.total_xp} XP</div>
 							</div>
 						</div>
 					</div>
@@ -167,7 +167,7 @@ const StudentDashboard: React.FC = () => {
 					</CardHeader>
 					<CardContent className="pt-0">
 						<div className="text-xl font-semibold">
-							{enrollments.length > 0 
+							{enrollments.length > 0
 								? Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)
 								: 0}%
 						</div>
@@ -209,7 +209,7 @@ const StudentDashboard: React.FC = () => {
 								</Button>
 							</div>
 						))}
-						
+
 						{incompleteEnrollments.length === 0 && (
 							<div className="text-center py-6 text-muted-foreground">
 								<BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
@@ -263,10 +263,10 @@ const StudentDashboard: React.FC = () => {
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 					{/* Stats Card */}
 					<StatsCard stats={userStats} />
-					
+
 					{/* Leaderboard */}
-					<Leaderboard 
-						entries={leaderboard.slice(0, 10)} 
+					<Leaderboard
+						entries={leaderboard.slice(0, 10)}
 						currentUserId={user?.id}
 						myRank={myRank}
 						weekStart={weekStart}

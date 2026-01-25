@@ -69,10 +69,10 @@ const CatalogCard = ({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }}
       whileHover={{ y: -4 }}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm transition-all duration-300 hover:border-zinc-700 hover:shadow-2xl hover:shadow-orange-500/5"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/20"
     >
       {/* Thumbnail / Placeholder */}
-      <div className="relative h-48 flex-shrink-0 overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-900">
+      <div className="relative h-48 flex-shrink-0 overflow-hidden bg-muted">
         {course.thumbnail ? (
           <img
             src={course.thumbnail}
@@ -85,7 +85,7 @@ const CatalogCard = ({
           </div>
         )}
         {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
 
         {/* Category badge */}
         <div className="absolute left-3 top-3 flex gap-2">
@@ -113,7 +113,7 @@ const CatalogCard = ({
               "border-0 text-xs font-bold backdrop-blur-sm h-6 px-2",
               course.price === 0
                 ? "bg-green-500/90 text-white"
-                : "bg-zinc-900/90 text-white"
+                : "bg-black/70 text-white dark:bg-white/10"
             )}>
               {course.price === 0 ? 'Free' : formatPKR(course.price)}
             </Badge>
@@ -123,20 +123,20 @@ const CatalogCard = ({
 
       {/* Content */}
       <div className="flex flex-col flex-grow p-5">
-        <h3 className="mb-2 text-lg font-semibold text-white line-clamp-1 h-7 group-hover:text-orange-400 transition-colors">
+        <h3 className="mb-2 text-lg font-semibold text-foreground line-clamp-1 h-7 group-hover:text-primary transition-colors">
           {course.title}
         </h3>
 
-        <p className="mb-4 text-sm text-zinc-400 line-clamp-2 h-10">
+        <p className="mb-4 text-sm text-muted-foreground line-clamp-2 h-10">
           {course.description}
         </p>
 
         {/* Stats Row */}
-        <div className="mb-4 flex items-center gap-3 text-xs text-zinc-500 h-5">
+        <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground h-5">
           <div className="flex items-center gap-1 min-w-[60px]">
-            <Star className={cn("h-3.5 w-3.5", avgRating > 0 ? "fill-orange-400 text-orange-400" : "text-zinc-600")} />
-            <span className="text-zinc-400">{avgRating > 0 ? avgRating.toFixed(1) : 'New'}</span>
-            {ratingsCount > 0 && <span className="text-zinc-600">({ratingsCount})</span>}
+            <Star className={cn("h-3.5 w-3.5", avgRating > 0 ? "fill-orange-400 text-orange-400" : "text-muted-foreground")} />
+            <span className="text-muted-foreground">{avgRating > 0 ? avgRating.toFixed(1) : 'New'}</span>
+            {ratingsCount > 0 && <span className="text-muted-foreground">({ratingsCount})</span>}
           </div>
 
           <div className="flex items-center gap-1 min-w-[70px]">
@@ -144,7 +144,7 @@ const CatalogCard = ({
             <span>{course.enrollment_count ?? 0} students</span>
           </div>
 
-          <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400 capitalize h-5 px-2">
+          <Badge variant="outline" className="text-[10px] text-muted-foreground capitalize h-5 px-2">
             {course.difficulty_level || 'Medium'}
           </Badge>
         </div>
@@ -154,8 +154,8 @@ const CatalogCard = ({
             {getInitials(teacher?.first_name, teacher?.last_name, teacher?.username)}
           </div>
           <div className="flex flex-col overflow-hidden min-w-0">
-            <span className="text-sm font-medium text-zinc-300 truncate">{teacherName}</span>
-            <span className="text-xs text-zinc-500">Instructor</span>
+            <span className="text-sm font-medium text-foreground truncate">{teacherName}</span>
+            <span className="text-xs text-muted-foreground">Instructor</span>
           </div>
         </div>
 
@@ -367,10 +367,10 @@ const CoursesCatalog: React.FC = () => {
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-foreground">
               Explore Courses
             </h1>
-            <p className="text-zinc-400 mt-2">
+            <p className="text-muted-foreground mt-2">
               Browse our extensive collection of courses and certifications.
             </p>
           </div>
@@ -387,7 +387,7 @@ const CoursesCatalog: React.FC = () => {
         {/* Search Bar - Landing Page Style */}
         <div className="relative w-full max-w-2xl">
           <div className="relative flex items-center">
-            <Search className="absolute left-4 h-5 w-5 text-zinc-500" />
+            <Search className="absolute left-4 h-5 w-5 text-muted-foreground" />
             <Input
               ref={inputRef}
               type="text"
@@ -395,7 +395,7 @@ const CoursesCatalog: React.FC = () => {
               value={pendingQuery}
               onChange={(e) => setPendingQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery.trim()); }}
-              className="h-14 w-full rounded-2xl border-zinc-800 bg-zinc-900/50 pl-12 pr-24 text-base text-white placeholder:text-zinc-500 focus:border-orange-500/50 focus:ring-orange-500/20 backdrop-blur-sm shadow-inner"
+              className="h-14 w-full rounded-2xl border-input bg-muted/50 pl-12 pr-24 text-base placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 backdrop-blur-sm shadow-inner transition-all hover:bg-muted/80 focus:bg-background"
             />
             {pendingQuery && (
               <Button
@@ -403,7 +403,7 @@ const CoursesCatalog: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 onClick={clearSearch}
-                className="absolute right-14 h-8 w-8 text-zinc-500 hover:text-white"
+                className="absolute right-14 h-8 w-8 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -428,7 +428,7 @@ const CoursesCatalog: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-wrap items-center gap-2"
         >
-          <Filter className="h-4 w-4 text-zinc-500 mr-2" />
+          <Filter className="h-4 w-4 text-muted-foreground mr-2" />
           {categories.map((category) => (
             <Button
               key={category}
@@ -438,8 +438,8 @@ const CoursesCatalog: React.FC = () => {
               className={cn(
                 "rounded-full border text-sm transition-all h-8",
                 (category === 'All' && !selectedCategory) || selectedCategory === category
-                  ? "border-orange-500/50 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 shadow-[0_0_10px_rgba(249,115,22,0.1)]"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-white"
+                  ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 shadow-[0_0_10px_rgba(var(--primary),0.1)]"
+                  : "border-border bg-card text-muted-foreground hover:border-foreground/20 hover:text-foreground hover:bg-muted"
               )}
             >
               {category}
@@ -457,9 +457,9 @@ const CoursesCatalog: React.FC = () => {
               'Loading courses...'
             ) : (
               <>
-                Showing <span className="text-white font-medium">{visibleCourses.length}</span> courses
+                Showing <span className="text-foreground font-medium">{visibleCourses.length}</span> courses
                 {searchQuery && (
-                  <> for "<span className="text-orange-400">{searchQuery}</span>"</>
+                  <> for "<span className="text-primary">{searchQuery}</span>"</>
                 )}
               </>
             )}
@@ -470,11 +470,11 @@ const CoursesCatalog: React.FC = () => {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-48 rounded-t-2xl bg-zinc-800/50" />
-                <div className="rounded-b-2xl border border-t-0 border-zinc-800 bg-zinc-900/30 p-5 h-48">
-                  <div className="mb-3 h-5 w-3/4 rounded bg-zinc-800/50" />
-                  <div className="mb-4 h-4 w-full rounded bg-zinc-800/50" />
-                  <div className="h-10 w-full rounded-lg bg-zinc-800/50 mt-auto" />
+                <div className="h-48 rounded-t-2xl bg-muted" />
+                <div className="rounded-b-2xl border border-t-0 bg-card p-5 h-48">
+                  <div className="mb-3 h-5 w-3/4 rounded bg-muted" />
+                  <div className="mb-4 h-4 w-full rounded bg-muted" />
+                  <div className="h-10 w-full rounded-lg bg-muted mt-auto" />
                 </div>
               </div>
             ))}
@@ -502,15 +502,15 @@ const CoursesCatalog: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center rounded-3xl border border-zinc-800 bg-zinc-900/20"
+            className="flex flex-col items-center justify-center py-20 text-center rounded-3xl border bg-muted/20"
           >
-            <div className="mb-4 rounded-full bg-zinc-800/50 p-4">
-              <Search className="h-8 w-8 text-zinc-500" />
+            <div className="mb-4 rounded-full bg-muted p-4">
+              <Search className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="mb-2 text-xl font-semibold text-white">
+            <h3 className="mb-2 text-xl font-semibold text-foreground">
               {searchQuery ? `No results for "${searchQuery}"` : 'No courses available'}
             </h3>
-            <p className="mb-6 max-w-md text-zinc-400">
+            <p className="mb-6 max-w-md text-muted-foreground">
               {searchQuery
                 ? 'Try adjusting your search terms or browse different categories.'
                 : 'Check back soon for new courses.'}
@@ -519,7 +519,7 @@ const CoursesCatalog: React.FC = () => {
               <Button
                 onClick={clearSearch}
                 variant="outline"
-                className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                className="text-muted-foreground hover:text-foreground"
               >
                 Clear Search
               </Button>
@@ -529,26 +529,28 @@ const CoursesCatalog: React.FC = () => {
       </div>
 
       {/* Create Course Dialog for Teachers */}
-      {user?.role === 'teacher' && (
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent className="sm:max-w-lg bg-zinc-900 border-zinc-800">
-            <DialogHeader>
-              <DialogTitle className="text-white">Create Course</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Provide basic details for your new course.
-              </DialogDescription>
-            </DialogHeader>
-            <CreateCourseForm
-              onCancel={() => setIsCreateOpen(false)}
-              onCreated={(course) => {
-                setIsCreateOpen(false);
-                navigate(`/app/courses/${course.id}`);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+      {
+        user?.role === 'teacher' && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Create Course</DialogTitle>
+                <DialogDescription>
+                  Provide basic details for your new course.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateCourseForm
+                onCancel={() => setIsCreateOpen(false)}
+                onCreated={(course) => {
+                  setIsCreateOpen(false);
+                  navigate(`/app/courses/${course.id}`);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )
+      }
+    </div >
   );
 };
 

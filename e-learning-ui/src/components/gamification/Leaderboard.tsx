@@ -10,11 +10,11 @@ interface LeaderboardProps {
   weekStart?: string;
 }
 
-export function Leaderboard({ 
-  entries, 
-  currentUserId, 
+export function Leaderboard({
+  entries,
+  currentUserId,
   myRank,
-  weekStart 
+  weekStart
 }: LeaderboardProps) {
   const getRankDisplay = (rank: number) => {
     switch (rank) {
@@ -38,8 +38,8 @@ export function Leaderboard({
         );
       default:
         return (
-          <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center">
-            <span className="text-xs font-medium text-neutral-400">{rank}</span>
+          <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center">
+            <span className="text-xs font-medium text-muted-foreground">{rank}</span>
           </div>
         );
     }
@@ -53,15 +53,15 @@ export function Leaderboard({
   };
 
   return (
-    <Card className="bg-neutral-900/50 border-neutral-800 backdrop-blur-sm">
+    <Card className="card-elevated">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-medium text-neutral-200 flex items-center gap-2">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-500" />
             Weekly Leaderboard
           </CardTitle>
           {weekStart && (
-            <span className="text-[10px] text-neutral-500">
+            <span className="text-[10px] text-muted-foreground">
               Week of {new Date(weekStart).toLocaleDateString()}
             </span>
           )}
@@ -70,11 +70,11 @@ export function Leaderboard({
       <CardContent>
         {entries.length === 0 ? (
           <div className="text-center py-6">
-            <Trophy className="w-8 h-8 text-neutral-700 mx-auto mb-2" />
-            <p className="text-sm text-neutral-500">
+            <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
               No data yet
             </p>
-            <p className="text-xs text-neutral-600 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Start learning to appear here!
             </p>
           </div>
@@ -90,7 +90,7 @@ export function Leaderboard({
                     'flex items-center justify-between p-2.5 rounded-lg transition-colors',
                     isCurrentUser
                       ? 'bg-orange-500/10 ring-1 ring-orange-500/30'
-                      : 'bg-neutral-800/40 hover:bg-neutral-800/60'
+                      : 'bg-muted/50 hover:bg-muted'
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -100,9 +100,9 @@ export function Leaderboard({
                       <div className="flex items-center gap-1.5">
                         <span className={cn(
                           'text-sm font-medium',
-                          isCurrentUser 
-                            ? 'text-orange-400' 
-                            : 'text-neutral-200'
+                          isCurrentUser
+                            ? 'text-orange-400'
+                            : 'text-foreground'
                         )}>
                           {formatName(entry)}
                         </span>
@@ -110,9 +110,9 @@ export function Leaderboard({
                           <span className="text-[10px] text-orange-500/70">(You)</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 text-[10px] text-neutral-500">
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                         <span>Lv.{entry.level}</span>
-                        <span className="text-neutral-700">•</span>
+                        <span className="text-muted-foreground">•</span>
                         <Flame className="w-3 h-3 text-orange-500/60" />
                         <span>{entry.current_streak}</span>
                       </div>
@@ -120,11 +120,11 @@ export function Leaderboard({
                   </div>
 
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-neutral-100">
+                    <div className="text-sm font-semibold">
                       {entry.weekly_xp}
-                      <span className="text-[10px] font-normal text-neutral-500 ml-0.5">XP</span>
+                      <span className="text-[10px] font-normal text-muted-foreground ml-0.5">XP</span>
                     </div>
-                    <div className="text-[10px] text-neutral-600">
+                    <div className="text-[10px] text-muted-foreground">
                       this week
                     </div>
                   </div>
@@ -133,8 +133,8 @@ export function Leaderboard({
             })}
 
             {myRank && myRank > entries.length && currentUserId && (
-              <div className="mt-3 pt-3 border-t border-neutral-800">
-                <p className="text-xs text-neutral-500 text-center">
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs text-muted-foreground text-center">
                   Your rank: <span className="font-semibold text-orange-400">#{myRank}</span>
                 </p>
               </div>
