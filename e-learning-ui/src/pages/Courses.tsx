@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  BookOpen, 
-  Clock, 
-  Users, 
+import {
+  Search,
+  BookOpen,
+  Clock,
+  Users,
   Star,
   ChevronRight,
   Sparkles,
@@ -42,12 +42,12 @@ const getInitials = (first?: string, last?: string, username?: string): string =
 };
 
 // Course Card Component with animations
-const CourseCardPublic = ({ 
-  course, 
-  index, 
-  onEnroll 
-}: { 
-  course: Course; 
+const CourseCardPublic = ({
+  course,
+  index,
+  onEnroll
+}: {
+  course: Course;
   index: number;
   onEnroll: (courseId: number) => void;
 }) => {
@@ -68,8 +68,8 @@ const CourseCardPublic = ({
       {/* Thumbnail / Placeholder - Fixed height */}
       <div className="relative h-48 flex-shrink-0 overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-900">
         {course.thumbnail ? (
-          <img 
-            src={course.thumbnail} 
+          <img
+            src={course.thumbnail}
             alt={course.title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
@@ -80,7 +80,7 @@ const CourseCardPublic = ({
         )}
         {/* Overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent opacity-60" />
-        
+
         {/* Category badge */}
         <div className="absolute left-3 top-3">
           <Badge className="bg-orange-500/90 text-white border-0 text-xs font-medium backdrop-blur-sm h-6 px-2">
@@ -92,8 +92,8 @@ const CourseCardPublic = ({
         <div className="absolute right-3 top-3">
           <Badge className={cn(
             "border-0 text-xs font-bold backdrop-blur-sm h-6 px-2",
-            course.price === 0 
-              ? "bg-green-500/90 text-white" 
+            course.price === 0
+              ? "bg-green-500/90 text-white"
               : "bg-zinc-900/90 text-white"
           )}>
             {course.price === 0 ? 'Free' : formatPKR(course.price)}
@@ -146,7 +146,7 @@ const CourseCardPublic = ({
         </div>
 
         {/* Action Button - Pushed to bottom with margin-top auto */}
-        <Button 
+        <Button
           onClick={() => onEnroll(course.id)}
           className="w-full h-10 mt-auto bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-500/20"
         >
@@ -168,7 +168,7 @@ const Courses: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,16 +221,30 @@ const Courses: React.FC = () => {
     }, { replace: true });
   }, [searchQuery, selectedCategory, setSearchParams]);
 
+  // Smart synonym map for better matching
+  const synonymMap: Record<string, string[]> = {
+    'js': ['javascript', 'js'],
+    'ts': ['typescript', 'ts'],
+    'py': ['python', 'py'],
+    'ml': ['machine', 'learning', 'ai'],
+    'ai': ['artificial', 'intelligence', 'ml'],
+    'web': ['development', 'frontend', 'backend', 'fullstack'],
+    'dev': ['development', 'programmer', 'coding'],
+    'fe': ['frontend', 'ui', 'ux'],
+    'be': ['backend', 'api', 'database'],
+    'app': ['mobile', 'application', 'android', 'ios'],
+  };
+
   // Fetch courses
   useEffect(() => {
     const controller = new AbortController();
     const fetchCourses = async () => {
       try {
         setIsSearching(true);
-        const params: { search?: string; category?: string } = {};
-        if (searchQuery) params.search = searchQuery;
+        // We only pass category to the backend. Search is now client-side for "smart" filtering.
+        const params: { category?: string } = {};
         if (selectedCategory && selectedCategory !== 'All') params.category = selectedCategory;
-        
+
         const list = await coursesApi.getCourses(params, { signal: controller.signal });
         // Only show published courses
         setCourses(list.filter(c => c.is_published));
@@ -247,14 +261,21 @@ const Courses: React.FC = () => {
 
     fetchCourses();
     return () => controller.abort();
-  }, [searchQuery, selectedCategory]);
+  }, [selectedCategory]); // Removed searchQuery from dependencies loop to avoid server hits on typing
 
   // Client-side filtering for better search UX
   const visibleCourses = useMemo(() => {
-    const tokens = (searchQuery || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (!searchQuery) return courses;
+
+    const rawTokens = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+
+    // Expand tokens with synonyms
+    const expandedTokens = rawTokens.flatMap(t => {
+      const syns = synonymMap[t] || [];
+      return [t, ...syns];
+    });
 
     const scoreCourse = (c: Course): number => {
-      if (tokens.length === 0) return 1;
       const title = (c.title || '').toLowerCase();
       const desc = (c.description || '').toLowerCase();
       const teacherFirst = (typeof c.teacher === 'object' ? (c.teacher?.first_name || '') : '').toLowerCase();
@@ -262,16 +283,22 @@ const Courses: React.FC = () => {
       const teacherUser = (typeof c.teacher === 'object' ? (c.teacher?.username || '') : '').toLowerCase();
       const category = (c.category || '').toLowerCase();
       const haystack = `${title} ${desc} ${teacherFirst} ${teacherLast} ${teacherUser} ${category}`;
-      
-      const allPresent = tokens.every((t) => haystack.includes(t));
-      if (!allPresent) return 0;
-      
+
+      // Strict check: At least one variant of EACH typed token must be present in the haystack
+      const matchesAllTokens = rawTokens.every(rawToken => {
+        const variants = [rawToken, ...(synonymMap[rawToken] || [])];
+        return variants.some(v => haystack.includes(v));
+      });
+
+      if (!matchesAllTokens) return 0;
+
       let score = 0;
-      for (const t of tokens) {
-        if (title.includes(t)) score += 3;
-        if (category.includes(t)) score += 2;
-        if (teacherFirst.includes(t) || teacherLast.includes(t) || teacherUser.includes(t)) score += 2;
-        if (desc.includes(t)) score += 1;
+      // Scoring based on match location
+      for (const t of expandedTokens) {
+        if (title.includes(t)) score += 10;
+        if (category.includes(t)) score += 8;
+        if (teacherFirst.includes(t) || teacherLast.includes(t)) score += 5;
+        if (desc.includes(t)) score += 2;
       }
       return score;
     };
@@ -494,7 +521,7 @@ const Courses: React.FC = () => {
                 ))}
               </div>
             ) : visibleCourses.length > 0 ? (
-              <motion.div 
+              <motion.div
                 layout
                 className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
               >
@@ -522,7 +549,7 @@ const Courses: React.FC = () => {
                   {searchQuery ? `No results for "${searchQuery}"` : 'No courses available'}
                 </h3>
                 <p className="mb-6 max-w-md text-zinc-400">
-                  {searchQuery 
+                  {searchQuery
                     ? 'Try adjusting your search terms or browse all categories.'
                     : 'Check back soon for new courses.'}
                 </p>

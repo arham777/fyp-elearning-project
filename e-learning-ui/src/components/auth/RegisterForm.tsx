@@ -9,6 +9,7 @@ import { CategorySelector } from '@/components/ui/CategorySelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { RegisterData } from '@/types';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
+import AuthHeader from './AuthHeader';
 
 const RegisterForm: React.FC = () => {
   const [formData, setFormData] = useState<RegisterData>({
@@ -74,7 +75,8 @@ const RegisterForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-4 py-24">
+      <AuthHeader />
       <Card className="w-full max-w-md card-elevated">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -200,7 +202,7 @@ const RegisterForm: React.FC = () => {
                 </div>
               </>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">

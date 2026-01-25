@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginCredentials } from '@/types';
 import { Eye, EyeOff, GraduationCap } from 'lucide-react';
+import AuthHeader from './AuthHeader';
 
 const LoginForm: React.FC = () => {
   const [credentials, setCredentials] = useState<LoginCredentials>({
@@ -47,7 +48,8 @@ const LoginForm: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary p-3">
-      <Card className="w-full max-w-sm card-elevated">
+      <AuthHeader />
+      <Card className="w-full max-w-sm card-elevated mt-12">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-2.5 bg-accent-orange rounded-full">
@@ -73,7 +75,7 @@ const LoginForm: React.FC = () => {
                 className="transition-[var(--transition-fast)]"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
