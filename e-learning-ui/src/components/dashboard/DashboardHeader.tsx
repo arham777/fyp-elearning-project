@@ -34,9 +34,9 @@ const DashboardHeader: React.FC = () => {
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
 
   const baseLinks = [
-    { to: '/app', label: 'Dashboard', roles: ['student','teacher','admin'] },
+    { to: '/app', label: 'Dashboard', roles: ['student', 'teacher', 'admin'] },
     { to: '/app/my-courses', label: 'My Courses', roles: ['student'] },
-    { to: '/app/courses', label: 'Courses', roles: ['student','teacher'] },
+    { to: '/app/courses', label: 'Courses', roles: ['student', 'teacher'] },
     { to: '/app/certificates', label: 'Certificates', roles: ['student'] },
     { to: '/app/students', label: 'Students', roles: ['teacher'] },
     { to: '/app/course-management', label: 'Courses', roles: ['admin'] },
@@ -116,10 +116,9 @@ const DashboardHeader: React.FC = () => {
                   to={link.to}
                   end={link.to === '/app'}
                   className={({ isActive }) =>
-                    `px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${
-                      (isActive || location.pathname === link.to)
-                        ? 'bg-secondary text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
+                    `px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${(isActive || location.pathname === link.to)
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
                     }`
                   }
                 >
@@ -142,7 +141,7 @@ const DashboardHeader: React.FC = () => {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-auto p-0">
+              <DropdownMenuContent align="end" className="w-[90vw] sm:w-80 max-h-[75vh] sm:max-h-96 overflow-auto p-0 mx-4">
                 <div className="p-3 border-b">
                   <div className="text-sm font-medium">Notifications</div>
                 </div>
@@ -166,7 +165,7 @@ const DashboardHeader: React.FC = () => {
                               const emailMatch = n.message.match(/from\s+([^\s]+@[^\s]+)\b/i);
                               if (emailMatch?.[1]) q = emailMatch[1];
                             }
-                          } catch {}
+                          } catch { }
                           navigate(q ? `/app/support?q=${encodeURIComponent(q)}` : '/app/support');
                           return;
                         }
@@ -216,7 +215,7 @@ const DashboardHeader: React.FC = () => {
                     </div>
                   </SheetTitle>
                 </SheetHeader>
-                
+
                 <nav className="flex flex-col gap-2 mt-8">
                   {links.map(link => (
                     <NavLink
@@ -225,10 +224,9 @@ const DashboardHeader: React.FC = () => {
                       end={link.to === '/app'}
                       onClick={() => setMobileMenuOpen(false)}
                       className={({ isActive }) =>
-                        `px-4 py-3 rounded-lg text-left transition-all duration-200 ${
-                          (isActive || location.pathname === link.to)
-                            ? 'bg-secondary text-foreground font-medium'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
+                        `px-4 py-3 rounded-lg text-left transition-all duration-200 ${(isActive || location.pathname === link.to)
+                          ? 'bg-secondary text-foreground font-medium'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent-neutral/90'
                         }`
                       }
                     >

@@ -12,7 +12,8 @@ import {
   GraduationCap,
   Filter,
   X,
-  Loader2
+  Loader2,
+  ChevronsRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -401,48 +402,56 @@ const Courses: React.FC = () => {
                 Find the perfect course to advance your career.
               </p>
 
-              {/* Search Bar */}
-              <div className="mx-auto max-w-2xl">
+              {/* Search Bar - Minimalist Design */}
+              <div className="mx-auto max-w-xl w-full" role="search">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
                   className="relative"
                 >
-                  <div className="relative flex items-center">
-                    <Search className="absolute left-4 h-5 w-5 text-zinc-500" />
-                    <Input
-                      ref={inputRef}
-                      type="text"
-                      placeholder="Search courses by title, description, or instructor..."
-                      value={pendingQuery}
-                      onChange={(e) => setPendingQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery.trim()); }}
-                      className="h-14 w-full rounded-2xl border-zinc-800 bg-zinc-900/80 pl-12 pr-24 text-base text-white placeholder:text-zinc-500 focus:border-orange-500/50 focus:ring-orange-500/20 backdrop-blur-sm"
-                    />
-                    {pendingQuery && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={clearSearch}
-                        className="absolute right-14 h-8 w-8 text-zinc-500 hover:text-white"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="Search courses..."
+                    value={pendingQuery}
+                    onChange={(e) => setPendingQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setSearchQuery(pendingQuery.trim());
+                      }
+                    }}
+                    className="pl-10 pr-24 h-10 rounded-full bg-zinc-900/50 border-zinc-800 text-white placeholder:text-zinc-500 focus:border-orange-500/50 focus:ring-orange-500/10 backdrop-blur-sm shadow-sm transition-all hover:bg-zinc-900/80"
+                    aria-label="Search courses"
+                  />
+                  {pendingQuery && (
                     <Button
-                      onClick={() => setSearchQuery(pendingQuery.trim())}
-                      disabled={isSearching}
-                      className="absolute right-2 h-10 rounded-xl bg-orange-600 px-4 hover:bg-orange-700"
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 absolute right-12 top-1/2 -translate-y-1/2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+                      onClick={clearSearch}
+                      aria-label="Clear search"
                     >
-                      {isSearching ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <span>Search</span>
-                      )}
+                      <X className="h-4 w-4" />
                     </Button>
-                  </div>
+                  )}
+                  <Button
+                    variant="link"
+                    className="h-10 absolute right-3 top-1/2 -translate-y-1/2 p-0 rounded-none text-orange-500 hover:text-orange-400"
+                    aria-label="Search"
+                    onClick={() => setSearchQuery(pendingQuery.trim())}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <ChevronsRight className="h-6 w-6" strokeWidth={3} />
+                    )}
+                  </Button>
                 </motion.div>
               </div>
             </motion.div>

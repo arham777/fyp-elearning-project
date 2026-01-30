@@ -10,7 +10,8 @@ import {
   Filter,
   X,
   Loader2,
-  Sparkles
+  Sparkles,
+  ChevronsRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -384,42 +385,51 @@ const CoursesCatalog: React.FC = () => {
           )}
         </div>
 
-        {/* Search Bar - Landing Page Style */}
-        <div className="relative w-full max-w-2xl">
-          <div className="relative flex items-center">
-            <Search className="absolute left-4 h-5 w-5 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              type="text"
-              placeholder="Search courses by title, description, or instructor..."
-              value={pendingQuery}
-              onChange={(e) => setPendingQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setSearchQuery(pendingQuery.trim()); }}
-              className="h-14 w-full rounded-2xl border-input bg-muted/50 pl-12 pr-24 text-base placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 backdrop-blur-sm shadow-inner transition-all hover:bg-muted/80 focus:bg-background"
-            />
-            {pendingQuery && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={clearSearch}
-                className="absolute right-14 h-8 w-8 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+        {/* Search Bar - Minimalist Design */}
+        <div className="relative max-w-xl w-full" role="search">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder="Search courses..."
+            value={pendingQuery}
+            onChange={(e) => setPendingQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setSearchQuery(pendingQuery.trim());
+              }
+            }}
+            className="pl-10 pr-24 h-10 rounded-full bg-muted/50 border-input text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 backdrop-blur-sm shadow-sm transition-all hover:bg-muted/80"
+            aria-label="Search courses"
+          />
+          {pendingQuery && (
             <Button
-              onClick={() => setSearchQuery(pendingQuery.trim())}
-              disabled={isSearching}
-              className="absolute right-2 h-10 rounded-xl bg-orange-600 px-6 hover:bg-orange-700 transition-colors"
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 absolute right-12 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              onClick={clearSearch}
+              aria-label="Clear search"
             >
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <span>Search</span>
-              )}
+              <X className="h-4 w-4" />
             </Button>
-          </div>
+          )}
+          <Button
+            variant="link"
+            className="h-10 absolute right-3 top-1/2 -translate-y-1/2 p-0 rounded-none text-primary hover:text-primary/80"
+            aria-label="Search"
+            onClick={() => setSearchQuery(pendingQuery.trim())}
+            disabled={isSearching}
+          >
+            {isSearching ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <ChevronsRight className="h-6 w-6" strokeWidth={3} />
+            )}
+          </Button>
         </div>
 
         {/* Categories Filter - Landing Page Style */}
