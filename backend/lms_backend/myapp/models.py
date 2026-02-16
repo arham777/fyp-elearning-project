@@ -766,3 +766,4 @@ class XPTransaction(models.Model):
 
     def __str__(self):
         return f"{self.user.username} +{self.amount} XP ({self.source})"
+from .chatbot_models import ChatMessage, ChatSession

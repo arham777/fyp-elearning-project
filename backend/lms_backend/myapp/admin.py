@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     User, Course, Enrollment, Payment, Assignment, Certificate, 
-    CourseModule, Content, ContentProgress, AssignmentSubmission
+    CourseModule, Content, ContentProgress, AssignmentSubmission, ChatMessage, ChatSession
 )
 
 class UserAdmin(BaseUserAdmin):
@@ -62,3 +62,5 @@ admin.site.register(Payment)
 admin.site.register(Assignment)
 admin.site.register(AssignmentSubmission, AssignmentSubmissionAdmin)
 admin.site.register(Certificate)
+admin.site.register(ChatMessage)
+admin.site.register(ChatSession)

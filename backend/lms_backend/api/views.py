@@ -15,9 +15,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from datetime import datetime, timedelta, timezone as dt_timezone
 from django.core.mail import send_mail
+from django.http import StreamingHttpResponse
 import hmac
 import hashlib
 import logging
+import time
+import json
+import os
 from decimal import Decimal, ROUND_HALF_UP
 try:
     import stripe
@@ -28,8 +32,9 @@ from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
     AssignmentQuestion, Notification, CourseRating, SupportRequest,
-    Badge, UserBadge, UserStats, DailyActivity, XPTransaction
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession
 )
+from myapp.chatbot_models import ChatMessage
 
 from .serializers import (
     UserSerializer, CourseListSerializer, CourseDetailSerializer,
@@ -37,12 +42,330 @@ from .serializers import (
     ContentProgressSerializer, PaymentSerializer, AssignmentSerializer,
     AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer,
     CourseRatingSerializer, SupportRequestSerializer,
-    BadgeSerializer, UserBadgeSerializer, UserStatsSerializer, XPTransactionSerializer, LeaderboardEntrySerializer
+    BadgeSerializer, UserBadgeSerializer, UserStatsSerializer, XPTransactionSerializer, LeaderboardEntrySerializer,
+    ChatbotQuerySerializer, ChatbotResponseSerializer, ChatSessionSerializer, ChatMessageHistorySerializer
 )
+from .services.gemini_service import CerebrasChatbotService, ChatbotConfigurationError
 
 from myapp.permissions import IsTeacherOrAdmin, IsStudent, IsTeacher, IsActiveUser
 
 logger = logging.getLogger(__name__)
+
+
+def _chat_streaming_enabled() -> bool:
+    value = str(os.getenv("CHATBOT_STREAMING_ENABLED", "true")).strip().lower()
+    return value not in {"0", "false", "off", "no"}
+
+
+def _chat_reasoning_enabled_by_default() -> bool:
+    value = str(os.getenv("CHATBOT_REASONING_UI_ENABLED", "true")).strip().lower()
+    return value not in {"0", "false", "off", "no"}
+
+
+def _sse_event(event: str, data: dict) -> str:
+    payload = json.dumps(data, ensure_ascii=True)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _safe_session_title(text: str, fallback: str = "New Chat") -> str:
+    value = (text or "").strip()
+    if not value:
+        return fallback
+    value = " ".join(value.split())
+    return value[:120]
+
+
+def _resolve_chat_session(user, role: str, session_id, query: str) -> ChatSession:
+    if session_id:
+        session = ChatSession.objects.filter(id=session_id, user=user, is_archived=False).first()
+        if session:
+            return session
+    return ChatSession.objects.create(
+        user=user,
+        role=role,
+        title=_safe_session_title(query),
+    )
+
+
+def _session_memory(session: ChatSession, limit: int = 10) -> list:
+    messages = (
+        ChatMessage.objects.filter(session=session)
+        .order_by("-created_at")[: max(1, min(int(limit), 20))]
+    )
+    rows = []
+    for message in reversed(list(messages)):
+        rows.append({"query": message.query, "response": message.response})
+    return rows
+
+
+class ChatbotQueryView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+
+    def post(self, request):
+        serializer = ChatbotQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        query = serializer.validated_data["query"]
+        session_id = serializer.validated_data.get("session_id")
+        show_reasoning = serializer.validated_data.get("show_reasoning")
+        if show_reasoning is None:
+            show_reasoning = _chat_reasoning_enabled_by_default()
+
+        start = time.perf_counter()
+        try:
+            service = CerebrasChatbotService()
+            session = _resolve_chat_session(
+                user=request.user,
+                role=request.user.role,
+                session_id=session_id,
+                query=query,
+            )
+            memory_messages = _session_memory(session=session, limit=10)
+            user_context = {
+                "user_id": request.user.id,
+                "username": request.user.username,
+                "name": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+                "preferred_category": getattr(request.user, "preferred_category", None),
+                "skill_level": getattr(request.user, "skill_level", None),
+                "learning_goal": getattr(request.user, "learning_goal", None),
+            }
+            result = service.chat(
+                query=query,
+                role=request.user.role,
+                user_context=user_context,
+                memory_messages=memory_messages,
+                show_reasoning=show_reasoning,
+            )
+
+            response_time_ms = int((time.perf_counter() - start) * 1000)
+            message = ChatMessage.objects.create(
+                session=session,
+                user=request.user,
+                role=request.user.role,
+                query=query,
+                response=result.get("response", ""),
+                function_calls=result.get("function_calls", []),
+                reasoning_trace=result.get("reasoning_trace", []),
+                source=result.get("source", "cerebras"),
+                status="completed",
+                model_name=result.get("model_name"),
+                token_count_input=result.get("token_count_input"),
+                token_count_output=result.get("token_count_output"),
+                response_time_ms=response_time_ms,
+            )
+            session.updated_at = timezone.now()
+            session.save(update_fields=["updated_at"])
+            result["session_id"] = session.id
+            result["message_id"] = message.id
+            out = ChatbotResponseSerializer(result)
+            return Response(out.data, status=status.HTTP_200_OK)
+
+        except ChatbotConfigurationError as exc:
+            logger.warning("Chatbot configuration error: %s", exc)
+            return Response(
+                {"detail": "Chatbot is not configured on this environment."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as exc:
+            msg = str(exc)
+            logger.error(f"!!! CHATBOT PROVIDER ERROR DETAILS !!!: {msg}")
+            if "quota exceeded" in msg.lower() or "resource_exhausted" in msg.lower() or "429" in msg:
+                return Response(
+                    {"detail": "Our AI service is currently experiencing high demand. Please try again in a few moments."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            return Response(
+                {"detail": "Chatbot request failed. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class ChatbotStreamView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+
+    def post(self, request):
+        if not _chat_streaming_enabled():
+            return Response(
+                {"detail": "Streaming is disabled by server configuration."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        serializer = ChatbotQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        query = serializer.validated_data["query"]
+        session_id = serializer.validated_data.get("session_id")
+        show_reasoning = serializer.validated_data.get("show_reasoning")
+        if show_reasoning is None:
+            show_reasoning = _chat_reasoning_enabled_by_default()
+
+        try:
+            service = CerebrasChatbotService()
+        except ChatbotConfigurationError as exc:
+            logger.warning("Chatbot configuration error: %s", exc)
+            return Response(
+                {"detail": "Chatbot is not configured on this environment."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        session = _resolve_chat_session(
+            user=request.user, role=request.user.role, session_id=session_id, query=query
+        )
+        memory_messages = _session_memory(session=session, limit=10)
+        user_context = {
+            "user_id": request.user.id,
+            "username": request.user.username,
+            "name": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+            "preferred_category": getattr(request.user, "preferred_category", None),
+            "skill_level": getattr(request.user, "skill_level", None),
+            "learning_goal": getattr(request.user, "learning_goal", None),
+        }
+        message = ChatMessage.objects.create(
+            session=session,
+            user=request.user,
+            role=request.user.role,
+            query=query,
+            response="",
+            function_calls=[],
+            reasoning_trace=[],
+            source="cerebras",
+            status="partial",
+        )
+        started_at = time.perf_counter()
+
+        def event_stream():
+            response_chunks = []
+            reasoning_trace = []
+            source = "cerebras"
+            warning = None
+            function_calls = []
+            model_name = service.model_name
+            token_count_input = None
+            token_count_output = None
+            try:
+                yield _sse_event(
+                    "meta",
+                    {
+                        "session_id": str(session.id),
+                        "message_id": str(message.id),
+                        "role": request.user.role,
+                        "source": source,
+                    },
+                )
+                for item in service.chat_stream(
+                    query=query,
+                    role=request.user.role,
+                    user_context=user_context,
+                    memory_messages=memory_messages,
+                    show_reasoning=show_reasoning,
+                ):
+                    event_name = item.get("event")
+                    data = item.get("data", {})
+                    if event_name == "token":
+                        text = data.get("text") or ""
+                        response_chunks.append(text)
+                    elif event_name == "reasoning":
+                        reasoning_trace.append(data)
+                    elif event_name == "tool_call":
+                        function_calls.append(data)
+                    elif event_name == "done":
+                        source = data.get("source") or source
+                        warning = data.get("warning")
+                        function_calls = data.get("function_calls", function_calls)
+                        reasoning_trace = data.get("reasoning_trace", reasoning_trace)
+                        model_name = data.get("model_name") or model_name
+                        token_count_input = data.get("token_count_input")
+                        token_count_output = data.get("token_count_output")
+                    yield _sse_event(event_name, data)
+
+                response_text = "".join(response_chunks).strip()
+                response_time_ms = int((time.perf_counter() - started_at) * 1000)
+                message.response = response_text
+                message.function_calls = function_calls
+                message.reasoning_trace = reasoning_trace
+                message.source = source
+                message.status = "completed"
+                message.response_time_ms = response_time_ms
+                message.model_name = model_name
+                message.token_count_input = token_count_input
+                message.token_count_output = token_count_output
+                message.save(
+                    update_fields=[
+                        "response",
+                        "function_calls",
+                        "reasoning_trace",
+                        "source",
+                        "status",
+                        "response_time_ms",
+                        "model_name",
+                        "token_count_input",
+                        "token_count_output",
+                    ]
+                )
+                session.updated_at = timezone.now()
+                if not session.title:
+                    session.title = _safe_session_title(query)
+                    session.save(update_fields=["title", "updated_at"])
+                else:
+                    session.save(update_fields=["updated_at"])
+            except Exception as exc:
+                msg = str(exc)
+                logger.error(f"!!! CHATBOT PROVIDER ERROR DETAILS !!!: {msg}")
+                is_quota = "quota exceeded" in msg.lower() or "resource_exhausted" in msg.lower() or "429" in msg
+                
+                message.status = "error"
+                message.source = "cerebras"
+                message.error_code = "quota_exceeded" if is_quota else "upstream_error"
+                message.error_message = msg
+                message.response_time_ms = int((time.perf_counter() - started_at) * 1000)
+                message.save(
+                    update_fields=[
+                        "status",
+                        "source",
+                        "error_code",
+                        "error_message",
+                        "response_time_ms",
+                    ]
+                )
+                error_response_msg = "Our AI service is currently experiencing high demand. Please try again in a few moments." if is_quota else f"Chatbot stream failed: {msg}"
+                yield _sse_event(
+                    "error",
+                    {"code": "upstream_error", "message": error_response_msg},
+                )
+
+        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
+
+
+class ChatbotSessionListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+
+    def get(self, request):
+        qs = ChatSession.objects.filter(user=request.user, is_archived=False).order_by("-updated_at")[:50]
+        return Response(ChatSessionSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        title = _safe_session_title(request.data.get("title", ""), fallback="New Chat")
+        session = ChatSession.objects.create(user=request.user, role=request.user.role, title=title)
+        return Response(ChatSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+
+class ChatbotSessionMessagesView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsActiveUser]
+
+    def get(self, request, session_id=None):
+        session = get_object_or_404(ChatSession, id=session_id, user=request.user)
+        limit_raw = request.query_params.get("limit", "50")
+        try:
+            limit = max(1, min(int(limit_raw), 200))
+        except Exception:
+            limit = 50
+        qs = ChatMessage.objects.filter(session=session).order_by("-created_at")[:limit]
+        data = ChatMessageHistorySerializer(reversed(list(qs)), many=True).data
+        return Response(
+            {"session": ChatSessionSerializer(session).data, "messages": data},
+            status=status.HTTP_200_OK,
+        )
 
 # Custom JWT Token View to allow login with either username or email
 class CustomTokenObtainPairView(TokenObtainPairView):

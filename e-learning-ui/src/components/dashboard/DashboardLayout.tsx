@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardHeader from './DashboardHeader';
+import ChatWidget from '@/components/chatbot/ChatWidget';
 
 const DashboardLayout: React.FC = () => {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ const DashboardLayout: React.FC = () => {
       <main className="flex-1 p-4">
         <Outlet />
       </main>
+      <ChatWidget />
     </div>
   );
 };

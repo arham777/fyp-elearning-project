@@ -3,7 +3,7 @@ from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
     AssignmentQuestion, AssignmentOption, CourseRating, SupportRequest,
-    Badge, UserBadge, UserStats, DailyActivity, XPTransaction
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession, ChatMessage
 )
 from django.db.models import Avg, Count
 
@@ -346,6 +346,43 @@ class SupportRequestSerializer(serializers.ModelSerializer):
         model = SupportRequest
         fields = ['id', 'user', 'email', 'username', 'reason_seen', 'until_reported', 'message', 'status', 'created_at', 'handled_at', 'handled_by']
         read_only_fields = ['user', 'status', 'created_at', 'handled_at', 'handled_by']
+
+
+class ChatbotQuerySerializer(serializers.Serializer):
+    query = serializers.CharField(min_length=2, max_length=2000, trim_whitespace=True)
+    session_id = serializers.UUIDField(required=False, allow_null=True)
+    show_reasoning = serializers.BooleanField(required=False, default=True)
+
+
+class ChatbotResponseSerializer(serializers.Serializer):
+    response = serializers.CharField()
+    function_calls = serializers.ListField(child=serializers.DictField(), required=False)
+    reasoning_trace = serializers.ListField(child=serializers.DictField(), required=False)
+    source = serializers.CharField(required=False)
+    warning = serializers.CharField(required=False)
+    session_id = serializers.UUIDField(required=False)
+    message_id = serializers.IntegerField(required=False)
+    model_name = serializers.CharField(required=False)
+    token_count_input = serializers.IntegerField(required=False)
+    token_count_output = serializers.IntegerField(required=False)
+
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatSession
+        fields = ['id', 'role', 'title', 'is_archived', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'role', 'created_at', 'updated_at']
+
+
+class ChatMessageHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id', 'session', 'role', 'query', 'response', 'function_calls', 'reasoning_trace',
+            'source', 'status', 'model_name', 'token_count_input', 'token_count_output',
+            'error_code', 'error_message', 'response_time_ms', 'created_at'
+        ]
+        read_only_fields = fields
 
 
 # ==================== GAMIFICATION SERIALIZERS ====================
