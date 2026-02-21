@@ -27,7 +27,7 @@ class CerebrasChatbotService:
         self.base_url = os.getenv("CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1").strip()
         self.temperature = float(os.getenv("CHATBOT_TEMPERATURE", "1.0"))
         self.top_p = float(os.getenv("CHATBOT_TOP_P", "0.95"))
-        self.max_completion_tokens = int(os.getenv("CHATBOT_MAX_COMPLETION_TOKENS", "4096"))
+        self.max_completion_tokens = int(os.getenv("CHATBOT_MAX_COMPLETION_TOKENS", "128000"))
         if not self.api_key:
             raise ChatbotConfigurationError(
                 "Cerebras API key is not configured. Set one of: "

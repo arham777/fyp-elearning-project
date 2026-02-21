@@ -211,8 +211,8 @@ const ChatWidget: React.FC = () => {
     <div className="fixed inset-0 z-50 pointer-events-none flex items-end justify-end p-4 sm:p-6" aria-label="Chatbot Container">
       <section
         className={`pointer-events-auto flex flex-col bg-background rounded-2xl shadow-2xl border border-border overflow-hidden transition-all duration-300 ease-in-out w-[calc(100vw-2rem)] h-[80vh] max-h-[calc(100vh-2rem)] ${isExpanded
-            ? "sm:w-[800px] sm:h-[85vh] sm:max-h-[900px]"
-            : "sm:w-[380px] sm:h-[600px] sm:max-h-[600px]"
+          ? "sm:w-[800px] sm:h-[85vh] sm:max-h-[900px]"
+          : "sm:w-[380px] sm:h-[600px] sm:max-h-[600px]"
           }`}
       >
         <header className="flex items-center justify-between px-4 py-4 bg-muted border-b border-border shrink-0">
@@ -301,95 +301,131 @@ const ChatWidget: React.FC = () => {
               </div>
             </div>
           )}
-          {messages.map((message) => (
-            <div key={message.id} className={`flex w-full ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`flex flex-col max-w-[85%] min-w-0 ${message.role === "user" ? "items-end" : "items-start"}`}>
-                <div
-                  className={`px-4 py-2.5 text-sm shadow-sm leading-relaxed overflow-x-auto ${message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm whitespace-pre-wrap break-words"
-                    : "bg-muted border text-foreground rounded-2xl rounded-tl-sm prose prose-sm dark:prose-invert max-w-full prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0 break-words"
-                    }`}
-                >
-                  {message.role === "user" ? (
-                    message.text
-                  ) : message.text ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ node, ...props }) => (
-                          <div className="not-prose w-full max-w-full my-4 rounded-xl border-2 border-white border-solid overflow-hidden bg-background/50">
-                            <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-                              <table className="w-full text-sm text-left border-collapse m-0" {...props} />
+          {messages.map((message) => {
+            // Only show model's actual "thinking" — filter out internal stages (intent, tooling, synthesis, prompt)
+            const thinkingSteps = message.reasoning.filter((step) => step.stage === "thinking");
+
+            return (
+              <div key={message.id} className={`flex w-full ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`flex flex-col max-w-[85%] min-w-0 ${message.role === "user" ? "items-end" : "items-start"}`}>
+
+                  {/* ── Thinking section — rendered ABOVE the response ── */}
+                  {message.role === "assistant" && thinkingSteps.length > 0 && REASONING_ENABLED_DEFAULT && (
+                    <div className="mb-2 w-full">
+                      {/* While streaming and no text yet, show auto-expanded live thinking */}
+                      {message.isStreaming && !message.text ? (
+                        <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-muted/40 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="relative flex h-4 w-4 items-center justify-center">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/30" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary relative" />
                             </div>
+                            <span className="font-semibold text-primary/80 text-[11px] uppercase tracking-wider">Thinking...</span>
                           </div>
-                        ),
-                        thead: ({ node, ...props }) => (
-                          <thead className="bg-muted/50 text-foreground" {...props} />
-                        ),
-                        th: ({ node, ...props }) => (
-                          <th className="px-4 py-3 font-semibold border-b-2 border-r-2 border-white border-solid last:border-r-0 whitespace-nowrap" {...props} />
-                        ),
-                        td: ({ node, ...props }) => (
-                          <td className="px-4 py-3 border-b-2 border-r-2 border-white border-solid last:border-r-0 align-top" {...props} />
-                        ),
-                        tr: ({ node, ...props }) => (
-                          <tr className="[&:last-child>td]:border-b-0 hover:bg-muted/30 transition-colors" {...props} />
-                        )
-                      }}
-                    >
-                      {message.text}
-                    </ReactMarkdown>
-                  ) : message.isStreaming ? (
-                    <span className="animate-pulse">Thinking...</span>
-                  ) : (
-                    ""
+                          {thinkingSteps.map((step, index) => (
+                            <div key={`${message.id}-think-${index}`} className="flex gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-1 shrink-0" />
+                              <div className="text-muted-foreground leading-normal whitespace-pre-wrap">{step.text}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* After streaming or when text has arrived — collapsible toggle */
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2.5 text-[10px] text-muted-foreground hover:text-foreground w-full justify-between border border-border/40 hover:border-border/70 rounded-lg bg-muted/20"
+                            onClick={() =>
+                              setExpandedReasoning((prev) => ({ ...prev, [message.id]: !prev[message.id] }))
+                            }
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 16v-4" />
+                                <path d="M12 8h.01" />
+                              </svg>
+                              Thought Process
+                              {message.isStreaming && (
+                                <Loader2 className="h-2.5 w-2.5 animate-spin ml-1" />
+                              )}
+                            </span>
+                            <ChevronDown
+                              className={`h-3 w-3 transition-transform duration-200 ${expandedReasoning[message.id] ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                          {expandedReasoning[message.id] && (
+                            <div className="mt-1.5 rounded-lg border border-border/30 bg-muted/20 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1">
+                              {thinkingSteps.map((step, index) => (
+                                <div key={`${message.id}-think-${index}`} className="flex gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-1.5 shrink-0" />
+                                  <div className="text-muted-foreground leading-normal whitespace-pre-wrap">{step.text}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   )}
-                </div>
 
-                {message.isStreaming && message.text && (
-                  <span className="text-[10px] text-muted-foreground mt-1 animate-pulse flex items-center gap-1">
-                    <Loader2 className="h-2.5 w-2.5 animate-spin" /> Generating...
-                  </span>
-                )}
-
-                {message.role === "assistant" && message.reasoning.length > 0 && REASONING_ENABLED_DEFAULT && (
-                  <div className="mt-2 w-full">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground w-full justify-between border border-transparent hover:border-border/50"
-                      onClick={() =>
-                        setExpandedReasoning((prev) => ({ ...prev, [message.id]: !prev[message.id] }))
-                      }
-                    >
-                      <span className="flex items-center gap-1">
-                        <Loader2 className="h-3 w-3" />
-                        Thought Process
-                      </span>
-                      <ChevronDown
-                        className={`h-3 w-3 transition-transform duration-200 ${expandedReasoning[message.id] ? "rotate-180" : ""
-                          }`}
-                      />
-                    </Button>
-                    {expandedReasoning[message.id] && (
-                      <div className="mt-2 rounded-lg border bg-muted/30 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1">
-                        {message.reasoning.map((step, index) => (
-                          <div key={`${message.id}-reason-${index}`} className="flex gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-1 shrink-0" />
-                            <div>
-                              <span className="font-semibold text-foreground/80 lowercase">{step.stage}</span>
-                              <div className="text-muted-foreground mt-0.5 leading-normal whitespace-pre-wrap">{step.text}</div>
+                  {/* ── Main response bubble ── */}
+                  <div
+                    className={`px-4 py-2.5 text-sm shadow-sm leading-relaxed overflow-x-auto ${message.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm whitespace-pre-wrap break-words"
+                      : "bg-muted border text-foreground rounded-2xl rounded-tl-sm prose prose-sm dark:prose-invert max-w-full prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0 break-words"
+                      }`}
+                  >
+                    {message.role === "user" ? (
+                      message.text
+                    ) : message.text ? (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          table: ({ node, ...props }) => (
+                            <div className="not-prose w-full max-w-full my-4 rounded-xl border-2 border-white border-solid overflow-hidden bg-background/50">
+                              <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+                                <table className="w-full text-sm text-left border-collapse m-0" {...props} />
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ),
+                          thead: ({ node, ...props }) => (
+                            <thead className="bg-muted/50 text-foreground" {...props} />
+                          ),
+                          th: ({ node, ...props }) => (
+                            <th className="px-4 py-3 font-semibold border-b-2 border-r-2 border-white border-solid last:border-r-0 whitespace-nowrap" {...props} />
+                          ),
+                          td: ({ node, ...props }) => (
+                            <td className="px-4 py-3 border-b-2 border-r-2 border-white border-solid last:border-r-0 align-top" {...props} />
+                          ),
+                          tr: ({ node, ...props }) => (
+                            <tr className="[&:last-child>td]:border-b-0 hover:bg-muted/30 transition-colors" {...props} />
+                          )
+                        }}
+                      >
+                        {message.text}
+                      </ReactMarkdown>
+                    ) : message.isStreaming ? (
+                      /* Only show "Thinking..." placeholder when there's no reasoning yet */
+                      message.reasoning.length === 0 ? (
+                        <span className="animate-pulse">Thinking...</span>
+                      ) : null
+                    ) : (
+                      ""
                     )}
                   </div>
-                )}
+
+                  {message.isStreaming && message.text && (
+                    <span className="text-[10px] text-muted-foreground mt-1 animate-pulse flex items-center gap-1">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" /> Generating...
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <footer className="p-3 bg-background border-t">
