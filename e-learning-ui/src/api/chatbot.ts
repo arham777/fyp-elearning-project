@@ -24,7 +24,7 @@ export interface ChatbotResponse {
 }
 
 export interface ChatbotStreamEvent {
-  type: "meta" | "reasoning" | "tool_call" | "token" | "done" | "error";
+  type: "meta" | "reasoning" | "reasoning_token" | "tool_call" | "token" | "done" | "error";
   data: Record<string, unknown>;
 }
 

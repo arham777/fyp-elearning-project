@@ -349,6 +349,14 @@ class CerebrasChatbotService:
             user_context=user_context,
             memory_messages=memory_messages,
         )
+        extra_body = {}
+        if self.model_name == "zai-glm-4.7":
+            extra_body["disable_reasoning"] = not show_reasoning
+            extra_body["clear_thinking"] = False
+        elif self.model_name == "gpt-oss-120b":
+            if not show_reasoning:
+                extra_body["reasoning_format"] = "hidden"
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
@@ -360,12 +368,13 @@ class CerebrasChatbotService:
                 max_completion_tokens=self.max_completion_tokens,
                 temperature=self.temperature,
                 top_p=self.top_p,
-                extra_body={
-                    "disable_reasoning": not show_reasoning,
-                    "clear_thinking": False,
-                },
+                extra_body=extra_body if extra_body else None,
             )
             text = ((response.choices[0].message.content if response.choices else None) or "").strip()
+            if show_reasoning and response.choices:
+                reasoning_text = getattr(response.choices[0].message, "reasoning", None)
+                if reasoning_text:
+                    reasoning_trace.append({"stage": "thinking", "text": reasoning_text})
             if not text:
                 raise RuntimeError("Model returned empty content.")
             source = "cerebras"
@@ -416,8 +425,18 @@ class CerebrasChatbotService:
             yield {"event": "tool_call", "data": call}
 
         full_text = ""
+        full_reasoning = ""
         source = "cerebras"
         warning = None
+        
+        extra_body = {}
+        if self.model_name == "zai-glm-4.7":
+            extra_body["disable_reasoning"] = not show_reasoning
+            extra_body["clear_thinking"] = False
+        elif self.model_name == "gpt-oss-120b":
+            if not show_reasoning:
+                extra_body["reasoning_format"] = "hidden"
+
         try:
             stream = self.client.chat.completions.create(
                 model=self.model_name,
@@ -429,21 +448,27 @@ class CerebrasChatbotService:
                 max_completion_tokens=self.max_completion_tokens,
                 temperature=self.temperature,
                 top_p=self.top_p,
-                extra_body={
-                    "disable_reasoning": not show_reasoning,
-                    "clear_thinking": False,
-                },
+                extra_body=extra_body if extra_body else None,
             )
             for chunk in stream:
                 choices = getattr(chunk, "choices", None) or []
                 if not choices:
                     continue
                 delta = getattr(choices[0], "delta", None)
-                chunk_text = getattr(delta, "content", None) if delta is not None else None
-                if not chunk_text:
+                if delta is None:
                     continue
-                full_text += chunk_text
-                yield {"event": "token", "data": {"text": chunk_text}}
+                
+                # Check for reasoning tokens
+                reasoning_text = getattr(delta, "reasoning", None)
+                if reasoning_text and show_reasoning:
+                    full_reasoning += reasoning_text
+                    yield {"event": "reasoning_token", "data": {"text": reasoning_text}}
+                
+                # Check for content tokens
+                chunk_text = getattr(delta, "content", None)
+                if chunk_text:
+                    full_text += chunk_text
+                    yield {"event": "token", "data": {"text": chunk_text}}
             if not full_text.strip():
                 raise RuntimeError("Model returned empty content.")
         except Exception as exc:
@@ -452,6 +477,9 @@ class CerebrasChatbotService:
                 raise RuntimeError("Cerebras quota exceeded. Please try again later.") from exc
             else:
                 raise RuntimeError(f"Cerebras stream failed: {exc}") from exc
+
+        if full_reasoning and show_reasoning:
+            reasoning_trace.append({"stage": "thinking", "text": full_reasoning})
 
         yield {
             "event": "done",
