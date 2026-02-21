@@ -97,7 +97,7 @@ class PromptBuilder:
             user_context_text,
             f"Conversation memory (recent turns):\n{memory_context or 'No prior turns'}",
             "Response contract: Provide the final answer directly to the user in clear Markdown. "
-            "Address the user by name when appropriate for a personal touch.",
+            "Do NOT start with a greeting or the user's name unless this is the very first turn (no conversation memory above).",
         ]
         return "\n\n".join(sections)
 

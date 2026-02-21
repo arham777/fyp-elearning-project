@@ -59,9 +59,42 @@ const resolveStreamUrl = () => {
   return "/api/chatbot/stream/";
 };
 
+export interface ChatMessageRecord {
+  id: number;
+  session: string;
+  role: string;
+  query: string;
+  response: string;
+  function_calls: ChatbotFunctionCall[];
+  reasoning_trace: ReasoningStep[];
+  source: "cerebras" | "gemini" | "fallback";
+  status: "completed" | "error" | "partial";
+  created_at: string;
+}
+
+export interface SessionMessagesResponse {
+  session: {
+    id: string;
+    role: string;
+    title: string;
+    is_archived: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+  messages: ChatMessageRecord[];
+}
+
 export const chatbotApi = {
   async sendQuery(payload: StreamQueryInput): Promise<ChatbotResponse> {
     const { data } = await apiClient.post<ChatbotResponse>("/chatbot/query/", payload);
+    return data;
+  },
+
+  async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
+    const { data } = await apiClient.get<SessionMessagesResponse>(
+      `/chatbot/sessions/${sessionId}/messages/`,
+      { params: { limit: 50 } },
+    );
     return data;
   },
 
@@ -104,4 +137,5 @@ export const chatbotApi = {
     }
   },
 };
+
 

@@ -3,6 +3,7 @@ import { ChevronDown, Loader2, MessageSquare, Send, X, Maximize2, Minimize2 } fr
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 import { chatbotApi, ReasoningStep } from "@/api/chatbot";
 import { getTokens } from "@/api/apiClient";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Check, Copy } from "lucide-react";
 
 type ChatRole = "user" | "assistant";
 
@@ -37,12 +39,16 @@ const ChatWidget: React.FC = () => {
   const [sessionId, setSessionId] = React.useState<string | undefined>();
   const [expandedReasoning, setExpandedReasoning] = React.useState<Record<string, boolean>>({});
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
+  const historyLoadedRef = React.useRef<string | null>(null);
+  const [copiedBlockId, setCopiedBlockId] = React.useState<string | null>(null);
 
   const sessionKey = React.useMemo(
     () => (user?.id ? `chatbot_session_${user.id}` : "chatbot_session"),
     [user?.id],
   );
 
+  // Restore session ID from localStorage on mount
   React.useEffect(() => {
     try {
       const existing = localStorage.getItem(sessionKey) || undefined;
@@ -51,6 +57,59 @@ const ChatWidget: React.FC = () => {
       setSessionId(undefined);
     }
   }, [sessionKey]);
+
+  // Load chat history from DB when widget opens (only once per session)
+  React.useEffect(() => {
+    if (!isOpen || !sessionId || historyLoadedRef.current === sessionId) return;
+    // Don't reload if we already have messages for this session
+    if (messages.length > 0) {
+      historyLoadedRef.current = sessionId;
+      return;
+    }
+
+    let cancelled = false;
+    const loadHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        const data = await chatbotApi.getSessionMessages(sessionId);
+        if (cancelled) return;
+        const restored: ChatMessage[] = [];
+        for (const msg of data.messages) {
+          if (msg.status === "error") continue;
+          // Add user message
+          restored.push({
+            id: `hist-u-${msg.id}`,
+            role: "user",
+            text: msg.query,
+            reasoning: [],
+          });
+          // Add assistant message
+          if (msg.response) {
+            const thinkingSteps = (msg.reasoning_trace || []).filter(
+              (s: ReasoningStep) => s.stage === "thinking",
+            );
+            restored.push({
+              id: `hist-a-${msg.id}`,
+              role: "assistant",
+              text: msg.response,
+              source: msg.source as "cerebras" | "fallback" | undefined,
+              reasoning: thinkingSteps,
+            });
+          }
+        }
+        if (!cancelled && restored.length > 0) {
+          setMessages(restored);
+        }
+        historyLoadedRef.current = sessionId;
+      } catch {
+        // Silently fail — user can still chat, just without history
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    };
+    void loadHistory();
+    return () => { cancelled = true; };
+  }, [isOpen, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateAssistantMessage = React.useCallback(
     (assistantId: string, updater: (message: ChatMessage) => ChatMessage) => {
@@ -245,7 +304,12 @@ const ChatWidget: React.FC = () => {
               size="icon"
               variant="ghost"
               className="h-8 w-8 rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
-              onClick={() => setMessages([])}
+              onClick={() => {
+                setMessages([]);
+                setSessionId(undefined);
+                historyLoadedRef.current = null;
+                try { localStorage.removeItem(sessionKey); } catch { /* ignore */ }
+              }}
               title="Clear chat"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12" /><path d="M3 3v9h9" /></svg>
@@ -263,7 +327,13 @@ const ChatWidget: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-          {!messages.length && (
+          {isLoadingHistory && (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-primary/60" />
+              <p className="text-xs text-muted-foreground">Loading conversation...</p>
+            </div>
+          )}
+          {!messages.length && !isLoadingHistory && (
             <div className="flex flex-col space-y-6 mt-4">
               <div className="text-center space-y-2">
                 <div className="bg-primary/5 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -383,7 +453,59 @@ const ChatWidget: React.FC = () => {
                     ) : message.text ? (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
                         components={{
+                          pre: ({ children }) => (
+                            <div className="not-prose my-3 rounded-xl overflow-hidden border border-border/60 bg-[#1e1e2e] shadow-lg">
+                              {children}
+                            </div>
+                          ),
+                          code: ({ node, className, children, ...props }) => {
+                            const match = /language-(\w+)/.exec(className || "");
+                            const isInline = !match && !className;
+                            if (isInline) {
+                              return (
+                                <code
+                                  className="bg-muted/80 text-primary px-1.5 py-0.5 rounded-md text-[13px] font-mono border border-border/30"
+                                  {...props}
+                                >
+                                  {children}
+                                </code>
+                              );
+                            }
+                            const lang = match?.[1] || "code";
+                            const codeText = String(children).replace(/\n$/, "");
+                            const blockId = `code-${message.id}-${lang}-${codeText.length}`;
+                            const isCopied = copiedBlockId === blockId;
+                            return (
+                              <>
+                                <div className="flex items-center justify-between px-4 py-2 bg-[#181825] border-b border-white/5">
+                                  <span className="text-[11px] font-mono text-[#cdd6f4]/60 uppercase tracking-wider">{lang}</span>
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1.5 text-[11px] text-[#cdd6f4]/50 hover:text-[#cdd6f4] transition-colors"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(codeText).then(() => {
+                                        setCopiedBlockId(blockId);
+                                        setTimeout(() => setCopiedBlockId(null), 2000);
+                                      });
+                                    }}
+                                  >
+                                    {isCopied ? (
+                                      <><Check className="h-3 w-3" /> Copied!</>
+                                    ) : (
+                                      <><Copy className="h-3 w-3" /> Copy</>
+                                    )}
+                                  </button>
+                                </div>
+                                <pre className="!m-0 !bg-transparent overflow-x-auto p-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                  <code className={`text-[13px] leading-relaxed font-mono text-[#cdd6f4] ${className || ""}`} {...props}>
+                                    {children}
+                                  </code>
+                                </pre>
+                              </>
+                            );
+                          },
                           table: ({ node, ...props }) => (
                             <div className="not-prose w-full max-w-full my-4 rounded-xl border-2 border-white border-solid overflow-hidden bg-background/50">
                               <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
