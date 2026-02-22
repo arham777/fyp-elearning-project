@@ -35,6 +35,7 @@ router.register(r'gamification', views.GamificationViewSet, basename='gamificati
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
+    path('categories/', views.CategoryListView.as_view(), name='category-list'),
     path('chatbot/query/', views.ChatbotQueryView.as_view(), name='chatbot-query'),
     path('chatbot/stream/', views.ChatbotStreamView.as_view(), name='chatbot-stream'),
     path('chatbot/sessions/', views.ChatbotSessionListCreateView.as_view(), name='chatbot-sessions'),

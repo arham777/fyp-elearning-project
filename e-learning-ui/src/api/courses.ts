@@ -470,4 +470,37 @@ export const coursesApi = {
     const res = await apiClient.get(`/courses/${courseId}/student-submissions/${studentId}/`);
     return res.data as StudentSubmissionsResponse;
   },
+
+  async generateAssignment(
+    topic: string,
+    assignmentType: 'mcq' | 'qa',
+    numQuestions: number,
+    difficulty: string
+  ): Promise<{ questions: GeneratedQuestion[]; assignment_type: string; detail?: string }> {
+    const response = await apiClient.post(
+      `/courses/generate-assignment/`,
+      { topic, assignment_type: assignmentType, num_questions: numQuestions, difficulty }
+    );
+    return response.data;
+  },
 };
+
+export interface GeneratedMCQOption {
+  text: string;
+  is_correct: boolean;
+}
+
+export interface GeneratedMCQQuestion {
+  question: string;
+  options: GeneratedMCQOption[];
+  points: number;
+}
+
+export interface GeneratedQAQuestion {
+  question: string;
+  keywords: string[];
+  acceptable_answers: string[];
+  points: number;
+}
+
+export type GeneratedQuestion = GeneratedMCQQuestion | GeneratedQAQuestion;

@@ -22,18 +22,20 @@ import logging
 import time
 import json
 import os
-import openai
 from decimal import Decimal, ROUND_HALF_UP
 try:
     import stripe
 except ModuleNotFoundError:
     stripe = None
 
+from openai import OpenAI
+
 from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
     AssignmentQuestion, Notification, CourseRating, SupportRequest,
-    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession,
+    Category
 )
 from myapp.chatbot_models import ChatMessage
 
@@ -44,7 +46,8 @@ from .serializers import (
     AssignmentSubmissionSerializer, CertificateSerializer, AssignmentQuestionSerializer,
     CourseRatingSerializer, SupportRequestSerializer,
     BadgeSerializer, UserBadgeSerializer, UserStatsSerializer, XPTransactionSerializer, LeaderboardEntrySerializer,
-    ChatbotQuerySerializer, ChatbotResponseSerializer, ChatSessionSerializer, ChatMessageHistorySerializer
+    ChatbotQuerySerializer, ChatbotResponseSerializer, ChatSessionSerializer, ChatMessageHistorySerializer,
+    CategorySerializer
 )
 from .services.gemini_service import CerebrasChatbotService, ChatbotConfigurationError
 
@@ -614,6 +617,17 @@ class UserViewSet(viewsets.ModelViewSet):
         user.deactivated_until = None
         user.save(update_fields=['is_active', 'deactivated_at', 'deactivation_reason', 'deactivated_until'])
         return Response(UserSerializer(user).data)
+
+
+class CategoryListView(APIView):
+    """Public endpoint returning all active categories grouped by group name."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        categories = Category.objects.filter(is_active=True).order_by('group', 'order', 'name')
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data)
+
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -1441,51 +1455,187 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='generate-lesson',
             permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
     def generate_lesson(self, request):
-        """Generate reading content using OpenRouter AI."""
-        topic = request.data.get('topic', '').strip()
-        audience = request.data.get('audience', 'Beginner').strip()
-        tone = request.data.get('tone', 'Professional').strip()
+        """Generate educational lesson content using Cerebras AI."""
+        topic = (request.data.get('topic') or '').strip()
+        audience = (request.data.get('audience') or 'Beginner').strip()
+        tone = (request.data.get('tone') or 'Professional').strip()
 
         if not topic:
-            return Response({"detail": "Topic is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Topic is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Get OpenRouter configuration from environment
-        base_url = os.getenv("AI_BASE_URL", "https://openrouter.ai/api/v1")
-        api_key = os.getenv("AI_API_KEY", "")
-        model_id = os.getenv("AI_MODEL_ID", "z-ai/glm-4.5-air:free")
+        # Build a detailed prompt for lesson generation
+        system_prompt = (
+            "You are an expert educational content writer. "
+            "Generate high-quality, well-structured lesson content in Markdown format. "
+            "Include clear headings, subheadings, explanations, examples, and key takeaways. "
+            "Make the content engaging and educational. "
+            "Use proper Markdown formatting with headers (#, ##, ###), bullet points, "
+            "numbered lists, bold text, code blocks where appropriate, and other Markdown features. "
+            "Do NOT wrap the entire response in a code block — output raw Markdown directly."
+        )
 
-        if not api_key or api_key == "sk-or-your-key-here":
-            return Response({"detail": "AI generation is not fully configured (missing API key)."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        user_prompt = (
+            f"Create a comprehensive lesson on the topic: **{topic}**\n\n"
+            f"Target Audience: {audience}\n"
+            f"Tone: {tone}\n\n"
+            "Structure the lesson with:\n"
+            "1. An engaging introduction\n"
+            "2. Learning objectives\n"
+            "3. Main content with clear sections and examples\n"
+            "4. Key takeaways / summary\n"
+            "5. Practice questions or exercises (if appropriate)\n\n"
+            "Make it thorough, informative and engaging for the specified audience."
+        )
 
         try:
-            client = openai.OpenAI(base_url=base_url, api_key=api_key)
-            
-            system_prompt = (
-                "You are an expert educational content creator. Your task is to write a comprehensive lesson on the user's topic.\n\n"
-                "Rules:\n"
-                "- Output STRICTLY in Markdown format (Use # for headers, ** for bold, - for lists).\n"
-                "- Do NOT output conversational filler like 'Here is your lesson' or 'Certainly!'. Start directly with the content.\n"
-                "- Structure the content with: 1) Introduction, 2) Key Concepts, 3) Examples, 4) Summary.\n"
-                "- Ensure the tone matches the requested style and level."
+            api_key = (
+                os.getenv("CEREBRAS_API_KEY", "").strip()
+                or os.getenv("CEREBRAS_ROUTER_API_KEY", "").strip()
+                or os.getenv("CEREBRAS_ROUTER_KEY", "").strip()
+                or os.getenv("CEREBRAS_KEY", "").strip()
             )
-            
-            user_prompt = f"Topic: {topic}\nTarget Audience: {audience}\nTone: {tone}"
+            base_url = os.getenv("CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1").strip()
+            model_name = os.getenv("CEREBRAS_MODEL", "llama3.1-8b")
 
-            response = client.chat.completions.create(
-                model=model_id,
+            if not api_key:
+                return Response(
+                    {"detail": "AI service is not configured. Please set CEREBRAS_API_KEY."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            client = OpenAI(api_key=api_key, base_url=base_url)
+
+            completion = client.chat.completions.create(
+                model=model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.7,
+                max_completion_tokens=8192,
             )
-            
-            generated_content = response.choices[0].message.content.strip()
-            return Response({"content": generated_content}, status=status.HTTP_200_OK)
-            
+
+            content = completion.choices[0].message.content
+            return Response({"content": content})
+
         except Exception as e:
-            logger.error(f"Error generating lesson via OpenRouter: {str(e)}")
-            return Response({"detail": f"Failed to generate lesson: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"AI lesson generation failed: {e}")
+            return Response(
+                {"detail": f"Failed to generate content: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=['post'], url_path='generate-assignment',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def generate_assignment(self, request):
+        """Generate assignment questions using Cerebras AI."""
+        topic = (request.data.get('topic') or '').strip()
+        assignment_type = (request.data.get('assignment_type') or 'mcq').strip()
+        num_questions = int(request.data.get('num_questions', 5))
+        difficulty = (request.data.get('difficulty') or 'Intermediate').strip()
+
+        if not topic:
+            return Response(
+                {"detail": "Topic is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        num_questions = max(1, min(num_questions, 20))
+
+        if assignment_type == 'mcq':
+            system_prompt = (
+                "You are an expert educational assessment designer. "
+                "Generate multiple-choice questions in valid JSON format. "
+                "Return ONLY a JSON array — no markdown, no code fences, no explanation. "
+                "Each element must have: "
+                '"question" (string), "options" (array of {"text": string, "is_correct": boolean}), "points" (number). '
+                "Each question MUST have exactly 4 options with exactly 1 correct answer. "
+                "Ensure questions test understanding, not just memorization."
+            )
+            user_prompt = (
+                f"Create {num_questions} multiple-choice questions on: {topic}\n"
+                f"Difficulty: {difficulty}\n\n"
+                "Return ONLY valid JSON array. Example:\n"
+                '[{"question": "What is X?", "options": [{"text": "A", "is_correct": false}, '
+                '{"text": "B", "is_correct": true}, {"text": "C", "is_correct": false}, '
+                '{"text": "D", "is_correct": false}], "points": 2}]'
+            )
+        else:
+            system_prompt = (
+                "You are an expert educational assessment designer. "
+                "Generate short-answer / Q&A questions in valid JSON format. "
+                "Return ONLY a JSON array — no markdown, no code fences, no explanation. "
+                "Each element must have: "
+                '"question" (string), "keywords" (array of relevant keywords for auto-grading), '
+                '"acceptable_answers" (array of acceptable exact answers), "points" (number). '
+                "Ensure questions require critical thinking and clear understanding."
+            )
+            user_prompt = (
+                f"Create {num_questions} short-answer / Q&A questions on: {topic}\n"
+                f"Difficulty: {difficulty}\n\n"
+                "Return ONLY valid JSON array. Example:\n"
+                '[{"question": "Explain the concept of X.", '
+                '"keywords": ["key1", "key2", "key3"], '
+                '"acceptable_answers": ["X is..."], "points": 5}]'
+            )
+
+        try:
+            api_key = (
+                os.getenv("CEREBRAS_API_KEY", "").strip()
+                or os.getenv("CEREBRAS_ROUTER_API_KEY", "").strip()
+                or os.getenv("CEREBRAS_ROUTER_KEY", "").strip()
+                or os.getenv("CEREBRAS_KEY", "").strip()
+            )
+            base_url = os.getenv("CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1").strip()
+            model_name = os.getenv("CEREBRAS_MODEL", "llama3.1-8b")
+
+            if not api_key:
+                return Response(
+                    {"detail": "AI service is not configured. Please set CEREBRAS_API_KEY."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            client = OpenAI(api_key=api_key, base_url=base_url)
+
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_completion_tokens=8192,
+            )
+
+            raw = completion.choices[0].message.content.strip()
+            # Strip markdown code fences if present
+            if raw.startswith('```'):
+                lines = raw.split('\n')
+                lines = lines[1:]  # remove opening fence
+                if lines and lines[-1].strip() == '```':
+                    lines = lines[:-1]
+                raw = '\n'.join(lines).strip()
+
+            import json
+            questions = json.loads(raw)
+            return Response({"questions": questions, "assignment_type": assignment_type})
+
+        except json.JSONDecodeError as e:
+            logger.error(f"AI assignment generation returned invalid JSON: {e}")
+            return Response(
+                {"detail": "AI returned invalid format. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception as e:
+            logger.error(f"AI assignment generation failed: {e}")
+            return Response(
+                {"detail": f"Failed to generate questions: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
     serializer_class = CourseModuleSerializer

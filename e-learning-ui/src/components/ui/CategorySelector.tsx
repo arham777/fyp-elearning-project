@@ -8,8 +8,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CATEGORY_GROUPS, ALL_CATEGORIES } from '@/constants/categories';
-import { Search, ChevronDown, Check, X } from 'lucide-react';
+import { categoriesApi, type CategoryGroup } from '@/api/categories';
+import { Search, ChevronDown, Check, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CategorySelectorProps {
@@ -31,6 +31,28 @@ export function CategorySelector({
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch categories from the backend
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    categoriesApi.getCategoryGroups().then((groups) => {
+      if (!cancelled) {
+        setCategoryGroups(groups);
+        setIsLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const allCategories = useMemo(
+    () => categoryGroups.flatMap((g) => g.categories),
+    [categoryGroups],
+  );
+
   // Parse comma-separated value into array
   const selectedCategories = useMemo(() => {
     if (!value) return [];
@@ -47,18 +69,18 @@ export function CategorySelector({
   // Filter categories based on search
   const filteredGroups = useMemo(() => {
     if (!search.trim()) {
-      return CATEGORY_GROUPS;
+      return categoryGroups;
     }
     
     const searchLower = search.toLowerCase();
-    return CATEGORY_GROUPS.map(group => ({
+    return categoryGroups.map(group => ({
       ...group,
       categories: group.categories.filter(cat => 
         cat.toLowerCase().includes(searchLower) ||
         group.name.toLowerCase().includes(searchLower)
       ),
     })).filter(group => group.categories.length > 0);
-  }, [search]);
+  }, [search, categoryGroups]);
 
   // Count total filtered categories
   const totalFiltered = useMemo(() => 
@@ -142,7 +164,7 @@ export function CategorySelector({
             </div>
             <div className="flex items-center justify-between mt-2">
               <p className="text-xs text-muted-foreground">
-                {search ? `${totalFiltered} found` : `${ALL_CATEGORIES.length} categories`}
+                {search ? `${totalFiltered} found` : `${allCategories.length} categories`}
               </p>
               {multiple && (
                 <p className="text-xs text-muted-foreground">
@@ -154,7 +176,12 @@ export function CategorySelector({
           
           {/* Categories List */}
           <ScrollArea className="h-[280px]">
-            {filteredGroups.length === 0 ? (
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Loading categories...</p>
+              </div>
+            ) : filteredGroups.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
                 No categories found for "{search}"
               </div>

@@ -3,7 +3,8 @@ from myapp.models import (
     User, Course, CourseModule, Content, Enrollment,
     ContentProgress, Payment, Assignment, AssignmentSubmission, Certificate,
     AssignmentQuestion, AssignmentOption, CourseRating, SupportRequest,
-    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession, ChatMessage
+    Badge, UserBadge, UserStats, DailyActivity, XPTransaction, ChatSession, ChatMessage,
+    Category
 )
 from django.db.models import Avg, Count
 
@@ -452,3 +453,10 @@ class LeaderboardEntrySerializer(serializers.Serializer):
     level_title = serializers.CharField()
     current_streak = serializers.IntegerField()
     weekly_xp = serializers.IntegerField(required=False, default=0)
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    """Serializer for course categories"""
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'group', 'is_active', 'order']

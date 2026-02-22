@@ -1,5 +1,6 @@
 import React from "react";
 import { ChevronDown, Loader2, MessageSquare, Send, X, Maximize2, Minimize2 } from "lucide-react";
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -331,13 +332,20 @@ const ChatWidget: React.FC = () => {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 hover:scale-105 transition-transform duration-200 bg-transparent hover:bg-transparent text-primary-foreground p-0 overflow-visible"
+        className="fixed bottom-10 right-10 h-28 w-28 z-50 hover:scale-110 transition-transform duration-300 bg-transparent hover:bg-transparent shadow-none border-none p-0 overflow-visible group"
         size="icon"
       >
-        <img src="/chat.png" alt="Chat" className="h-full w-full object-contain drop-shadow-md" />
-        <span className="absolute top-0 right-0 h-3 w-3 -mt-1 -mr-1 flex">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+        <div className="w-full h-full drop-shadow-2xl filter hover:drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)] transition-all duration-300">
+          <DotLottieReact
+            src="/chatbot.lottie"
+            loop
+            autoplay
+            className="w-full h-full"
+          />
+        </div>
+        <span className="absolute top-4 right-4 h-4 w-4 mt-1 mr-1 flex pointer-events-none">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-4 w-4 bg-orange-500 border-2 border-white/50"></span>
         </span>
       </Button>
     );
@@ -353,8 +361,14 @@ const ChatWidget: React.FC = () => {
       >
         <header className="flex items-center justify-between px-4 py-4 bg-muted border-b border-border shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background/50 backdrop-blur-sm overflow-hidden p-1 border border-border/50">
-              <img src="/chat.png" alt="Bot" className="h-full w-full object-contain" />
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-background/50 backdrop-blur-sm overflow-hidden border border-border/50 shadow-sm">
+               <div className="absolute inset-0 scale-150 mt-2">
+                 <DotLottieReact
+                   src="/chatbot.lottie"
+                   loop
+                   autoplay
+                 />
+               </div>
             </div>
             <div>
               <h3 className="font-bold text-base leading-none tracking-tight text-foreground">Your AI Assistant</h3>

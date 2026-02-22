@@ -12,7 +12,8 @@ import { Assignment, Content, CourseModule, Course } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Sparkles, Wand2 } from 'lucide-react';
+import { Trash2, Sparkles, Wand2, Loader2 } from 'lucide-react';
+import { GeneratedMCQQuestion, GeneratedQAQuestion } from '@/api/courses';
 import { marked } from 'marked';
 import {
   AlertDialog,
@@ -61,13 +62,21 @@ const ModuleDetail: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-  // AI Assistant state
+  // AI Assistant state (content)
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
   const [aiAudience, setAiAudience] = useState('Beginner');
   const [aiTone, setAiTone] = useState('Professional');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiGeneratedHTML, setAiGeneratedHTML] = useState('');
+
+  // AI Assistant state (assignment)
+  const [isAIAssignOpen, setIsAIAssignOpen] = useState(false);
+  const [aiAssignTopic, setAiAssignTopic] = useState('');
+  const [aiAssignDifficulty, setAiAssignDifficulty] = useState('Intermediate');
+  const [aiAssignNumQuestions, setAiAssignNumQuestions] = useState(5);
+  const [isAssignGenerating, setIsAssignGenerating] = useState(false);
+  const [aiGeneratedQuestions, setAiGeneratedQuestions] = useState<(GeneratedMCQQuestion | GeneratedQAQuestion)[]>([]);
 
   const handleAIGenerate = async () => {
     if (!aiTopic.trim()) return;
@@ -91,6 +100,59 @@ const ModuleDetail: React.FC = () => {
       setEditForm((f) => ({ ...f, text: aiGeneratedHTML }));
     }
     setIsAIAssistantOpen(false);
+  };
+
+  const handleAIGenerateAssignment = async () => {
+    if (!aiAssignTopic.trim()) return;
+    setIsAssignGenerating(true);
+    try {
+      const res = await coursesApi.generateAssignment(
+        aiAssignTopic,
+        assignForm.assignment_type,
+        aiAssignNumQuestions,
+        aiAssignDifficulty
+      );
+      setAiGeneratedQuestions(res.questions);
+      toast({ title: `${res.questions.length} questions generated!` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate questions. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsAssignGenerating(false);
+    }
+  };
+
+  const insertAIQuestions = () => {
+    const mapped: NewQuestion[] = aiGeneratedQuestions.map((q) => {
+      if (assignForm.assignment_type === 'mcq') {
+        const mcq = q as GeneratedMCQQuestion;
+        return {
+          id: crypto.randomUUID(),
+          question_type: 'mcq' as const,
+          text: mcq.question,
+          points: mcq.points || 2,
+          options: (mcq.options || []).map((o) => ({
+            id: crypto.randomUUID(),
+            text: o.text,
+            is_correct: o.is_correct,
+          })),
+        };
+      } else {
+        const qa = q as GeneratedQAQuestion;
+        return {
+          id: crypto.randomUUID(),
+          question_type: 'qa' as const,
+          text: qa.question,
+          points: qa.points || 5,
+          keywords: (qa.keywords || []).join(', '),
+          acceptable_answers: (qa.acceptable_answers || []).join(', '),
+          options: [],
+        };
+      }
+    });
+    setNewQuestions((prev) => [...prev, ...mapped]);
+    setIsAIAssignOpen(false);
+    setAiGeneratedQuestions([]);
+    toast({ title: `${mapped.length} questions inserted! Review and edit before saving.` });
   };
 
   // Assignment form state
@@ -804,7 +866,13 @@ const ModuleDetail: React.FC = () => {
                 <DialogTrigger asChild>
                   <Button size="sm">Create assignment</Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent
+                  onInteractOutside={(e) => {
+                    if (isAIAssignOpen) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   <DialogHeader>
                     <DialogTitle>Create assignment</DialogTitle>
                   </DialogHeader>
@@ -851,6 +919,15 @@ const ModuleDetail: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="font-medium">Questions</div>
                         <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                            onClick={() => { setAiGeneratedQuestions([]); setAiAssignTopic(''); setIsAIAssignOpen(true); }}
+                          >
+                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                            AI Generate
+                          </Button>
                           {assignForm.assignment_type === 'qa' ? (
                             <Button type="button" size="sm" variant="outline" onClick={() => addQuestion('qa')}>Add Q&A</Button>
                           ) : (
@@ -1297,6 +1374,132 @@ const ModuleDetail: React.FC = () => {
                 </Button>
                 <Button onClick={insertAIContent}>
                   Insert Content
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Assignment Assistant Dialog */}
+      <Dialog open={isAIAssignOpen} onOpenChange={setIsAIAssignOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-[#e66c19]" />
+              AI Assignment Assistant
+            </DialogTitle>
+            <DialogDescription>
+              Generate {assignForm.assignment_type === 'mcq' ? 'multiple-choice' : 'Q&A'} questions using AI.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4 overflow-y-auto pr-2">
+            {aiGeneratedQuestions.length === 0 ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-assign-topic">Topic *</Label>
+                  <Input
+                    id="ai-assign-topic"
+                    placeholder="e.g. Data Structures and Algorithms"
+                    value={aiAssignTopic}
+                    onChange={(e) => setAiAssignTopic(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-assign-difficulty">Difficulty</Label>
+                    <Select value={aiAssignDifficulty} onValueChange={setAiAssignDifficulty}>
+                      <SelectTrigger id="ai-assign-difficulty">
+                        <SelectValue placeholder="Select difficulty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Beginner">Beginner</SelectItem>
+                        <SelectItem value="Intermediate">Intermediate</SelectItem>
+                        <SelectItem value="Advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-assign-num">Number of Questions</Label>
+                    <Input
+                      id="ai-assign-num"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={aiAssignNumQuestions}
+                      onChange={(e) => setAiAssignNumQuestions(Math.max(1, Math.min(20, Number(e.target.value))))}
+                    />
+                  </div>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Type:</span>{' '}
+                  {assignForm.assignment_type === 'mcq' ? 'Multiple Choice (4 options each)' : 'Q&A with keywords for auto-grading'}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <Label>Generated Questions ({aiGeneratedQuestions.length})</Label>
+                <div className="border rounded-md p-3 bg-muted/30 shadow-inner overflow-y-auto max-h-[50vh] space-y-3">
+                  {aiGeneratedQuestions.map((q, i) => (
+                    <div key={i} className="rounded border bg-background p-3 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <span className="text-sm font-medium">Q{i + 1}. {'question' in q ? q.question : ''}</span>
+                        <Badge variant="secondary" className="ml-2 shrink-0">{q.points} pts</Badge>
+                      </div>
+                      {assignForm.assignment_type === 'mcq' && 'options' in q && (
+                        <div className="grid gap-1 text-sm pl-4">
+                          {(q as GeneratedMCQQuestion).options.map((o, oi) => (
+                            <div key={oi} className={`flex items-center gap-2 ${o.is_correct ? 'text-emerald-600 font-medium' : 'text-muted-foreground'}`}>
+                              <span className="w-5">{String.fromCharCode(65 + oi)}.</span>
+                              <span>{o.text}</span>
+                              {o.is_correct && <Badge variant="outline" className="text-[10px] h-4 px-1 border-emerald-500 text-emerald-600">Correct</Badge>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {assignForm.assignment_type === 'qa' && 'keywords' in q && (
+                        <div className="text-xs text-muted-foreground pl-4">
+                          <span className="font-medium">Keywords:</span> {(q as GeneratedQAQuestion).keywords.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            {aiGeneratedQuestions.length === 0 ? (
+              <Button
+                onClick={handleAIGenerateAssignment}
+                disabled={!aiAssignTopic.trim() || isAssignGenerating}
+                className="w-full sm:w-auto gap-2 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white"
+              >
+                {isAssignGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4" />
+                    Generate Questions
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="flex w-full justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => setAiGeneratedQuestions([])}
+                  disabled={isAssignGenerating}
+                >
+                  Regenerate / Edit
+                </Button>
+                <Button onClick={insertAIQuestions} className="gap-2">
+                  Insert {aiGeneratedQuestions.length} Questions
                 </Button>
               </div>
             )}

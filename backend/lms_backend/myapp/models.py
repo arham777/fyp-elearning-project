@@ -767,3 +767,20 @@ class XPTransaction(models.Model):
     def __str__(self):
         return f"{self.user.username} +{self.amount} XP ({self.source})"
 from .chatbot_models import ChatMessage, ChatSession
+
+
+class Category(models.Model):
+    """Single source of truth for course/interest categories."""
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100, unique=True)
+    group = models.CharField(max_length=100, help_text="Grouping label, e.g. 'Technology & IT'")
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0, help_text="Display ordering within group")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['group', 'order', 'name']
+        verbose_name_plural = 'categories'
+
+    def __str__(self):
+        return f"{self.name} ({self.group})"
