@@ -153,7 +153,7 @@ const MyCourseCard = ({
 
           <Button
             onClick={() => onClick(course.id)}
-            className="w-full h-10 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-500/20"
+            className="w-full h-10 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-black/5"
           >
             {isCompleted ? 'Review Course' : 'Continue Learning'}
             <ChevronRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />

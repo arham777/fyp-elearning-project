@@ -239,7 +239,7 @@ export default function CreateCourseForm({
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900">
             {isSubmitting ? 'Creating Course & Curriculum...' : 'Create Course'}
           </Button>
         </div>

@@ -149,7 +149,7 @@ const CourseCardPublic = ({
         {/* Action Button - Pushed to bottom with margin-top auto */}
         <Button
           onClick={() => onEnroll(course.id)}
-          className="w-full h-10 mt-auto bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-500/20"
+          className="w-full h-10 mt-auto bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-black/5"
         >
           <span>Enroll Now</span>
           <ChevronRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -366,7 +366,7 @@ const Courses: React.FC = () => {
                   <Button asChild variant="ghost" className="text-zinc-400 hover:text-white">
                     <Link to="/login">Sign In</Link>
                   </Button>
-                  <Button asChild className="bg-orange-600 hover:bg-orange-700">
+                  <Button asChild className="bg-[#e5e5e5] text-zinc-900 hover:bg-[#e5e5e5]/90">
                     <Link to="/register">Get Started</Link>
                   </Button>
                 </>

@@ -758,10 +758,10 @@ const ModuleDetail: React.FC = () => {
                           <Label htmlFor="create-reading-editor">Reading text</Label>
                           <Button
                             type="button"
-                            className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                            className="h-7 text-xs flex items-center gap-1 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 transition-all border-none"
                             onClick={() => { setAiGeneratedHTML(''); setIsAIAssistantOpen(true); }}
                           >
-                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                            <Sparkles className="h-3.5 w-3.5 text-zinc-900" />
                             AI Assistant
                           </Button>
                         </div>
@@ -922,10 +922,10 @@ const ModuleDetail: React.FC = () => {
                           <Button
                             type="button"
                             size="sm"
-                            className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                            className="h-7 text-xs flex items-center gap-1 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 transition-all border-none"
                             onClick={() => { setAiGeneratedQuestions([]); setAiAssignTopic(''); setIsAIAssignOpen(true); }}
                           >
-                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                            <Sparkles className="h-3.5 w-3.5 text-zinc-900" />
                             AI Generate
                           </Button>
                           {assignForm.assignment_type === 'qa' ? (
@@ -1205,10 +1205,10 @@ const ModuleDetail: React.FC = () => {
                     <Label htmlFor="edit-reading-editor">Reading text</Label>
                     <Button
                       type="button"
-                      className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                      className="h-7 text-xs flex items-center gap-1 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 transition-all border-none"
                       onClick={() => { setAiGeneratedHTML(''); setIsAIAssistantOpen(true); }}
                     >
-                      <Sparkles className="h-3.5 w-3.5 text-white" />
+                      <Sparkles className="h-3.5 w-3.5 text-zinc-900" />
                       AI Assistant
                     </Button>
                   </div>
@@ -1354,7 +1354,7 @@ const ModuleDetail: React.FC = () => {
               <Button
                 onClick={handleAIGenerate}
                 disabled={!aiTopic.trim() || isGenerating}
-                className="w-full sm:w-auto gap-2 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white"
+                className="w-full sm:w-auto gap-2 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900"
               >
                 {isGenerating ? 'Generating...' : (
                   <>
@@ -1475,7 +1475,7 @@ const ModuleDetail: React.FC = () => {
               <Button
                 onClick={handleAIGenerateAssignment}
                 disabled={!aiAssignTopic.trim() || isAssignGenerating}
-                className="w-full sm:w-auto gap-2 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white"
+                className="w-full sm:w-auto gap-2 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900"
               >
                 {isAssignGenerating ? (
                   <>

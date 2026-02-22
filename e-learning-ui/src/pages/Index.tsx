@@ -376,7 +376,7 @@ const ProgressDashboard = () => {
                     <div className="text-sm font-semibold">Quick Preview: Interactive Labs</div>
                     <div className="text-xs text-zinc-400 mt-2">Short hands-on labs that reinforce lessons — students practice inside the browser and earn XP for every successful run.</div>
                     <div className="mt-4">
-                      <Button asChild size="sm" className="h-9 bg-orange-600 hover:bg-orange-700">
+                      <Button asChild size="sm" className="h-9 bg-[#e5e5e5] text-zinc-900 hover:bg-[#e5e5e5]/90">
                         <Link to="/courses">Explore Courses</Link>
                       </Button>
                     </div>
@@ -460,7 +460,7 @@ const HeroSlide = () => (
         transition={{ duration: 0.6, delay: 0.3 }}
         className="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start"
       >
-        <Button asChild size="lg" className="h-12 bg-orange-600 px-8 text-base hover:bg-orange-700 shadow-lg shadow-orange-900/20">
+        <Button asChild size="lg" className="h-12 bg-[#e5e5e5] text-zinc-900 px-8 text-base hover:bg-[#e5e5e5]/90 shadow-lg shadow-black/5">
           <Link to="/register">Get Started</Link>
         </Button>
         <Button asChild variant="outline" size="lg" className="h-12 border-zinc-700 bg-transparent px-8 text-base text-zinc-100 hover:bg-zinc-800">

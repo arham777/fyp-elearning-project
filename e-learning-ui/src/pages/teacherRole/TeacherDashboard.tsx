@@ -105,7 +105,7 @@ const TeacherDashboard: React.FC = () => {
 						Manage your courses and track student progress.
 					</p>
 				</div>
-				<Button asChild>
+				<Button asChild className="bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900">
 					<Link to="/app/courses">
 						<Plus className="h-4 w-4 mr-2" />
 						Create Course
@@ -292,7 +292,7 @@ const TeacherDashboard: React.FC = () => {
 					</CardContent>
 				</Card>
 
-				
+
 			</div>
 
 			{/* Quick Actions */}

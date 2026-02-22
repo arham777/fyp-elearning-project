@@ -162,7 +162,7 @@ const CatalogCard = ({
 
         <Button
           onClick={() => onClick(course.id)}
-          className="w-full h-10 mt-auto bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-500/20"
+          className="w-full h-10 mt-auto bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900 font-medium transition-all duration-300 group-hover:shadow-lg group-hover:shadow-black/5"
         >
           {isTeacher ? 'View Course' : (isEnrolled ? (isCompleted ? 'Review Course' : 'Continue Learning') : 'View Details')}
           <ChevronRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -378,7 +378,7 @@ const CoursesCatalog: React.FC = () => {
           {user?.role === 'teacher' && (
             <Button
               onClick={() => setIsCreateOpen(true)}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              className="bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900"
             >
               Create Course
             </Button>

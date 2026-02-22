@@ -123,7 +123,7 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
           </div>
           <div className="text-xs font-medium opacity-80">PAKISTAN</div>
         </div>
-        
+
         <div className="space-y-3">
           <div className="font-mono text-lg tracking-wider">
             {(() => {
@@ -134,7 +134,7 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
               return `+92 ${part1}${part2 ? ` ${part2}` : ''}`;
             })()}
           </div>
-          
+
           <div className="flex items-center gap-2 text-sm opacity-90">
             <CheckCircle2 className="w-4 h-4" />
             <span>Instant Payment</span>
@@ -216,7 +216,7 @@ const JazzCashPaymentForm: React.FC<JazzCashPaymentFormProps> = ({ course, onSuc
         <Button
           type="submit"
           disabled={isProcessing}
-          className="flex-1 bg-orange-600 hover:bg-orange-700"
+          className="flex-1 bg-[#e5e5e5] hover:bg-[#e5e5e5]/90 text-zinc-900"
         >
           {isProcessing ? (
             <>
