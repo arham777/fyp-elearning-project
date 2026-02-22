@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +61,31 @@ const ChatWidget: React.FC = () => {
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = React.useState(false);
+
+  const location = useLocation();
+  const isDashboard = location.pathname === '/app' || location.pathname === '/app/';
+  const [isPartiallyHidden, setIsPartiallyHidden] = React.useState(false);
+  const hideTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const startHideTimer = React.useCallback(() => {
+    if (isDashboard || isOpen) {
+      setIsPartiallyHidden(false);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      return;
+    }
+
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      setIsPartiallyHidden(true);
+    }, 5000);
+  }, [isDashboard, isOpen]);
+
+  React.useEffect(() => {
+    startHideTimer();
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [startHideTimer, location.pathname]);
 
   const scrollToBottom = React.useCallback((behavior: "smooth" | "auto" = "smooth") => {
     if (messagesEndRef.current) {
@@ -331,11 +356,31 @@ const ChatWidget: React.FC = () => {
   if (!isOpen) {
     return (
       <Button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-10 right-10 h-28 w-28 z-50 hover:scale-110 transition-transform duration-300 bg-transparent hover:bg-transparent shadow-none border-none p-0 overflow-visible group"
+        onMouseEnter={() => {
+          setIsPartiallyHidden(false);
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        }}
+        onMouseLeave={startHideTimer}
+        onClick={(e) => {
+          if (isPartiallyHidden) {
+            e.preventDefault();
+            setIsPartiallyHidden(false);
+            startHideTimer();
+          } else {
+            setIsOpen(true);
+          }
+        }}
+        className={`fixed bottom-10 right-0 sm:right-10 h-28 w-28 z-50 transition-all duration-500 ease-in-out bg-transparent hover:bg-transparent shadow-none border-none p-0 overflow-visible group ${isPartiallyHidden ? "translate-x-20 opacity-60 hover:opacity-100" : "hover:scale-110 translate-x-0 opacity-100"
+          }`}
+        style={{ right: isPartiallyHidden ? '0px' : undefined }} // Ensure it hugs the edge on mobile when hidden
         size="icon"
       >
-        <div className="w-full h-full drop-shadow-2xl filter hover:drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)] transition-all duration-300">
+        <div className="w-full h-full drop-shadow-2xl filter hover:drop-shadow-[0_20px_20px_rgba(0,0,0,0.5)] transition-all duration-300 relative">
+          {isPartiallyHidden && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 bg-background/80 backdrop-blur-sm border border-border p-1 rounded-l-md shadow-md animate-pulse">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground"><path d="m15 18-6-6 6-6" /></svg>
+            </div>
+          )}
           <DotLottieReact
             src="/chatbot.lottie"
             loop
@@ -362,13 +407,13 @@ const ChatWidget: React.FC = () => {
         <header className="flex items-center justify-between px-4 py-4 bg-muted border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-background/50 backdrop-blur-sm overflow-hidden border border-border/50 shadow-sm">
-               <div className="absolute inset-0 scale-150 mt-2">
-                 <DotLottieReact
-                   src="/chatbot.lottie"
-                   loop
-                   autoplay
-                 />
-               </div>
+              <div className="absolute inset-0 scale-150 mt-2">
+                <DotLottieReact
+                  src="/chatbot.lottie"
+                  loop
+                  autoplay
+                />
+              </div>
             </div>
             <div>
               <h3 className="font-bold text-base leading-none tracking-tight text-foreground">Your AI Assistant</h3>
