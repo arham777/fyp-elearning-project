@@ -8,7 +8,7 @@ import rehypeRaw from "rehype-raw";
 import { chatbotApi, ReasoningStep } from "@/api/chatbot";
 import { getTokens } from "@/api/apiClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy } from "lucide-react";
@@ -53,6 +53,7 @@ const ChatWidget: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
   const historyLoadedRef = React.useRef<string | null>(null);
   const [copiedBlockId, setCopiedBlockId] = React.useState<string | null>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -166,6 +167,17 @@ const ChatWidget: React.FC = () => {
     [],
   );
 
+  const handleInput = React.useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      // Max height set to approx 3 lines (e.g. 72px)
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 72)}px`;
+    }
+  }, []);
+
+
+
   const saveSessionId = React.useCallback(
     (nextSessionId?: string) => {
       if (!nextSessionId) return;
@@ -202,6 +214,9 @@ const ChatWidget: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'; // Reset height
+    }
     setIsSending(true);
     setTimeout(() => scrollToBottom("smooth"), 50); // Force scroll on user send
 
@@ -293,6 +308,13 @@ const ChatWidget: React.FC = () => {
       setIsSending(false);
     }
   }, [input, isSending, saveSessionId, sessionId, toast, updateAssistantMessage]);
+
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSend();
+    }
+  }, [handleSend]);
 
   if (!isOpen) {
     return (
@@ -636,18 +658,21 @@ const ChatWidget: React.FC = () => {
             }}
             className="relative flex items-center"
           >
-            <Input
+            <Textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
               placeholder="Ask anything..."
-              className="pr-12 h-10 rounded-full border-muted-foreground/20 bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/50 placeholder:text-muted-foreground/50"
+              className="pr-12 min-h-[40px] max-h-[72px] resize-none overflow-y-auto rounded-xl sm:rounded-2xl border-muted-foreground/20 bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/50 placeholder:text-muted-foreground/50 py-2.5"
               disabled={isSending || !getTokens()?.access}
+              rows={1}
             />
             <Button
               type="submit"
               size="icon"
               disabled={isSending || !input.trim()}
-              className={`absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full shadow-sm transition-all duration-200 ${input.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground"
+              className={`absolute right-1.5 bottom-1.5 h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm transition-all duration-200 ${input.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground"
                 }`}
             >
               {isSending ? (
