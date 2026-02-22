@@ -14,6 +14,8 @@ export type CreateCourseFormValues = {
   description: string;
   category: string;
   price: number;
+  numberOfModules: number;
+  lessonsPerModule: number;
 };
 
 export default function CreateCourseForm({
@@ -44,6 +46,33 @@ export default function CreateCourseForm({
         category: values.category,
         price: Number(values.price),
       });
+
+      // Auto-generate curriculum
+      const numModules = Number(values.numberOfModules) || 0;
+      const numLessons = Number(values.lessonsPerModule) || 0;
+
+      if (numModules > 0) {
+        toast({ title: 'Generating Curriculum', description: `Creating ${numModules} modules...` });
+
+        for (let m = 1; m <= numModules; m++) {
+          const module = await coursesApi.createCourseModule(course.id, {
+            title: `Module ${m}`,
+            description: `Auto-generated module ${m}`,
+          });
+
+          if (numLessons > 0) {
+            for (let l = 1; l <= numLessons; l++) {
+              await coursesApi.createModuleContent(course.id, module.id, {
+                module: module.id,
+                title: `Lesson ${l}`,
+                content_type: 'reading',
+                text: '<p>Please replace this placeholder with your actual lesson content.</p>',
+              });
+            }
+          }
+        }
+      }
+
       toast({ title: 'Course created', description: 'Your course has been created as a draft.' });
       reset();
       onCreated?.(course);
@@ -141,6 +170,52 @@ export default function CreateCourseForm({
           )}
         </div>
 
+        <div className="space-y-4 pt-4 border-t border-border/50">
+          <div className="space-y-1">
+            <h4 className="text-sm font-medium leading-none">Auto-Generate Curriculum (Optional)</h4>
+            <p className="text-[13px] text-muted-foreground">Save time by generating a skeleton structure for your course.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="numberOfModules">Number of Modules</Label>
+              <Input
+                id="numberOfModules"
+                type="number"
+                min="0"
+                max="20"
+                placeholder="e.g. 5"
+                {...register('numberOfModules', {
+                  setValueAs: (v) => (v === '' || v === null || typeof v === 'undefined' ? 0 : Number(v)),
+                  min: { value: 0, message: 'Cannot be negative' },
+                  max: { value: 20, message: 'Maximum 20 modules' },
+                })}
+              />
+              {errors.numberOfModules && (
+                <p className="text-sm text-destructive">{errors.numberOfModules.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="lessonsPerModule">Lessons per Module</Label>
+              <Input
+                id="lessonsPerModule"
+                type="number"
+                min="0"
+                max="20"
+                placeholder="e.g. 3"
+                {...register('lessonsPerModule', {
+                  setValueAs: (v) => (v === '' || v === null || typeof v === 'undefined' ? 0 : Number(v)),
+                  min: { value: 0, message: 'Cannot be negative' },
+                  max: { value: 20, message: 'Maximum 20 lessons per module' },
+                })}
+              />
+              {errors.lessonsPerModule && (
+                <p className="text-sm text-destructive">{errors.lessonsPerModule.message}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="pt-2 flex items-center justify-end gap-2">
           {onCancel && (
             <Button
@@ -153,7 +228,7 @@ export default function CreateCourseForm({
             </Button>
           )}
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating…' : 'Create Course'}
+            {isSubmitting ? 'Creating Course & Curriculum...' : 'Create Course'}
           </Button>
         </div>
       </form>
