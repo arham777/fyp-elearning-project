@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,7 @@ const ChatWidget: React.FC = () => {
   const historyLoadedRef = React.useRef<string | null>(null);
   const [copiedBlockId, setCopiedBlockId] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -291,8 +293,13 @@ const ChatWidget: React.FC = () => {
         },
       );
       updateAssistantMessage(assistantId, (message) => ({ ...message, isStreaming: false }));
-    } catch (err: any) {
-      const errorMessage = err.message || "I could not process that right now. Please try again.";
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "I could not process that right now. Please try again.";
       updateAssistantMessage(assistantId, (message) => ({
         ...message,
         text: errorMessage,
@@ -611,6 +618,21 @@ const ChatWidget: React.FC = () => {
                           ),
                           tr: ({ node, ...props }) => (
                             <tr className="[&:last-child>td]:border-b-0 hover:bg-muted/30 transition-colors" {...props} />
+                          ),
+                          a: ({ node, href, children, ...props }) => (
+                            <a
+                              href={href}
+                              onClick={(e) => {
+                                if (href?.startsWith("/")) {
+                                  e.preventDefault();
+                                  navigate(href);
+                                }
+                              }}
+                              className="text-primary font-medium hover:underline cursor-pointer transition-colors"
+                              {...props}
+                            >
+                              {children}
+                            </a>
                           )
                         }}
                       >

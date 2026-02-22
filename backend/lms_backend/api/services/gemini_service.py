@@ -319,7 +319,8 @@ class CerebrasChatbotService:
             f"User query:\n{query}\n\n"
             f"Tool/context data:\n{json.dumps(context_data, ensure_ascii=True)}\n\n"
             "If asked who you are or what you can do, explain capabilities from capability manifest naturally. "
-            "Provide concise, accurate, role-aware guidance."
+            "Provide concise, accurate, role-aware guidance. "
+            "IMPORTANT: When mentioning a specific course or listing courses in a table, ALWAYS format the course title as a markdown link using its ID: `[Course Title](/app/courses/<id>)`."
         )
         reasoning_trace.append({"stage": "synthesis", "text": "Synthesizing final answer from context and role policy."})
         return system_prompt, context_data, function_calls, reasoning_trace + [
