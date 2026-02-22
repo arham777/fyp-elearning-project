@@ -1522,6 +1522,33 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
             })
         instance.delete()
 
+    @action(detail=False, methods=['post'], url_path='reorder',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def reorder(self, request, course_pk=None):
+        """Bulk reorder modules for a course.
+
+        Body: { "ordered_ids": [3, 1, 2] }
+        Each module gets order = (index+1) * 5.
+        """
+        course = get_object_or_404(Course, pk=course_pk)
+        user = request.user
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        ordered_ids = request.data.get('ordered_ids', [])
+        if not isinstance(ordered_ids, list) or len(ordered_ids) == 0:
+            return Response({"detail": "ordered_ids must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        with transaction.atomic():
+            # Temporarily set all orders to negative to avoid unique constraint violations
+            CourseModule.objects.filter(course_id=course_pk, id__in=ordered_ids).update(order=-F('id'))
+            for idx, module_id in enumerate(ordered_ids):
+                CourseModule.objects.filter(id=module_id, course_id=course_pk).update(order=(idx + 1) * 5)
+
+        modules = CourseModule.objects.filter(course_id=course_pk).order_by('order')
+        return Response(CourseModuleSerializer(modules, many=True).data)
+
 class ContentViewSet(viewsets.ModelViewSet):
     serializer_class = ContentSerializer
     permission_classes = [permissions.IsAuthenticated, IsActiveUser]
@@ -1564,6 +1591,20 @@ class ContentViewSet(viewsets.ModelViewSet):
                 if not self.request.data.get('text'):
                     raise serializers.ValidationError({
                         'text': 'Text is required for reading content.'
+                    })
+            elif content_type == 'file':
+                file_provided = 'file' in self.request.FILES and self.request.FILES.get('file') is not None
+                if not file_provided:
+                    raise serializers.ValidationError({
+                        'file': 'A file must be provided for file content.'
+                    })
+                # Validate file size (50MB limit)
+                uploaded_file = self.request.FILES.get('file')
+                max_size = 50 * 1024 * 1024  # 50MB
+                if uploaded_file.size > max_size:
+                    size_mb = round(uploaded_file.size / (1024 * 1024), 2)
+                    raise serializers.ValidationError({
+                        'file': f'File is too large ({size_mb}MB). Maximum allowed size is 50MB.'
                     })
             # Step-based ordering with optional insertion after a specific content
             step = 5
@@ -1638,6 +1679,34 @@ class ContentViewSet(viewsets.ModelViewSet):
                 'detail': "You don't have permission to delete content for this module"
             })
         instance.delete()
+
+    @action(detail=False, methods=['post'], url_path='reorder',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def reorder(self, request, course_pk=None, module_pk=None):
+        """Bulk reorder content items within a module.
+
+        Body: { "ordered_ids": [5, 3, 7, 1] }
+        Each content item gets order = (index+1) * 5.
+        """
+        module = get_object_or_404(CourseModule, pk=module_pk)
+        course = module.course
+        user = request.user
+        if user.role == 'teacher' and course.teacher_id != user.id:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        ordered_ids = request.data.get('ordered_ids', [])
+        if not isinstance(ordered_ids, list) or len(ordered_ids) == 0:
+            return Response({"detail": "ordered_ids must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        with transaction.atomic():
+            # Temporarily set all orders to negative to avoid unique constraint violations
+            Content.objects.filter(module_id=module_pk, id__in=ordered_ids).update(order=-F('id'))
+            for idx, content_id in enumerate(ordered_ids):
+                Content.objects.filter(id=content_id, module_id=module_pk).update(order=(idx + 1) * 5)
+
+        contents = Content.objects.filter(module_id=module_pk).order_by('order')
+        return Response(ContentSerializer(contents, many=True).data)
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def progress(self, request, course_pk=None, module_pk=None):

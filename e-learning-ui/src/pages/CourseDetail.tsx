@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useCourseNavigation } from '@/hooks/useCourseNavigation';
 import { coursesApi } from '@/api/courses';
@@ -18,6 +18,9 @@ import { toast } from '@/hooks/use-toast';
 import BackButton from '@/components/ui/back-button';
 import { updateEnrollmentCache } from '@/utils/courseNavigation';
 import PaymentModal from '@/components/payment/PaymentModal';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableItem } from '@/components/dnd/SortableItem';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,7 +112,7 @@ const CourseDetail: React.FC = () => {
         if (user?.role === 'student' && !isEnrolledInCourse && mods.length > 0) {
           const contentsMap: Record<number, any[]> = {};
           const assignmentsMap: Record<number, any[]> = {};
-          
+
           await Promise.all(
             (mods as CourseModule[]).map(async (module) => {
               try {
@@ -126,7 +129,7 @@ const CourseDetail: React.FC = () => {
               }
             })
           );
-          
+
           setModuleContents(contentsMap);
           setModuleAssignments(assignmentsMap);
         }
@@ -158,6 +161,31 @@ const CourseDetail: React.FC = () => {
     const mods = await coursesApi.getCourseModules(courseId).catch(() => [] as CourseModule[]);
     setModules(mods as CourseModule[]);
   };
+
+  // --- Drag-and-Drop for modules ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleModuleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = modules.findIndex((m) => m.id === Number(active.id));
+    const newIndex = modules.findIndex((m) => m.id === Number(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(modules, oldIndex, newIndex);
+    setModules(reordered); // optimistic update
+    const orderedIds = reordered.map((m) => m.id);
+    try {
+      await coursesApi.reorderCourseModules(courseId, orderedIds);
+    } catch {
+      toast({ title: 'Failed to reorder modules', variant: 'destructive' });
+      await refreshModules();
+    }
+  }, [modules, courseId]);
 
   useEffect(() => {
     // Ensure we don't keep an invalid selection (like "after last module")
@@ -325,8 +353,8 @@ const CourseDetail: React.FC = () => {
       const detail = typeof respData === 'string'
         ? respData
         : (dataRec?.detail as string | undefined)
-          || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
-          || 'Failed to update module';
+        || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
+        || 'Failed to update module';
       toast({ title: 'Error', description: String(detail), variant: 'destructive' });
     } finally {
       setIsUpdating(false);
@@ -686,62 +714,66 @@ const CourseDetail: React.FC = () => {
           {modules.length === 0 ? (
             <div className="text-sm text-muted-foreground">No modules added yet.</div>
           ) : (
-            <ol className="space-y-4 list-decimal pl-6">
-              {modules.map((m) => (
-                <li key={m.id} className="text-foreground">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="font-medium">{m.title}</div>
-                      {m.description && (
-                        <div className="text-sm text-muted-foreground mb-2">{m.description}</div>
-                      )}
-                      
-                      {/* Show content preview for non-enrolled students */}
-                      {user?.role === 'student' && !isEnrolled && (moduleContents[m.id] || moduleAssignments[m.id]) && (
-                        <div className="ml-4 mt-2 space-y-1">
-                          {/* Contents */}
-                          {moduleContents[m.id]?.map((content: any) => (
-                            <div key={`content-${content.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
-                              <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
-                              <span>{content.title}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {content.content_type === 'video' ? 'Video' : 'Reading'}
-                              </Badge>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
+              <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-4">
+                  {modules.map((m) => (
+                    <SortableItem key={m.id} id={m.id} disabled={!(isTeacher && !course.is_published)}>
+                      <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                        <div className="flex-1">
+                          <div className="font-medium">{m.title}</div>
+                          {m.description && (
+                            <div className="text-sm text-muted-foreground mb-2">{m.description}</div>
+                          )}
+
+                          {/* Show content preview for non-enrolled students */}
+                          {user?.role === 'student' && !isEnrolled && (moduleContents[m.id] || moduleAssignments[m.id]) && (
+                            <div className="ml-4 mt-2 space-y-1">
+                              {/* Contents */}
+                              {moduleContents[m.id]?.map((content: any) => (
+                                <div key={`content-${content.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
+                                  <span>{content.title}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {content.content_type === 'video' ? 'Video' : content.content_type === 'file' ? 'File' : 'Reading'}
+                                  </Badge>
+                                </div>
+                              ))}
+
+                              {/* Assignments */}
+                              {moduleAssignments[m.id]?.map((assignment: any) => (
+                                <div key={`assignment-${assignment.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
+                                  <span>{assignment.title}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {assignment.assignment_type === 'mcq' ? 'Quiz' : 'Assignment'}
+                                  </Badge>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                          
-                          {/* Assignments */}
-                          {moduleAssignments[m.id]?.map((assignment: any) => (
-                            <div key={`assignment-${assignment.id}`} className="text-sm text-muted-foreground flex items-center gap-2">
-                              <span className="w-2 h-2 bg-muted-foreground/40 rounded-full flex-shrink-0"></span>
-                              <span>{assignment.title}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {assignment.assignment_type === 'mcq' ? 'Quiz' : 'Assignment'}
-                              </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* For non-enrolled students, show preview message instead of Open button */}
+                          {user?.role === 'student' && !isEnrolled ? (
+                            <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                              Enroll to access
                             </div>
-                          ))}
+                          ) : (
+                            <Button size="sm" asChild>
+                              <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
+                            </Button>
+                          )}
+                          {isTeacher && !course.is_published && (
+                            <Button size="sm" onClick={() => openEdit(m)}>Edit</Button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* For non-enrolled students, show preview message instead of Open button */}
-                      {user?.role === 'student' && !isEnrolled ? (
-                        <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                          Enroll to access
-                        </div>
-                      ) : (
-                        <Button size="sm" asChild>
-                          <Link to={`${basePath}/${courseId}/modules/${m.id}`}>Open</Link>
-                        </Button>
-                      )}
-                      {isTeacher && !course.is_published && (
-                        <Button size="sm" onClick={() => openEdit(m)}>Edit</Button>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                      </div>
+                    </SortableItem>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </CardContent>
       </Card>

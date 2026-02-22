@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,9 @@ import {
   AlertDialogTrigger as AlertTrigger,
 } from '@/components/ui/alert-dialog';
 import ProfessionalRichTextEditor from '@/components/richtext/ProfessionalRichTextEditor';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableItem } from '@/components/dnd/SortableItem';
 
 const ModuleDetail: React.FC = () => {
   const { id, moduleId } = useParams();
@@ -165,6 +168,32 @@ const ModuleDetail: React.FC = () => {
     if (!Number.isNaN(courseId) && !Number.isNaN(modId)) load();
   }, [courseId, modId]);
 
+  // --- Drag-and-Drop for content items ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleContentDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = contents.findIndex((c) => c.id === Number(active.id));
+    const newIndex = contents.findIndex((c) => c.id === Number(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(contents, oldIndex, newIndex);
+    setContents(reordered); // optimistic update
+    const orderedIds = reordered.map((c) => c.id);
+    try {
+      await coursesApi.reorderModuleContents(courseId, modId, orderedIds);
+    } catch {
+      toast({ title: 'Failed to reorder content', variant: 'destructive' });
+      const refreshed = await coursesApi.getModuleContents(courseId, modId);
+      setContents(refreshed);
+    }
+  }, [contents, courseId, modId]);
+
   useEffect(() => {
     if (insertAfter !== 'end') {
       const lastId = contents.length > 0 ? contents[contents.length - 1].id : null;
@@ -203,7 +232,7 @@ const ModuleDetail: React.FC = () => {
       const detail = typeof respData === 'string'
         ? respData
         : (dataRec?.detail as string | undefined)
-          || 'Failed to delete content';
+        || 'Failed to delete content';
       toast({ title: 'Error', description: String(detail) });
     } finally {
       setIsDeleting(false);
@@ -253,11 +282,11 @@ const ModuleDetail: React.FC = () => {
       const detail = typeof respData === 'string'
         ? respData
         : (dataRec?.detail as string | undefined)
-          || Object.keys(dataRec || {}).map((k) => {
-               const v = dataRec ? dataRec[k] : undefined;
-               return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
-             }).shift()
-          || 'Failed to create assignment';
+        || Object.keys(dataRec || {}).map((k) => {
+          const v = dataRec ? dataRec[k] : undefined;
+          return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
+        }).shift()
+        || 'Failed to create assignment';
       toast({ title: 'Error', description: String(detail) });
     } finally {
       setIsSaving(false);
@@ -279,8 +308,8 @@ const ModuleDetail: React.FC = () => {
         const maxSize = 100 * 1024 * 1024; // 100MB
         if (videoFile.size > maxSize) {
           const sizeMB = (videoFile.size / (1024 * 1024)).toFixed(2);
-          toast({ 
-            title: 'File too large', 
+          toast({
+            title: 'File too large',
             description: `Video size is ${sizeMB}MB. Maximum allowed is 100MB for Cloudinary free plan.`,
             variant: 'destructive'
           });
@@ -296,7 +325,7 @@ const ModuleDetail: React.FC = () => {
         await coursesApi.createModuleContentUpload(courseId, modId, fd, (progressEvent) => {
           setUploadProgress(progressEvent.progress || 0);
         });
-      } else {
+      } else if (form.content_type === 'reading') {
         const payload: {
           module: number;
           title: string;
@@ -333,12 +362,12 @@ const ModuleDetail: React.FC = () => {
       const detail = typeof respData === 'string'
         ? respData
         : (dataRec?.detail as string | undefined)
-          || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
-          || Object.keys(dataRec || {}).map((k) => {
-               const v = dataRec ? dataRec[k] : undefined;
-               return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
-             }).shift()
-          || 'Failed to add content';
+        || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
+        || Object.keys(dataRec || {}).map((k) => {
+          const v = dataRec ? dataRec[k] : undefined;
+          return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
+        }).shift()
+        || 'Failed to add content';
       toast({ title: 'Error', description: String(detail) });
     } finally {
       setIsSaving(false);
@@ -440,27 +469,27 @@ const ModuleDetail: React.FC = () => {
         const maxSize = 100 * 1024 * 1024; // 100MB
         if (editVideoFile.size > maxSize) {
           const sizeMB = (editVideoFile.size / (1024 * 1024)).toFixed(2);
-          toast({ 
-            title: 'File too large', 
+          toast({
+            title: 'File too large',
             description: `Video size is ${sizeMB}MB. Maximum allowed is 100MB for Cloudinary free plan.`,
             variant: 'destructive'
           });
           setIsUpdating(false);
           return;
         }
-        
+
         const fd = new FormData();
         fd.append('title', editForm.title.trim());
         fd.append('content_type', 'video');
         fd.append('video', editVideoFile);
         if (editForm.duration_minutes) fd.append('duration_minutes', String(editForm.duration_minutes));
-        
+
         if (editInsertAfter !== '__unchanged__') {
           const afterVal = editInsertAfter === 'end' ? 'end' : Number(editInsertAfter);
           const order = computeOrderAfter(afterVal, editing.id);
           fd.append('order', String(order));
         }
-        
+
         await coursesApi.updateModuleContentWithFile(courseId, modId, editing.id, fd, (progressEvent) => {
           setEditUploadProgress(progressEvent.progress || 0);
         });
@@ -493,11 +522,10 @@ const ModuleDetail: React.FC = () => {
           payload
         );
       }
-      
+
       const refreshed = await coursesApi.getModuleContents(courseId, modId);
       setContents(refreshed);
       setIsEditOpen(false);
-      setEditing(null);
       setEditVideoFile(null);
       setEditUploadProgress(0);
       toast({ title: 'Content updated' });
@@ -510,12 +538,12 @@ const ModuleDetail: React.FC = () => {
       const detail = typeof respData === 'string'
         ? respData
         : (dataRec?.detail as string | undefined)
-          || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
-          || Object.keys(dataRec || {}).map((k) => {
-               const v = dataRec ? dataRec[k] : undefined;
-               return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
-             }).shift()
-          || 'Failed to update content';
+        || (Array.isArray(orderArr) && typeof orderArr[0] === 'string' ? orderArr[0] : undefined)
+        || Object.keys(dataRec || {}).map((k) => {
+          const v = dataRec ? dataRec[k] : undefined;
+          return Array.isArray(v) ? `${k}: ${String(v[0])}` : `${k}: ${String(v)}`;
+        }).shift()
+        || 'Failed to update content';
       toast({ title: 'Error', description: String(detail) });
     } finally {
       setIsUpdating(false);
@@ -614,7 +642,7 @@ const ModuleDetail: React.FC = () => {
                               <span>{uploadProgress}%</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
+                              <div
                                 className="h-full bg-primary transition-all duration-300"
                                 style={{ width: `${uploadProgress}%` }}
                               />
@@ -680,36 +708,39 @@ const ModuleDetail: React.FC = () => {
           {contents.length === 0 ? (
             <div className="text-sm text-muted-foreground">No content yet.</div>
           ) : (
-            <ol className="space-y-3 list-decimal pl-6">
-              {contents.map((c) => (
-                <li key={c.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{c.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {c.content_type === 'video' ? 'Video' : 'Reading'}
-                        {!isTeacherOrAdmin && <> • order {c.order}</>}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleContentDragEnd}>
+              <SortableContext items={contents.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {contents.map((c) => (
+                    <SortableItem key={c.id} id={c.id} disabled={!canEdit}>
+                      <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                        <div>
+                          <div className="font-medium">{c.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.content_type === 'video' ? 'Video' : 'Reading'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleOpen(c)}>
+                            {user?.role === 'teacher'
+                              ? 'View'
+                              : completedIds.includes(c.id)
+                                ? (c.content_type === 'video' ? 'Rewatch' : 'Read again')
+                                : (c.content_type === 'video' ? 'Watch content' : 'Read content')}
+                          </Button>
+                          {canEdit && (
+                            <Button size="sm" onClick={() => openEdit(c)}>Edit</Button>
+                          )}
+                          {user?.role === 'student' && completedIds.includes(c.id) ? (
+                            <Badge variant="secondary">Completed</Badge>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleOpen(c)}>
-                        {user?.role === 'teacher'
-                          ? 'View'
-                          : completedIds.includes(c.id)
-                            ? (c.content_type === 'video' ? 'Rewatch' : 'Read again')
-                            : (c.content_type === 'video' ? 'Watch content' : 'Read content')}
-                      </Button>
-                      {canEdit && (
-                        <Button size="sm" onClick={() => openEdit(c)}>Edit</Button>
-                      )}
-                      {user?.role === 'student' && completedIds.includes(c.id) ? (
-                        <Badge variant="secondary">Completed</Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                    </SortableItem>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </CardContent>
       </Card>
@@ -1012,7 +1043,7 @@ const ModuleDetail: React.FC = () => {
                           <span>{editUploadProgress}%</span>
                         </div>
                         <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-primary transition-all duration-300"
                             style={{ width: `${editUploadProgress}%` }}
                           />
@@ -1106,8 +1137,9 @@ const ModuleDetail: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 

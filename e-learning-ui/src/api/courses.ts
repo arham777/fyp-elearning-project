@@ -112,6 +112,16 @@ export const coursesApi = {
     await apiClient.delete(`/courses/${courseId}/modules/${moduleId}/`);
   },
 
+  async reorderCourseModules(courseId: number, orderedIds: number[]): Promise<CourseModule[]> {
+    const response = await apiClient.post(`/courses/${courseId}/modules/reorder/`, { ordered_ids: orderedIds });
+    return response.data;
+  },
+
+  async reorderModuleContents(courseId: number, moduleId: number, orderedIds: number[]) {
+    const response = await apiClient.post(`/courses/${courseId}/modules/${moduleId}/content/reorder/`, { ordered_ids: orderedIds });
+    return response.data;
+  },
+
   async getModuleContents(courseId: number, moduleId: number) {
     const response = await apiClient.get(`/courses/${courseId}/modules/${moduleId}/content/`);
     return response.data;
@@ -147,11 +157,11 @@ export const coursesApi = {
     const response = await apiClient.post(
       `/courses/${courseId}/modules/${moduleId}/content/`,
       formData,
-      { 
+      {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           if (onUploadProgress) {
-            const progress = progressEvent.total 
+            const progress = progressEvent.total
               ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
               : 0;
             onUploadProgress({
@@ -260,7 +270,7 @@ export const coursesApi = {
     contentId: number,
     data: {
       title?: string;
-      content_type?: 'video' | 'reading';
+      content_type?: 'video' | 'reading' | 'file';
       url?: string;
       text?: string;
       order?: number;
@@ -288,7 +298,7 @@ export const coursesApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           if (onUploadProgress) {
-            const progress = progressEvent.total 
+            const progress = progressEvent.total
               ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
               : 0;
             onUploadProgress({
@@ -369,7 +379,7 @@ export const coursesApi = {
       // Fallback: get completed assignments by checking submissions
       const assignments = await this.getCourseAssignments(courseId);
       const completedIds: number[] = [];
-      
+
       for (const assignment of assignments) {
         try {
           const submissions = await this.getAssignmentSubmissions(courseId, assignment.id);
@@ -397,14 +407,14 @@ export const coursesApi = {
 
     const completedAssignmentIds: number[] = [];
     const assignmentResults: Record<number, { score: number; passed: boolean; totalPoints: number; attemptsUsed: number; maxAttempts: number; canRetake: boolean }> = {};
-    
+
     for (const assignment of assignments) {
       try {
         const submissions = await this.getAssignmentSubmissions(courseId, assignment.id);
         const userSubmissions = submissions.filter(s => s.grade !== null);
-        const bestSubmission = userSubmissions.reduce((best, current) => 
+        const bestSubmission = userSubmissions.reduce((best, current) =>
           !best || current.grade > best.grade ? current : best, null as any);
-        
+
         if (bestSubmission) {
           const score = bestSubmission.grade;
           const totalPoints = assignment.total_points || 100;
@@ -413,7 +423,7 @@ export const coursesApi = {
           const attemptsUsed = userSubmissions.length;
           const maxAttempts = assignment.max_attempts || 3;
           const canRetake = attemptsUsed < maxAttempts && !passed;
-          
+
           assignmentResults[assignment.id] = {
             score,
             passed,
@@ -422,7 +432,7 @@ export const coursesApi = {
             maxAttempts,
             canRetake
           };
-          
+
           if (passed) {
             completedAssignmentIds.push(assignment.id);
           }

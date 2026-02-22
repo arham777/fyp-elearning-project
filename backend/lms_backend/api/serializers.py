@@ -65,7 +65,6 @@ class ContentSerializer(serializers.ModelSerializer):
                 url = url()
             if isinstance(url, str) and url:
                 rep['video'] = url
-                return rep
         except Exception:
             pass
         # If DRF returned a relative media path, convert to absolute using request (legacy local files)
