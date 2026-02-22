@@ -148,6 +148,18 @@ export const coursesApi = {
     return response.data;
   },
 
+  async generateLesson(
+    topic: string,
+    audience: string,
+    tone: string
+  ): Promise<{ content: string; detail?: string }> {
+    const response = await apiClient.post(
+      `/courses/generate-lesson/`,
+      { topic, audience, tone }
+    );
+    return response.data;
+  },
+
   async createModuleContentUpload(
     courseId: number,
     moduleId: number,

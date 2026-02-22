@@ -12,7 +12,8 @@ import { Assignment, Content, CourseModule, Course } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Sparkles, Wand2 } from 'lucide-react';
+import { marked } from 'marked';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,38 @@ const ModuleDetail: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  // AI Assistant state
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiAudience, setAiAudience] = useState('Beginner');
+  const [aiTone, setAiTone] = useState('Professional');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiGeneratedHTML, setAiGeneratedHTML] = useState('');
+
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) return;
+    setIsGenerating(true);
+    try {
+      const res = await coursesApi.generateLesson(aiTopic, aiAudience, aiTone);
+      const html = await marked.parse(res.content);
+      setAiGeneratedHTML(html);
+      toast({ title: 'Draft generated successfully!' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to generate content. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const insertAIContent = () => {
+    if (isAddOpen) {
+      setForm((f) => ({ ...f, text: aiGeneratedHTML }));
+    } else if (isEditOpen) {
+      setEditForm((f) => ({ ...f, text: aiGeneratedHTML }));
+    }
+    setIsAIAssistantOpen(false);
+  };
 
   // Assignment form state
   const [assignForm, setAssignForm] = useState<{
@@ -584,7 +617,14 @@ const ModuleDetail: React.FC = () => {
                 <DialogTrigger asChild>
                   <Button size="sm">Add Content</Button>
                 </DialogTrigger>
-                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+                <DialogContent
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onInteractOutside={(e) => {
+                    if (isAIAssistantOpen) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   <DialogHeader>
                     <DialogTitle>Add content</DialogTitle>
                     <DialogDescription>Provide details according to type.</DialogDescription>
@@ -652,7 +692,17 @@ const ModuleDetail: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-2 relative z-50">
-                        <Label htmlFor="create-reading-editor">Reading text</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="create-reading-editor">Reading text</Label>
+                          <Button
+                            type="button"
+                            className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                            onClick={() => { setAiGeneratedHTML(''); setIsAIAssistantOpen(true); }}
+                          >
+                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                            AI Assistant
+                          </Button>
+                        </div>
                         <ProfessionalRichTextEditor
                           id="create-reading-editor"
                           className="pointer-events-auto"
@@ -984,7 +1034,14 @@ const ModuleDetail: React.FC = () => {
 
       {canEdit && (
         <Dialog modal={false} open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogContent
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onInteractOutside={(e) => {
+              if (isAIAssistantOpen) {
+                e.preventDefault();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Edit content</DialogTitle>
               <DialogDescription>Update content details and save.</DialogDescription>
@@ -1067,7 +1124,17 @@ const ModuleDetail: React.FC = () => {
                 </>
               ) : (
                 <div className="space-y-2 relative z-50">
-                  <Label htmlFor="edit-reading-editor">Reading text</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="edit-reading-editor">Reading text</Label>
+                    <Button
+                      type="button"
+                      className="h-7 text-xs flex items-center gap-1 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white transition-all border-none"
+                      onClick={() => { setAiGeneratedHTML(''); setIsAIAssistantOpen(true); }}
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-white" />
+                      AI Assistant
+                    </Button>
+                  </div>
                   <ProfessionalRichTextEditor
                     id="edit-reading-editor"
                     className="pointer-events-auto"
@@ -1137,8 +1204,105 @@ const ModuleDetail: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )
-      }
+      )}
+
+      {/* AI Assistant Dialog */}
+      <Dialog open={isAIAssistantOpen} onOpenChange={setIsAIAssistantOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-[#e66c19]" />
+              AI Content Assistant
+            </DialogTitle>
+            <DialogDescription>
+              Generate high-quality educational content in seconds.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4 overflow-y-auto pr-2">
+            {!aiGeneratedHTML ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-topic">Topic *</Label>
+                  <Input
+                    id="ai-topic"
+                    placeholder="e.g. Introduction to Machine Learning"
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-audience">Target Audience</Label>
+                    <Select value={aiAudience} onValueChange={setAiAudience}>
+                      <SelectTrigger id="ai-audience">
+                        <SelectValue placeholder="Select audience" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Beginner">Beginner</SelectItem>
+                        <SelectItem value="Intermediate">Intermediate</SelectItem>
+                        <SelectItem value="Advanced">Advanced</SelectItem>
+                        <SelectItem value="Children">Children</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-tone">Tone</Label>
+                    <Select value={aiTone} onValueChange={setAiTone}>
+                      <SelectTrigger id="ai-tone">
+                        <SelectValue placeholder="Select tone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Professional">Professional</SelectItem>
+                        <SelectItem value="Casual">Casual</SelectItem>
+                        <SelectItem value="Enthusiastic">Enthusiastic</SelectItem>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label>Generated Draft</Label>
+                <div className="border rounded-md p-4 bg-muted/30 shadow-inner overflow-y-auto max-h-[50vh] prose prose-sm max-w-none dark:prose-invert">
+                  <div dangerouslySetInnerHTML={{ __html: aiGeneratedHTML }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            {!aiGeneratedHTML ? (
+              <Button
+                onClick={handleAIGenerate}
+                disabled={!aiTopic.trim() || isGenerating}
+                className="w-full sm:w-auto gap-2 bg-[#e66c19] hover:bg-[#e66c19]/90 text-white"
+              >
+                {isGenerating ? 'Generating...' : (
+                  <>
+                    <Wand2 className="h-4 w-4" />
+                    Generate Draft
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="flex w-full justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => setAiGeneratedHTML('')}
+                  disabled={isGenerating}
+                >
+                  Regenerate / Edit Topic
+                </Button>
+                <Button onClick={insertAIContent}>
+                  Insert Content
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 };

@@ -22,6 +22,7 @@ import logging
 import time
 import json
 import os
+import openai
 from decimal import Decimal, ROUND_HALF_UP
 try:
     import stripe
@@ -1436,6 +1437,55 @@ class CourseViewSet(viewsets.ModelViewSet):
             notif_type='course_approval'
         )
         return Response(CourseDetailSerializer(course).data)
+
+    @action(detail=False, methods=['post'], url_path='generate-lesson',
+            permission_classes=[permissions.IsAuthenticated, IsTeacherOrAdmin])
+    def generate_lesson(self, request):
+        """Generate reading content using OpenRouter AI."""
+        topic = request.data.get('topic', '').strip()
+        audience = request.data.get('audience', 'Beginner').strip()
+        tone = request.data.get('tone', 'Professional').strip()
+
+        if not topic:
+            return Response({"detail": "Topic is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get OpenRouter configuration from environment
+        base_url = os.getenv("AI_BASE_URL", "https://openrouter.ai/api/v1")
+        api_key = os.getenv("AI_API_KEY", "")
+        model_id = os.getenv("AI_MODEL_ID", "z-ai/glm-4.5-air:free")
+
+        if not api_key or api_key == "sk-or-your-key-here":
+            return Response({"detail": "AI generation is not fully configured (missing API key)."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        try:
+            client = openai.OpenAI(base_url=base_url, api_key=api_key)
+            
+            system_prompt = (
+                "You are an expert educational content creator. Your task is to write a comprehensive lesson on the user's topic.\n\n"
+                "Rules:\n"
+                "- Output STRICTLY in Markdown format (Use # for headers, ** for bold, - for lists).\n"
+                "- Do NOT output conversational filler like 'Here is your lesson' or 'Certainly!'. Start directly with the content.\n"
+                "- Structure the content with: 1) Introduction, 2) Key Concepts, 3) Examples, 4) Summary.\n"
+                "- Ensure the tone matches the requested style and level."
+            )
+            
+            user_prompt = f"Topic: {topic}\nTarget Audience: {audience}\nTone: {tone}"
+
+            response = client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.7,
+            )
+            
+            generated_content = response.choices[0].message.content.strip()
+            return Response({"content": generated_content}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error generating lesson via OpenRouter: {str(e)}")
+            return Response({"detail": f"Failed to generate lesson: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
     serializer_class = CourseModuleSerializer
