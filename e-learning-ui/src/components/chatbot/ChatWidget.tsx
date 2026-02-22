@@ -263,6 +263,10 @@ const ChatWidget: React.FC = () => {
             });
             return;
           }
+          if (event.type === "tool_call") {
+            // Silently ignore tool call events — they are internal
+            return;
+          }
           if (event.type === "token") {
             const text = String(event.data.text || "");
             updateAssistantMessage(assistantId, (message) => ({

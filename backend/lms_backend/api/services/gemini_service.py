@@ -200,7 +200,12 @@ class CerebrasChatbotService:
                 function_calls,
             )
         elif role == "admin":
-            if any(token in q for token in ["platform", "overview", "dashboard", "snapshot", "stats"]):
+            if any(token in q for token in [
+                "platform", "overview", "dashboard", "snapshot", "stats",
+                "total", "how many", "count", "number of",
+                "students", "teachers", "users", "enrollments",
+                "courses",
+            ]):
                 self._call_tool(
                     available_tools,
                     "get_platform_snapshot",
