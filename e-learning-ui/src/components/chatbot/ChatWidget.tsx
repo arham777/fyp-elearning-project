@@ -12,6 +12,17 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent as AlertContent,
+  AlertDialogDescription as AlertDescription,
+  AlertDialogFooter as AlertFooter,
+  AlertDialogHeader as AlertHeader,
+  AlertDialogTitle as AlertTitle,
+  AlertDialogTrigger as AlertTrigger,
+} from '@/components/ui/alert-dialog';
 
 type ChatRole = "user" | "assistant";
 
@@ -42,6 +53,38 @@ const ChatWidget: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
   const historyLoadedRef = React.useRef<string | null>(null);
   const [copiedBlockId, setCopiedBlockId] = React.useState<string | null>(null);
+
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = React.useState(false);
+
+  const scrollToBottom = React.useCallback((behavior: "smooth" | "auto" = "smooth") => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    }
+  }, []);
+
+  const handleScroll = React.useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 100;
+    setShowScrollButton(isScrolledUp);
+  }, []);
+
+  // Scroll to bottom when chat opens or history finishes loading
+  React.useEffect(() => {
+    if (isOpen && !isLoadingHistory) {
+      setTimeout(() => scrollToBottom("auto"), 50);
+      setTimeout(() => scrollToBottom("auto"), 300); // Fallback for slower renders
+    }
+  }, [isOpen, isLoadingHistory, scrollToBottom]);
+
+  // Auto-scroll when messages update (e.g. streaming), if user is near the bottom
+  React.useEffect(() => {
+    if (!showScrollButton) {
+      scrollToBottom("smooth");
+    }
+  }, [messages, showScrollButton, scrollToBottom]);
 
   const sessionKey = React.useMemo(
     () => (user?.id ? `chatbot_session_${user.id}` : "chatbot_session"),
@@ -160,6 +203,7 @@ const ChatWidget: React.FC = () => {
     setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setInput("");
     setIsSending(true);
+    setTimeout(() => scrollToBottom("smooth"), 50); // Force scroll on user send
 
     try {
       await chatbotApi.streamQuery(
@@ -269,7 +313,7 @@ const ChatWidget: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 pointer-events-none flex items-end justify-end p-4 sm:p-6" aria-label="Chatbot Container">
       <section
-        className={`pointer-events-auto flex flex-col bg-background rounded-2xl shadow-2xl border border-border overflow-hidden transition-all duration-300 ease-in-out w-[calc(100vw-2rem)] h-[80vh] max-h-[calc(100vh-2rem)] ${isExpanded
+        className={`pointer-events-auto relative flex flex-col bg-background rounded-2xl shadow-2xl border border-border overflow-hidden transition-all duration-300 ease-in-out w-[calc(100vw-2rem)] h-[80vh] max-h-[calc(100vh-2rem)] ${isExpanded
           ? "sm:w-[800px] sm:h-[85vh] sm:max-h-[900px]"
           : "sm:w-[380px] sm:h-[600px] sm:max-h-[600px]"
           }`}
@@ -300,20 +344,37 @@ const ChatWidget: React.FC = () => {
             >
               {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
-              onClick={() => {
-                setMessages([]);
-                setSessionId(undefined);
-                historyLoadedRef.current = null;
-                try { localStorage.removeItem(sessionKey); } catch { /* ignore */ }
-              }}
-              title="Clear chat"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12" /><path d="M3 3v9h9" /></svg>
-            </Button>
+            <AlertDialog>
+              <AlertTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+                  title="Clear chat"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12" /><path d="M3 3v9h9" /></svg>
+                </Button>
+              </AlertTrigger>
+              <AlertContent>
+                <AlertHeader>
+                  <AlertTitle>Clear chat history?</AlertTitle>
+                  <AlertDescription>
+                    This will permanently delete your current conversation history. You cannot undo this action.
+                  </AlertDescription>
+                </AlertHeader>
+                <AlertFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                    setMessages([]);
+                    setSessionId(undefined);
+                    historyLoadedRef.current = null;
+                    try { localStorage.removeItem(sessionKey); } catch { /* ignore */ }
+                  }}>
+                    Clear Chat
+                  </AlertDialogAction>
+                </AlertFooter>
+              </AlertContent>
+            </AlertDialog>
             <Button
               size="icon"
               variant="ghost"
@@ -326,7 +387,11 @@ const ChatWidget: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+        >
           {isLoadingHistory && (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-primary/60" />
@@ -509,15 +574,15 @@ const ChatWidget: React.FC = () => {
                           table: ({ node, ...props }) => (
                             <div className="not-prose w-full max-w-full my-4 rounded-xl border-2 border-white border-solid overflow-hidden bg-background/50">
                               <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-                                <table className="w-full text-sm text-left border-collapse m-0" {...props} />
+                                <table className="w-full text-[12px] text-left border-collapse m-0" {...props} />
                               </div>
                             </div>
                           ),
                           thead: ({ node, ...props }) => (
-                            <thead className="bg-muted/50 text-foreground" {...props} />
+                            <thead className="bg-muted/50 text-foreground text-[16px]" {...props} />
                           ),
                           th: ({ node, ...props }) => (
-                            <th className="px-4 py-3 font-semibold border-b-2 border-r-2 border-white border-solid last:border-r-0 whitespace-nowrap" {...props} />
+                            <th className="px-4 py-3 font-semibold border-b-2 border-r-2 border-white border-solid last:border-r-0 whitespace-nowrap text-left" {...props} />
                           ),
                           td: ({ node, ...props }) => (
                             <td className="px-4 py-3 border-b-2 border-r-2 border-white border-solid last:border-r-0 align-top" {...props} />
@@ -548,7 +613,20 @@ const ChatWidget: React.FC = () => {
               </div>
             );
           })}
+          <div ref={messagesEndRef} className="h-px shrink-0" />
         </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <Button
+            size="icon"
+            onClick={() => scrollToBottom("smooth")}
+            className="absolute bottom-20 right-6 h-9 w-9 rounded-full shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:text-foreground border border-border z-10 opacity-90 transition-opacity hover:opacity-100"
+            aria-label="Scroll down"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        )}
 
         <footer className="p-3 bg-background border-t">
           <form
