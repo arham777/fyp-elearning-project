@@ -97,9 +97,7 @@ const DashboardHeader: React.FC = () => {
         <div className="h-12 w-full rounded-full border border-border/60 bg-card shadow-sm flex items-center justify-between gap-3 px-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link to="/app" className="flex items-center gap-2 shrink-0 focus-visible:outline-none">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] border border-accent-orange/30 ring-0">
-                <GraduationCap className="h-4 w-4 text-accent-orange" />
-              </span>
+              <img src="/logo.png" alt="EduPlatform Logo" className="h-8 w-auto object-contain" />
               <div className="leading-tight">
                 <span className="block text-sm font-semibold">EduPlatform</span>
                 {user && (
@@ -204,9 +202,7 @@ const DashboardHeader: React.FC = () => {
               <SheetContent side="right" className="w-80 sm:w-96">
                 <SheetHeader>
                   <SheetTitle className="text-left flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] ring-1 ring-accent-orange/30">
-                      <GraduationCap className="h-4 w-4 text-accent-orange" />
-                    </span>
+                    <img src="/logo.png" alt="EduPlatform Logo" className="h-8 w-auto object-contain" />
                     <div className="leading-tight">
                       <span className="block text-sm font-semibold">EduPlatform</span>
                       {user && (

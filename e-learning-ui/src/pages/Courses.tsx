@@ -351,7 +351,7 @@ const Courses: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link to="/" className="flex items-center gap-2 text-xl font-semibold">
-              <GraduationCap className="h-7 w-7 text-orange-500" />
+              <img src="/logo.png" alt="EduPlatform Logo" className="h-7 w-auto object-contain" />
               <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
                 EDU-Platform
               </span>
@@ -582,7 +582,7 @@ const Courses: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5 text-orange-500" />
+              <img src="/logo.png" alt="EduPlatform Logo" className="h-5 w-auto object-contain" />
               <span className="text-sm text-zinc-400">© 2026 LearnHub. All rights reserved.</span>
             </div>
             <div className="flex items-center gap-6">

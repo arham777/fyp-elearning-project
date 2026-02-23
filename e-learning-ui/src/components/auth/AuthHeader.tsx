@@ -10,9 +10,7 @@ const AuthHeader: React.FC = () => {
                 to="/"
                 className="h-12 rounded-full border border-border/60 bg-card shadow-sm flex items-center gap-3 px-6 hover:bg-accent/50 transition-colors"
             >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-orange/15 text-[0] border border-accent-orange/30 ring-0">
-                    <GraduationCap className="h-4 w-4 text-accent-orange" />
-                </span>
+                <img src="/logo.png" alt="EduPlatform Logo" className="h-8 w-auto object-contain" />
                 <div className="leading-tight">
                     <span className="block text-sm font-semibold">EduPlatform</span>
                 </div>
